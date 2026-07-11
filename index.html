@@ -67,7 +67,9 @@
 
   /* ---------- MAPPA ---------- */
   #map{flex:1; background:#3d4a2a;}
-  #schema{flex:1; width:100%; display:block; background:#34401f;}
+  /* il canvas NON può usare flex:1 (non riceve altezza reale): lo ancoro al contenitore */
+  #schema{position:absolute; top:0; left:0; right:0; bottom:0; width:100%; height:100%;
+    display:block; background:#34401f;}
   .mapbar{position:absolute; top:10px; left:10px; right:10px; z-index:500; display:flex; gap:6px; pointer-events:none;}
   .pills{display:flex; gap:5px; pointer-events:auto; background:rgba(44,36,24,.88);
     padding:4px; border-radius:11px; backdrop-filter:blur(4px);}
@@ -347,7 +349,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.2";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.3";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -628,9 +630,15 @@
     var cv=document.getElementById("schema");
     var a=areaAttiva();
     var dpr=window.devicePixelRatio||1;
-    var W=cv.clientWidth,H=cv.clientHeight;
-    if(!W||!H) return;
+    // dimensioni: dal canvas, e se non ce le ha, dal contenitore (mai uscire in silenzio)
+    var W=cv.clientWidth, H=cv.clientHeight;
+    if(!W||!H){
+      var box=cv.parentNode.getBoundingClientRect();
+      W=Math.round(box.width); H=Math.round(box.height);
+    }
+    if(!W||!H){ setTimeout(drawSchema,120); return; }   // riprova finché il layout è pronto
     cv.width=W*dpr; cv.height=H*dpr;
+    cv.style.width=W+"px"; cv.style.height=H+"px";
     var ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.fillStyle="#34401f"; ctx.fillRect(0,0,W,H);
     ctx.strokeStyle="rgba(255,255,255,.05)"; ctx.lineWidth=1;
