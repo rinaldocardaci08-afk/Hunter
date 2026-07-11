@@ -138,6 +138,14 @@
   #navclose{background:var(--dark3); border:none; color:var(--cream); width:34px; height:34px;
     border-radius:9px; font-size:17px; flex-shrink:0;}
 
+  /* controlli zoom dello SCHEMA (stessa posizione di quelli di Leaflet) */
+  #schemazoom{position:absolute; top:56px; right:10px; z-index:600;
+    display:none; flex-direction:column; gap:6px;}
+  #schemazoom.show{display:flex;}
+  #schemazoom button{width:38px; height:38px; border-radius:10px;
+    background:rgba(44,36,24,.88); border:1px solid var(--dark3); color:var(--cream);
+    font-size:18px; backdrop-filter:blur(4px); padding:0;}
+
   /* ---------- BANNER MAPPATURA ---------- */
   #mapbanner{position:absolute; left:10px; right:10px; top:56px; z-index:650;
     background:rgba(192,57,43,.95); border-radius:12px; padding:10px 12px;
@@ -380,6 +388,13 @@
     <section class="view" id="v-mappa">
       <div id="map"></div>
       <canvas id="schema" style="display:none"></canvas>
+
+      <!-- controlli zoom dello SCHEMA -->
+      <div id="schemazoom">
+        <button id="sz-piu">+</button>
+        <button id="sz-meno">−</button>
+        <button id="sz-me">◎</button>
+      </div>
       <div class="mapbar">
         <div class="pills" id="pills" style="display:none">
           <button class="pill on" data-mode="sat" id="pill-sat">Satellite</button>
@@ -661,7 +676,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.10";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.11";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1013,8 +1028,13 @@
     if(psc) psc.classList.toggle("on", m==="schema");
     document.getElementById("map").style.display = m==="sat"?"block":"none";
     document.getElementById("schema").style.display = m==="schema"?"block":"none";
+    // controlli zoom: quelli di Leaflet in satellite, i miei nello schema
+    var sz=document.getElementById("schemazoom");
+    if(sz) sz.classList.toggle("show", m==="schema");
+    var lz=document.querySelector(".leaflet-control-zoom");
+    if(lz) lz.style.display = m==="schema" ? "none" : "";
     if(m==="sat"){ setTimeout(function(){ if(map){ map.invalidateSize(); renderPoste(); fitArea(); } },50); }
-    else { setTimeout(drawSchema,60); }
+    else { initSchemaTouch(); setTimeout(drawSchema,60); }
   }
   // i pulsanti Mappa/Schema esistono SOLO quando un'area è aperta
   function aggiornaPills(){
@@ -1031,62 +1051,251 @@
   }
 
   /* ---------- schema offline ---------- */
+  /* ---------- SCHEMA: mappa vettoriale NAVIGABILE (pan + zoom) ---------- */
+  var schemaView = null;   // {cx, cy, scale}  cx/cy = centro in metri, scale = px per metro
+  var schemaGeo  = null;   // {lat0, lng0, mLat, mLng} riferimento di proiezione
+
+  function schemaReset(){ schemaView = null; }
+
+  function schemaSetupGeo(all){
+    var lat0=all.reduce(function(s,p){return s+p.lat;},0)/all.length;
+    var lng0=all.reduce(function(s,p){return s+p.lng;},0)/all.length;
+    schemaGeo = { lat0:lat0, lng0:lng0, mLat:111320, mLng:111320*Math.cos(lat0*Math.PI/180) };
+  }
+  function geoToM(p){
+    return { x:(p.lng-schemaGeo.lng0)*schemaGeo.mLng, y:-(p.lat-schemaGeo.lat0)*schemaGeo.mLat };
+  }
+
   function drawSchema(){
     var cv=document.getElementById("schema");
+    if(!cv) return;
     var a=areaAttiva();
     var dpr=window.devicePixelRatio||1;
-    // dimensioni: dal canvas, e se non ce le ha, dal contenitore (mai uscire in silenzio)
     var W=cv.clientWidth, H=cv.clientHeight;
     if(!W||!H){
       var box=cv.parentNode.getBoundingClientRect();
       W=Math.round(box.width); H=Math.round(box.height);
     }
-    if(!W||!H){ setTimeout(drawSchema,120); return; }   // riprova finché il layout è pronto
+    if(!W||!H){ setTimeout(drawSchema,120); return; }
     cv.width=W*dpr; cv.height=H*dpr;
     cv.style.width=W+"px"; cv.style.height=H+"px";
     var ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.fillStyle="#34401f"; ctx.fillRect(0,0,W,H);
-    ctx.strokeStyle="rgba(255,255,255,.05)"; ctx.lineWidth=1;
-    for(var gx=0;gx<W;gx+=40){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
-    for(var gy=0;gy<H;gy+=40){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+
     var pts=(a&&a.poste)?a.poste.slice():[];
     if(!pts.length && !pos){
       ctx.fillStyle="#B89968"; ctx.font="14px sans-serif"; ctx.textAlign="center";
-      ctx.fillText(a? "Nessuna posta in quest'area" : "Crea prima un'area", W/2, H/2); return;
+      ctx.fillText(a? "Nessuna posta in quest'area" : "Apri un'area", W/2, H/2);
+      return;
     }
+
     var all=pts.slice(); if(pos) all.push(pos);
-    var lat0=all.reduce(function(s,p){return s+p.lat;},0)/all.length;
-    var lng0=all.reduce(function(s,p){return s+p.lng;},0)/all.length;
-    var mLat=111320, mLng=111320*Math.cos(lat0*Math.PI/180);
-    function xy(p){ return {x:(p.lng-lng0)*mLng, y:-(p.lat-lat0)*mLat}; }
-    var A=all.map(xy);
-    var minX=Math.min.apply(null,A.map(function(q){return q.x;})), maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
-    var minY=Math.min.apply(null,A.map(function(q){return q.y;})), maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
-    var pad=44, spanX=Math.max(maxX-minX,30), spanY=Math.max(maxY-minY,30);
-    var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
-    function px(p){ var q=xy(p); return {x:pad+(q.x-minX)*sc, y:pad+(q.y-minY)*sc}; }
-    if(navTarget&&pos){
+    if(!schemaGeo) schemaSetupGeo(all);
+
+    // prima apertura: inquadro tutto (fit)
+    if(!schemaView){
+      var A=all.map(geoToM);
+      var minX=Math.min.apply(null,A.map(function(q){return q.x;}));
+      var maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
+      var minY=Math.min.apply(null,A.map(function(q){return q.y;}));
+      var maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
+      var pad=50;
+      var spanX=Math.max(maxX-minX,40), spanY=Math.max(maxY-minY,40);
+      var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
+      schemaView = { cx:(minX+maxX)/2, cy:(minY+maxY)/2, scale:sc };
+    }
+
+    var V=schemaView;
+    // metri -> pixel schermo (con centro e zoom correnti)
+    function px(p){
+      var m=geoToM(p);
+      return { x: W/2 + (m.x - V.cx)*V.scale, y: H/2 + (m.y - V.cy)*V.scale };
+    }
+
+    // GRIGLIA metrica (si adatta allo zoom: 10m, 25m, 50m, 100m, 250m...)
+    var passi=[10,25,50,100,250,500,1000];
+    var passo=passi[0];
+    for(var pi=0; pi<passi.length; pi++){ if(passi[pi]*V.scale >= 45){ passo=passi[pi]; break; } passo=passi[pi]; }
+    var stepPx=passo*V.scale;
+    if(stepPx>8){
+      ctx.strokeStyle="rgba(255,255,255,.055)"; ctx.lineWidth=1;
+      var x0=W/2 - V.cx*V.scale, y0=H/2 - V.cy*V.scale;
+      var gx=x0 % stepPx; while(gx<0) gx+=stepPx;
+      for(; gx<W; gx+=stepPx){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+      var gy=y0 % stepPx; while(gy<0) gy+=stepPx;
+      for(; gy<H; gy+=stepPx){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+    }
+
+    // linea verso la posta scelta
+    if(navTarget && pos){
       var u=px(pos), t=px(navTarget);
-      ctx.strokeStyle="#E0B878"; ctx.lineWidth=2; ctx.setLineDash([6,6]);
+      ctx.strokeStyle="#E0B878"; ctx.lineWidth=2; ctx.setLineDash([7,6]);
       ctx.beginPath(); ctx.moveTo(u.x,u.y); ctx.lineTo(t.x,t.y); ctx.stroke(); ctx.setLineDash([]);
     }
+
+    // POSTE
+    var r = Math.max(9, Math.min(18, 13*Math.sqrt(V.scale/1.6)));
     pts.forEach(function(p,i){
       var c=px(p);
+      if(c.x<-40||c.x>W+40||c.y<-40||c.y>H+40) return;   // fuori schermo: salto
       var col = p.tipo==="occasionale" ? "#E0922B" : (p.tipo==="controposta" ? "#7B5EA7" : "#C0392B");
       ctx.fillStyle=(navTarget&&navTarget.id===p.id)?"#E0B878":col;
-      ctx.beginPath(); ctx.arc(c.x,c.y,13,0,7); ctx.fill();
+      ctx.beginPath(); ctx.arc(c.x,c.y,r,0,7); ctx.fill();
       ctx.strokeStyle="#F0E6D2"; ctx.lineWidth=2.5; ctx.stroke();
-      ctx.fillStyle="#fff"; ctx.font="700 12px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillStyle="#fff"; ctx.font="700 "+Math.round(r*0.9)+"px sans-serif";
+      ctx.textAlign="center"; ctx.textBaseline="middle";
       ctx.fillText(String(p.numero||(i+1)),c.x,c.y);
-      ctx.fillStyle="#F0E6D2"; ctx.font="11px sans-serif"; ctx.textBaseline="top";
-      ctx.fillText(p.nome||("Posta "+(i+1)),c.x,c.y+16);
+      if(r>10){
+        ctx.fillStyle="#F0E6D2"; ctx.font="11px sans-serif"; ctx.textBaseline="top";
+        ctx.fillText(p.nome||("Posta "+(i+1)),c.x,c.y+r+3);
+      }
+      if(p.note && p.note.trim() && r>10){
+        ctx.fillStyle="#E0B878"; ctx.font="11px sans-serif"; ctx.textBaseline="bottom";
+        ctx.fillText("⚠", c.x+r+6, c.y+4);
+      }
     });
+
+    // UTENTE
     if(pos){
       var c2=px(pos);
-      ctx.fillStyle="rgba(55,138,221,.18)"; ctx.beginPath(); ctx.arc(c2.x,c2.y,Math.max(pos.acc*sc,10),0,7); ctx.fill();
+      ctx.fillStyle="rgba(55,138,221,.16)";
+      ctx.beginPath(); ctx.arc(c2.x,c2.y,Math.max(pos.acc*V.scale,9),0,7); ctx.fill();
       ctx.fillStyle="#378ADD"; ctx.beginPath(); ctx.arc(c2.x,c2.y,8,0,7); ctx.fill();
       ctx.strokeStyle="#fff"; ctx.lineWidth=2.5; ctx.stroke();
     }
+
+    // SCALA metrica in basso
+    ctx.fillStyle="rgba(44,36,24,.85)";
+    ctx.fillRect(10, H-30, 8+passo*V.scale+52, 22);
+    ctx.strokeStyle="#F0E6D2"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(16, H-14); ctx.lineTo(16+passo*V.scale, H-14); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(16, H-18); ctx.lineTo(16, H-10); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(16+passo*V.scale, H-18); ctx.lineTo(16+passo*V.scale, H-10); ctx.stroke();
+    ctx.fillStyle="#F0E6D2"; ctx.font="11px sans-serif"; ctx.textAlign="left"; ctx.textBaseline="middle";
+    ctx.fillText(passo+" m", 22+passo*V.scale, H-14);
+  }
+
+  /* ---------- NAVIGAZIONE dello schema: trascina, pizzica, doppio tocco ---------- */
+  function schemaZoom(fattore, px_, py_){
+    if(!schemaView) return;
+    var cv=document.getElementById("schema");
+    var W=cv.clientWidth, H=cv.clientHeight;
+    var nuovo = Math.max(0.02, Math.min(40, schemaView.scale*fattore));
+    if(px_!=null && py_!=null){
+      // zoom centrato sul dito: il punto sotto il dito resta fermo
+      var mx = schemaView.cx + (px_ - W/2)/schemaView.scale;
+      var my = schemaView.cy + (py_ - H/2)/schemaView.scale;
+      schemaView.cx = mx - (px_ - W/2)/nuovo;
+      schemaView.cy = my - (py_ - H/2)/nuovo;
+    }
+    schemaView.scale = nuovo;
+    drawSchema();
+  }
+  function schemaCentraSuDiMe(){
+    if(!pos || !schemaGeo){ toast("Posizione non disponibile"); return; }
+    if(!schemaView) return;
+    var m=geoToM(pos);
+    schemaView.cx=m.x; schemaView.cy=m.y;
+    drawSchema();
+  }
+  function initSchemaTouch(){
+    var cv=document.getElementById("schema");
+    if(!cv || cv.__touchInit) return;
+    cv.__touchInit=true;
+
+    var trascino=false, lastX=0, lastY=0, mosso=false;
+    var pinch=false, distIniziale=0, scalaIniziale=1, pinchX=0, pinchY=0;
+    var ultimoTap=0;
+
+    function localXY(t){
+      var r=cv.getBoundingClientRect();
+      return { x:t.clientX-r.left, y:t.clientY-r.top };
+    }
+
+    cv.addEventListener("touchstart", function(e){
+      if(e.touches.length===1){
+        trascino=true; mosso=false;
+        var p=localXY(e.touches[0]);
+        lastX=p.x; lastY=p.y;
+      }else if(e.touches.length===2){
+        trascino=false; pinch=true;
+        var a=localXY(e.touches[0]), b=localXY(e.touches[1]);
+        distIniziale=Math.hypot(b.x-a.x, b.y-a.y);
+        scalaIniziale=schemaView?schemaView.scale:1;
+        pinchX=(a.x+b.x)/2; pinchY=(a.y+b.y)/2;
+      }
+      e.preventDefault();
+    }, {passive:false});
+
+    cv.addEventListener("touchmove", function(e){
+      if(!schemaView) return;
+      if(pinch && e.touches.length===2){
+        var a=localXY(e.touches[0]), b=localXY(e.touches[1]);
+        var d=Math.hypot(b.x-a.x, b.y-a.y);
+        if(distIniziale>0){
+          var f=(d/distIniziale)*(scalaIniziale/schemaView.scale);
+          schemaZoom(f, pinchX, pinchY);
+        }
+      }else if(trascino && e.touches.length===1){
+        var p=localXY(e.touches[0]);
+        var dx=p.x-lastX, dy=p.y-lastY;
+        if(Math.abs(dx)>2||Math.abs(dy)>2) mosso=true;
+        schemaView.cx -= dx/schemaView.scale;
+        schemaView.cy -= dy/schemaView.scale;
+        lastX=p.x; lastY=p.y;
+        drawSchema();
+      }
+      e.preventDefault();
+    }, {passive:false});
+
+    cv.addEventListener("touchend", function(e){
+      if(e.touches.length===0){
+        // tocco secco (non trascinato): seleziona la posta sotto il dito
+        if(trascino && !mosso && e.changedTouches.length===1){
+          var p=localXY(e.changedTouches[0]);
+          var ora=Date.now();
+          if(ora-ultimoTap < 300){ schemaZoom(1.8, p.x, p.y); ultimoTap=0; }
+          else { ultimoTap=ora; schemaTocco(p.x,p.y); }
+        }
+        trascino=false; pinch=false;
+      }
+    });
+
+    // mouse (per prova da PC)
+    var mouseGiu=false, mx0=0, my0=0;
+    cv.addEventListener("mousedown", function(e){ mouseGiu=true; var r=cv.getBoundingClientRect(); mx0=e.clientX-r.left; my0=e.clientY-r.top; });
+    cv.addEventListener("mousemove", function(e){
+      if(!mouseGiu||!schemaView) return;
+      var r=cv.getBoundingClientRect();
+      var x=e.clientX-r.left, y=e.clientY-r.top;
+      schemaView.cx -= (x-mx0)/schemaView.scale;
+      schemaView.cy -= (y-my0)/schemaView.scale;
+      mx0=x; my0=y; drawSchema();
+    });
+    cv.addEventListener("mouseup", function(){ mouseGiu=false; });
+    cv.addEventListener("mouseleave", function(){ mouseGiu=false; });
+    cv.addEventListener("wheel", function(e){
+      if(!schemaView) return;
+      var r=cv.getBoundingClientRect();
+      schemaZoom(e.deltaY<0?1.15:0.87, e.clientX-r.left, e.clientY-r.top);
+      e.preventDefault();
+    }, {passive:false});
+  }
+
+  /* tocco su una posta nello schema: apre la sua scheda */
+  function schemaTocco(x,y){
+    var a=areaAttiva();
+    if(!a || !schemaView || !schemaGeo) return;
+    var cv=document.getElementById("schema");
+    var W=cv.clientWidth, H=cv.clientHeight;
+    var V=schemaView, trovata=null, minD=1e9;
+    (a.poste||[]).forEach(function(p){
+      var m=geoToM(p);
+      var sx=W/2+(m.x-V.cx)*V.scale, sy=H/2+(m.y-V.cy)*V.scale;
+      var d=Math.hypot(sx-x, sy-y);
+      if(d<28 && d<minD){ minD=d; trovata=p; }
+    });
+    if(trovata) apriSchedaPosta(trovata);
   }
 
   /* ---------- navigazione ---------- */
@@ -1195,6 +1404,7 @@
     var a=areaAttiva(); if(!a) return;
     if(!(a.poste||[]).length){ toast("Questa mappa non ha ancora poste"); return; }
     areaApertaInMappa=true;
+    schemaReset(); schemaGeo=null;
     aggiornaPills();
     document.getElementById("m-areapop").classList.remove("show");
     document.getElementById("areatag").textContent="✕ "+a.nome;
@@ -1423,6 +1633,7 @@
     areaAttivaId=areaId;
     mappatura=true;
     areaApertaInMappa=true;      // in mappatura le poste si vedono
+    schemaReset(); schemaGeo=null;
     aggiornaPills();
     document.getElementById("mapbanner-area").textContent=a.nome+(a.comune?" · "+a.comune:"");
     document.getElementById("mapbanner").classList.add("show");
@@ -1609,6 +1820,9 @@
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.onclick=function(){ showView(b.dataset.view); }; });
 
     document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
+    document.getElementById("sz-piu").onclick=function(){ schemaZoom(1.5); };
+    document.getElementById("sz-meno").onclick=function(){ schemaZoom(0.67); };
+    document.getElementById("sz-me").onclick=schemaCentraSuDiMe;
     document.getElementById("areatag").onclick=chiudiAreaInMappa;
     document.getElementById("btn-mark").onclick=openNuovaPosta;
     document.getElementById("btn-center").onclick=centerOnUser;
