@@ -381,7 +381,11 @@
       <div id="map"></div>
       <canvas id="schema" style="display:none"></canvas>
       <div class="mapbar">
-        <div class="areatag" id="areatag" style="margin-left:0">Mappa</div>
+        <div class="pills" id="pills" style="display:none">
+          <button class="pill on" data-mode="sat" id="pill-sat">Satellite</button>
+          <button class="pill" data-mode="schema" id="pill-schema">Schema</button>
+        </div>
+        <div class="areatag" id="areatag">Mappa</div>
       </div>
 
       <!-- BUSSOLA sempre presente (toccabile: su iPhone attiva il sensore) -->
@@ -657,7 +661,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.9";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.10";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1004,10 +1008,19 @@
   }
   function setMode(m){
     mode=m;
+    var ps=document.getElementById("pill-sat"), psc=document.getElementById("pill-schema");
+    if(ps) ps.classList.toggle("on", m==="sat");
+    if(psc) psc.classList.toggle("on", m==="schema");
     document.getElementById("map").style.display = m==="sat"?"block":"none";
     document.getElementById("schema").style.display = m==="schema"?"block":"none";
     if(m==="sat"){ setTimeout(function(){ if(map){ map.invalidateSize(); renderPoste(); fitArea(); } },50); }
     else { setTimeout(drawSchema,60); }
+  }
+  // i pulsanti Mappa/Schema esistono SOLO quando un'area è aperta
+  function aggiornaPills(){
+    var p=document.getElementById("pills");
+    if(p) p.style.display = areaApertaInMappa ? "flex" : "none";
+    if(!areaApertaInMappa && mode==="schema") setMode("sat");
   }
   function refreshMapArea(){
     var a=areaAttiva();
@@ -1182,11 +1195,23 @@
     var a=areaAttiva(); if(!a) return;
     if(!(a.poste||[]).length){ toast("Questa mappa non ha ancora poste"); return; }
     areaApertaInMappa=true;
+    aggiornaPills();
     document.getElementById("m-areapop").classList.remove("show");
-    document.getElementById("areatag").textContent=a.nome;
+    document.getElementById("areatag").textContent="✕ "+a.nome;
     showView("mappa");
     setTimeout(function(){ renderPoste(); fitArea(); },200);
     toast("Tocca una posta per vederne le note");
+  }
+  /* chiude l'area: si torna alla mappa senza poste */
+  function chiudiAreaInMappa(){
+    if(!areaApertaInMappa || mappatura) return;
+    areaApertaInMappa=false;
+    aggiornaPills();
+    if(posteLayer) posteLayer.clearLayers();
+    document.getElementById("areatag").textContent="Mappa";
+    setMode("sat");
+    clearNav();
+    toast("Area chiusa");
   }
 
   /* apre il modale di modifica di una mappa esistente */
@@ -1398,6 +1423,7 @@
     areaAttivaId=areaId;
     mappatura=true;
     areaApertaInMappa=true;      // in mappatura le poste si vedono
+    aggiornaPills();
     document.getElementById("mapbanner-area").textContent=a.nome+(a.comune?" · "+a.comune:"");
     document.getElementById("mapbanner").classList.add("show");
     document.getElementById("areatag").textContent=a.nome;
@@ -1410,6 +1436,7 @@
   function esciMappatura(){
     mappatura=false;
     areaApertaInMappa=false;     // uscendo, le poste si nascondono
+    aggiornaPills();
     document.getElementById("mapbanner").classList.remove("show");
     document.getElementById("areatag").textContent="Mappa";
     aggiornaBarraAzioni();
@@ -1581,6 +1608,8 @@
 
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.onclick=function(){ showView(b.dataset.view); }; });
 
+    document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
+    document.getElementById("areatag").onclick=chiudiAreaInMappa;
     document.getElementById("btn-mark").onclick=openNuovaPosta;
     document.getElementById("btn-center").onclick=centerOnUser;
     document.getElementById("navclose").onclick=clearNav;
