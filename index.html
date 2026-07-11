@@ -105,6 +105,12 @@
 
   .hintbox{font-size:11px; color:var(--amber); margin-top:7px; min-height:14px;}
 
+  .accbox{display:none; align-items:center; gap:9px; padding:11px 12px; border-radius:11px;
+    background:#1d3a2a; border:1px solid #2d5a3f; font-size:13px; color:#9fe1cb; margin-bottom:8px;}
+  .accbox.show{display:flex;}
+  .accbox .em{flex:1; min-width:0; color:var(--cream);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
   .memrow{display:flex; align-items:center; gap:11px; padding:10px 11px;
     background:var(--dark2); border-radius:11px; margin-bottom:6px;}
   .memrow .av{width:36px; height:36px; border-radius:50%; flex-shrink:0;
@@ -558,6 +564,18 @@
           </button>
         </div>
 
+        <label class="lbl">Accesso all'app <span class="opt">(facoltativo)</span></label>
+        <div id="mb-acc-stato" class="accbox"></div>
+        <div id="mb-acc-form">
+          <input id="mb-email" type="email" class="inp" autocomplete="off" inputmode="email"
+                 autocapitalize="none" placeholder="email del cacciatore" style="margin-bottom:8px">
+          <input id="mb-pass" type="text" class="inp" autocomplete="off"
+                 placeholder="password iniziale (almeno 6 caratteri)">
+          <div class="hintbox" style="color:var(--muted)">
+            Gli serviranno per entrare nell'app. Potrà cambiare la password dopo.
+          </div>
+        </div>
+
         <label class="lbl">Permessi</label>
         <div id="mb-permessi">
           <button class="opz on" data-perm="porto_armi">
@@ -891,7 +909,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.17";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.18";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2381,6 +2399,7 @@
       s+=iconaMembro(m);
       s+='<div class="nm"><div class="a">'+esc(m.nome)+'</div><div class="b">'+esc(descrizioneMembro(m))+'</div></div>';
       if(m.puo_mappare) s+='<span class="tag">mappe</span>';
+      if(!m.user_id && m.tipo!=="ospite") s+='<span class="tag" style="background:#4a3320; color:#e0b878">no accesso</span>';
       if(m.porto_armi) s+='<svg class="ci" style="color:#E0B878"><use href="#ic-fucile"/></svg>';
       s+='</div>';
       return s;
@@ -2447,6 +2466,26 @@
     document.querySelector('#mb-permessi [data-perm="puo_mappare"]')
       .classList.toggle("on", m ? m.puo_mappare===true : false);
 
+    // stato dell'account
+    var box=document.getElementById("mb-acc-stato");
+    var form=document.getElementById("mb-acc-form");
+    document.getElementById("mb-email").value="";
+    document.getElementById("mb-pass").value="";
+    if(m && m.user_id){
+      box.className="accbox show";
+      box.innerHTML='<span>✓</span><span class="em">Ha già l\'accesso all\'app</span>';
+      form.style.display="none";
+    }else if(m && m.tipo==="ospite"){
+      box.className="accbox show";
+      box.style.background="#3a3122"; box.style.borderColor="#4a3f2c"; box.style.color="#b89968";
+      box.innerHTML='<span class="em">Gli ospiti non entrano nell\'app</span>';
+      form.style.display="none";
+    }else{
+      box.className="accbox";
+      box.style.background=""; box.style.borderColor=""; box.style.color="";
+      form.style.display="block";
+    }
+
     verificaLimiti();
     showView("membro");
   }
@@ -2487,6 +2526,25 @@
              porto_armi:porto, vede_aree:vAree, vede_poste:vPoste, puo_mappare:mappe };
   }
 
+  /* --- crea l'account di accesso per un componente (Edge Function) --- */
+  async function creaAccount(membroId, email, password){
+    var url = SUPABASE_URL + "/functions/v1/smart-responder";
+    var sess = await sb.auth.getSession();
+    var token = (sess.data && sess.data.session) ? sess.data.session.access_token : SUPABASE_KEY;
+    var r = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer " + token,
+        "apikey": SUPABASE_KEY
+      },
+      body: JSON.stringify({ email: email, password: password, membro_id: membroId })
+    });
+    var d = await r.json();
+    if(!r.ok || d.error) throw new Error(d.error || "Errore nella creazione dell'account");
+    return d;
+  }
+
   async function salvaMembro(){
     if(!puoGestireSquadra()){ toast("Non hai il permesso"); return; }
     var d=raccogliMembro();
@@ -2498,16 +2556,31 @@
       return;
     }
 
+    // account: solo se il componente non ce l'ha già
+    var email=document.getElementById("mb-email").value.trim();
+    var pass=document.getElementById("mb-pass").value;
+    var vuoleAccount = !!(email || pass);
+    var giaHa = membroEdit && membroEdit.user_id;
+
+    if(vuoleAccount && !giaHa){
+      if(!email || email.indexOf("@")<0){ toast("Email non valida"); return; }
+      if(!pass || pass.length<6){ toast("La password deve avere almeno 6 caratteri"); return; }
+      if(d.tipo==="ospite"){ toast("Gli ospiti non hanno accesso all'app"); return; }
+    }
+
     var btn=document.getElementById("mb-salva");
     var t=btn.textContent; btn.disabled=true; btn.textContent="Salvo…";
-    var r;
+
+    var r, membroId;
     try{
       if(membroEdit){
         r=await sb.from("hn_membri").update(d).eq("id",membroEdit.id).select().single();
+        membroId=membroEdit.id;
       }else{
         d.squadra_id=me.squadra_id;
         d.attivo=true;
         r=await sb.from("hn_membri").insert(d).select().single();
+        membroId=r.data ? r.data.id : null;
       }
       if(r.error) throw r.error;
     }catch(e){
@@ -2515,11 +2588,30 @@
       toast("Serve la rete per salvare");
       return;
     }
+
+    // creo l'account, se richiesto
+    if(vuoleAccount && !giaHa && membroId){
+      btn.textContent="Creo l'account…";
+      try{
+        await creaAccount(membroId, email, pass);
+        toast("Componente salvato · account creato");
+      }catch(e){
+        btn.disabled=false; btn.textContent=t;
+        var msg=String(e.message||e);
+        if(/already|registered|exists/i.test(msg)) toast("Questa email ha già un account");
+        else toast("Salvato, ma l'account non è stato creato: "+msg);
+        await caricaSquadra();
+        showView("squadra");
+        return;
+      }
+    }else{
+      toast("Componente salvato");
+    }
+
     btn.disabled=false; btn.textContent=t;
     membroEdit=null;
     await caricaSquadra();
     showView("squadra");
-    toast("Componente salvato");
   }
 
   async function eliminaMembro(){
@@ -2754,6 +2846,10 @@
       b.onclick=function(){
         document.querySelectorAll("#mb-tipo .chip").forEach(function(x){ x.classList.remove("on"); });
         b.classList.add("on");
+        // gli ospiti non hanno accesso all'app
+        var ospite = b.dataset.tipo==="ospite";
+        var giaHa = membroEdit && membroEdit.user_id;
+        document.getElementById("mb-acc-form").style.display = (ospite||giaHa) ? "none" : "block";
       };
     });
     document.querySelectorAll("#mb-carica .chip").forEach(function(b){
