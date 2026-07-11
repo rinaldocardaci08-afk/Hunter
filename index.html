@@ -53,7 +53,9 @@
   header .brand img{width:100%; height:100%; object-fit:cover;}
   header .t{font-size:15px; font-weight:600; color:var(--cream); line-height:1.1;}
   header .s{font-size:11px; color:var(--muted); margin-top:1px;}
-  header .gps{margin-left:auto; display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted);}
+  header .gps{margin-left:8px; display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted);}
+  header .ver{margin-left:auto; font-size:10px; color:var(--muted); background:var(--dark2);
+    border:1px solid var(--dark3); padding:3px 7px; border-radius:6px; flex-shrink:0;}
   header .gps .d{width:9px; height:9px; border-radius:50%; background:#777;}
   header .gps.ok .d{background:var(--green);}
   header .gps.weak .d{background:var(--amber);}
@@ -196,6 +198,7 @@
     <input id="l-pass" type="password" autocomplete="current-password">
     <button id="l-btn">Entra</button>
     <div class="err" id="l-err"></div>
+    <div style="text-align:center; margin-top:20px; font-size:11px; color:var(--muted)" id="l-ver">Hunter</div>
   </div>
 </div>
 
@@ -207,6 +210,7 @@
       <div class="t" id="h-squadra">Zannalunga</div>
       <div class="s" id="h-utente">—</div>
     </div>
+    <div class="ver" id="h-ver">v1</div>
     <div class="gps off" id="gpsdot"><span class="d"></span><span id="gpstxt">GPS</span></div>
     <button class="menubtn" id="btn-menu">☰</button>
   </header>
@@ -270,7 +274,7 @@
           <div style="font-size:13px; color:var(--muted); margin-bottom:12px;" id="i-account">—</div>
           <button class="btn line" id="btn-logout">Esci</button>
         </div>
-        <div style="text-align:center; color:var(--muted); font-size:11px; margin-top:18px">Hunter v1 · Zannalunga</div>
+        <div style="text-align:center; color:var(--muted); font-size:11px; margin-top:18px" id="i-ver">Hunter · Zannalunga</div>
       </div>
     </section>
   </main>
@@ -343,6 +347,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
+  var APP_VERSION = "v1.2";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -767,7 +772,7 @@
 
   /* ================= MENU ================= */
   function apriMenu(){
-    document.getElementById("menu-hd").textContent = me ? (me.nome+" · "+me.ruolo) : "—";
+    document.getElementById("menu-hd").textContent = (me ? (me.nome+" · "+me.ruolo) : "—") + "  ·  " + APP_VERSION;
     document.getElementById("menu-gps").textContent = (watchId!==null) ? "🔋  Sospendi GPS" : "🔋  Riattiva GPS";
     document.getElementById("menu").classList.add("show");
   }
@@ -816,6 +821,10 @@
 
   /* ================= AVVIO ================= */
   async function init(){
+    // versione visibile ovunque (da un'unica fonte)
+    document.getElementById("h-ver").textContent = APP_VERSION;
+    document.getElementById("l-ver").textContent = "Hunter " + APP_VERSION;
+    document.getElementById("i-ver").textContent = "Hunter " + APP_VERSION + " · Zannalunga";
     bind();
     initCompass();
     var s=await sb.auth.getSession();
