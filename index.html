@@ -66,6 +66,16 @@
     padding:7px 14px; font-size:12px; text-align:center;}
   #offlinebar.show{display:block;}
 
+  /* badge coda: poste segnate offline in attesa di caricamento */
+  #codabadge{flex-shrink:0; display:none; align-items:center; gap:9px;
+    background:#2a4d6e; color:#e8f2fc; padding:8px 13px; font-size:12px;}
+  #codabadge.show{display:flex;}
+  #codabadge .n{background:#e8f2fc; color:#1d3a5a; font-weight:700;
+    min-width:22px; height:22px; border-radius:11px; display:flex;
+    align-items:center; justify-content:center; font-size:12px; flex-shrink:0;}
+  #codabadge button{margin-left:auto; background:rgba(255,255,255,.9); border:none;
+    color:#1d3a5a; border-radius:7px; padding:6px 11px; font-size:12px; font-weight:600; flex-shrink:0;}
+
   main{flex:1; position:relative; overflow:hidden;}
   .view{position:absolute; inset:0; display:none; flex-direction:column;}
   .view.active{display:flex;}
@@ -291,6 +301,13 @@
   <!-- barra offline -->
   <div id="offlinebar">
     <span>📴 Senza rete · <span id="offline-quando">dati salvati</span></span>
+  </div>
+
+  <!-- badge coda: poste da caricare -->
+  <div id="codabadge">
+    <span class="n" id="coda-n">0</span>
+    <span id="coda-txt">poste da caricare</span>
+    <button id="coda-carica">Carica ora</button>
   </div>
 
   <main>
@@ -693,7 +710,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.14";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.15";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -816,6 +833,8 @@
     aggiornaBarraAzioni();
     await caricaAree();
     startGPS();
+    aggiornaBadgeCoda();
+    if(navigator.onLine) sincronizzaCoda(true);   // se c'è rete, svuoto la coda in silenzio
   }
 
   function applicaProfilo(){
@@ -919,9 +938,26 @@
     if(!areaAttivaId && aree.length) areaAttivaId=aree[0].id;
     if(areaAttivaId && !aree.find(function(a){return a.id===areaAttivaId;})) areaAttivaId=aree.length?aree[0].id:null;
 
+    // le poste ancora in coda (non caricate) devono restare visibili
+    innestaPosteInCoda();
+
     salvaCacheAree();   // salvo la copia per l'offline
     renderAree();
     refreshMapArea();
+    aggiornaBadgeCoda();
+  }
+
+  /* rimette nella vista le poste che sono ancora in coda (non salite su Supabase) */
+  function innestaPosteInCoda(){
+    var c=leggiCoda();
+    if(!c.length) return;
+    c.forEach(function(p){
+      var a=aree.find(function(x){return x.id===p.area_id;});
+      if(!a) return;
+      if(!a.poste) a.poste=[];
+      // evito i doppioni
+      if(!a.poste.find(function(x){return x.id===p.id;})) a.poste.push(p);
+    });
   }
   async function creaArea(){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
@@ -970,29 +1006,71 @@
     var tipo=document.getElementById("m-posta-tipo").value;
     var note=document.getElementById("m-posta-note").value.trim();
     var numero=(a.poste?a.poste.length:0)+1;
-    var btn=document.getElementById("m-posta-salva"); btn.disabled=true; btn.textContent="Salvo…";
-    var r=await sb.from("hn_poste").insert({
+
+    var dati={
       area_id:a.id, nome:nome, numero:numero,
       lat:pos.lat, lng:pos.lng, accuratezza:Math.round(pos.acc),
       tipo:tipo, note:note||null, creata_da:me.user_id
-    }).select().single();
+    };
+
+    var btn=document.getElementById("m-posta-salva"); btn.disabled=true; btn.textContent="Salvo…";
+
+    var salvata=null, inCoda=false;
+    try{
+      if(!navigator.onLine) throw new Error("offline");
+      var r=await sb.from("hn_poste").insert(dati).select().single();
+      if(r.error) throw r.error;
+      salvata=r.data;
+    }catch(e){
+      // SENZA RETE (o errore): la posta NON si perde, va in coda
+      inCoda=true;
+      dati.id = "coda_" + Date.now() + "_" + Math.random().toString(36).slice(2,7);
+      dati.in_coda = true;
+      aggiungiInCoda(dati);
+      salvata = dati;
+    }
+
     btn.disabled=false; btn.textContent="Salva posta";
-    if(r.error){ toast("Errore: "+r.error.message); return; }
     document.getElementById("m-posta").classList.remove("show");
     document.getElementById("m-posta-note").value="";
+
     if(!a.poste) a.poste=[];
-    a.poste.push(r.data);
+    a.poste.push(salvata);
+    salvaCacheAree();           // aggiorno anche la copia locale
+    schemaReset(); schemaGeo=null;
     renderAree(); refreshMapArea();
-    toast("Posta salvata: "+nome);
+
+    toast(inCoda ? ("Salvata sul telefono: "+nome+" · la caricherò appena c'è rete")
+                 : ("Posta salvata: "+nome));
   }
   async function eliminaPosta(areaId, postaId){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
     var p=a.poste.find(function(x){return x.id===postaId;});
     if(!confirm('Eliminare "'+(p?p.nome:"la posta")+'"?')) return;
-    var r=await sb.from("hn_poste").delete().eq("id",postaId);
-    if(r.error){ toast("Errore: "+r.error.message); return; }
+
+    // se è ancora in coda (non caricata), la tolgo solo dalla coda
+    if(p && p.in_coda){
+      var c=leggiCoda().filter(function(x){return x.id!==postaId;});
+      scriviCoda(c);
+      a.poste=a.poste.filter(function(x){return x.id!==postaId;});
+      salvaCacheAree();
+      schemaReset(); schemaGeo=null;
+      renderAree(); refreshMapArea();
+      toast("Posta eliminata");
+      return;
+    }
+
+    try{
+      var r=await sb.from("hn_poste").delete().eq("id",postaId);
+      if(r.error) throw r.error;
+    }catch(e){
+      toast("Serve la rete per eliminare una posta salvata");
+      return;
+    }
     a.poste=a.poste.filter(function(x){return x.id!==postaId;});
+    salvaCacheAree();
+    schemaReset(); schemaGeo=null;
     renderAree(); refreshMapArea();
     toast("Posta eliminata");
   }
@@ -1101,10 +1179,11 @@
     posteLayer=L.layerGroup().addTo(map);   // le poste (sopra)
     mapReady=true;
   }
-  function iconPosta(n,tipo){
+  function iconPosta(n,tipo,inCoda){
     var col = tipo==="occasionale" ? "#E0922B" : (tipo==="controposta" ? "#7B5EA7" : "#C0392B");
+    var bordo = inCoda ? "3px dashed #9FC8ED" : "3px solid #F0E6D2";
     return L.divIcon({className:"", iconSize:[30,30], iconAnchor:[15,15],
-      html:'<div style="width:30px;height:30px;border-radius:50%;background:'+col+';border:3px solid #F0E6D2;display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.5)">'+n+'</div>'});
+      html:'<div style="width:30px;height:30px;border-radius:50%;background:'+col+';border:'+bordo+';display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.5)">'+n+'</div>'});
   }
   function iconUser(){
     return L.divIcon({className:"", iconSize:[18,18], iconAnchor:[9,9],
@@ -1198,7 +1277,7 @@
     if(!puoMappare()) return;
     var a=areaAttiva(); if(!a||!a.poste) return;
     a.poste.forEach(function(p,i){
-      var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo)}).addTo(posteLayer);
+      var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda)}).addTo(posteLayer);
       m.on("click", function(){ apriSchedaPosta(p); });
     });
   }
@@ -1949,6 +2028,73 @@
     if(center) center.style.flex = mappatura ? "0 0 54px" : (puoMappare() ? "1" : "1");
   }
 
+  /* ================= CODA OFFLINE =================
+     Le poste segnate senza rete finiscono qui.
+     Restano sul telefono finché non torna il campo, poi salgono su Supabase.
+     Regola: non si perde MAI una posta segnata sul campo. */
+  var CODA_KEY = "hunter_coda_poste";
+  var sincronizzando = false;
+
+  function leggiCoda(){
+    try{ var d=JSON.parse(localStorage.getItem(CODA_KEY)); return Array.isArray(d)?d:[]; }
+    catch(e){ return []; }
+  }
+  function scriviCoda(c){
+    try{ localStorage.setItem(CODA_KEY, JSON.stringify(c)); }catch(e){}
+    aggiornaBadgeCoda();
+  }
+  function aggiungiInCoda(posta){
+    var c=leggiCoda();
+    c.push(posta);
+    scriviCoda(c);
+  }
+  function aggiornaBadgeCoda(){
+    var n=leggiCoda().length;
+    var b=document.getElementById("codabadge");
+    if(!b) return;
+    b.classList.toggle("show", n>0);
+    document.getElementById("coda-n").textContent = n;
+    document.getElementById("coda-txt").textContent =
+      n===1 ? "1 posta da caricare" : (n+" poste da caricare");
+  }
+
+  /* prova a caricare le poste in coda su Supabase */
+  async function sincronizzaCoda(silenzioso){
+    if(sincronizzando) return;
+    var c=leggiCoda();
+    if(!c.length) return;
+    if(!navigator.onLine){ if(!silenzioso) toast("Serve la rete per caricare"); return; }
+
+    sincronizzando=true;
+    if(!silenzioso) toast("Carico "+c.length+" post"+(c.length===1?"a":"e")+"…");
+
+    var rimaste=[], caricate=0;
+    for(var i=0;i<c.length;i++){
+      var p=c[i];
+      try{
+        var r=await sb.from("hn_poste").insert({
+          area_id:p.area_id, nome:p.nome, numero:p.numero,
+          lat:p.lat, lng:p.lng, accuratezza:p.accuratezza,
+          tipo:p.tipo, note:p.note||null, creata_da:p.creata_da
+        }).select().single();
+        if(r.error) throw r.error;
+        caricate++;
+      }catch(e){
+        rimaste.push(p);   // fallita: resta in coda, riproveremo
+      }
+    }
+    scriviCoda(rimaste);
+    sincronizzando=false;
+
+    if(caricate){
+      await caricaAree();   // ricarico dal database: ora le poste sono vere
+      toast(caricate+" post"+(caricate===1?"a caricata":"e caricate"));
+    }
+    if(rimaste.length && !silenzioso){
+      toast(rimaste.length+" non caricate: riprova più tardi");
+    }
+  }
+
   /* ================= BACHECA ================= */
   var annunci=[];
   async function caricaBacheca(){
@@ -2139,6 +2285,7 @@
       if(areaEditId) eliminaArea(areaEditId);
     };
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
+    document.getElementById("coda-carica").onclick=function(){ sincronizzaCoda(false); };
 
     // popup dell'area
     document.getElementById("ma-apri").onclick=apriAreaInMappa;
@@ -2185,7 +2332,10 @@
 
     // la rete torna: ricarico i dati freschi
     window.addEventListener("online", function(){
-      if(me){ toast("Rete tornata: aggiorno i dati"); caricaAree(); }
+      if(!me) return;
+      var n=leggiCoda().length;
+      if(n){ toast("Rete tornata: carico "+n+" post"+(n===1?"a":"e")); sincronizzaCoda(true); }
+      else { toast("Rete tornata: aggiorno i dati"); caricaAree(); }
     });
     window.addEventListener("offline", function(){
       var c=leggiCacheAree();
