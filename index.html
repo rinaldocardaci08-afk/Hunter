@@ -3,9 +3,6 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-<meta http-equiv="Pragma" content="no-cache">
-<meta http-equiv="Expires" content="0">
 <title>Hunter · Zannalunga</title>
 
 <!-- icona per la home dell'iPhone -->
@@ -63,6 +60,11 @@
   header .gps.ok .d{background:var(--green);}
   header .gps.weak .d{background:var(--amber);}
   header .gps.off .d{background:var(--red);}
+
+  /* barra offline */
+  #offlinebar{flex-shrink:0; display:none; background:#7a5a1d; color:#fbeed3;
+    padding:7px 14px; font-size:12px; text-align:center;}
+  #offlinebar.show{display:block;}
 
   main{flex:1; position:relative; overflow:hidden;}
   .view{position:absolute; inset:0; display:none; flex-direction:column;}
@@ -285,6 +287,11 @@
     <div class="gps off" id="gpsdot"><span class="d"></span><span id="gpstxt">GPS</span></div>
     <button class="menubtn" id="btn-menu">☰</button>
   </header>
+
+  <!-- barra offline -->
+  <div id="offlinebar">
+    <span>📴 Senza rete · <span id="offline-quando">dati salvati</span></span>
+  </div>
 
   <main>
     <!-- HOME -->
@@ -686,7 +693,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.13";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.14";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -753,62 +760,166 @@
       btn.disabled=false; btn.textContent="Entra";
     }
   }
+  var ME_KEY="hunter_me";
+
   async function afterLogin(){
-    var u=(await sb.auth.getUser()).data.user;
+    // getSession legge dal telefono e NON va in rete: funziona anche offline
+    var s=await sb.auth.getSession();
+    var u = (s.data && s.data.session) ? s.data.session.user : null;
     if(!u){ showLogin(); return; }
 
     // 1) carico il membro (query semplice, niente join annidata)
-    var rm=await sb.from("hn_membri")
-      .select("id,nome,ruolo,squadra_id,puo_mappare")
-      .eq("user_id",u.id).eq("attivo",true).limit(1);
-    if(rm.error){ showLogin("Errore membri: "+rm.error.message); return; }
+    var rm;
+    try{
+      rm=await sb.from("hn_membri")
+        .select("id,nome,ruolo,squadra_id,puo_mappare")
+        .eq("user_id",u.id).eq("attivo",true).limit(1);
+      if(rm.error) throw rm.error;
+    }catch(e){
+      // SENZA RETE: uso il profilo salvato sul telefono
+      var salvato=null;
+      try{ salvato=JSON.parse(localStorage.getItem(ME_KEY)); }catch(e2){}
+      if(salvato && salvato.user_id===u.id){
+        me=salvato;
+        applicaProfilo();
+        showApp();
+        showView("home");
+        initMapOnce();
+        aggiornaBarraAzioni();
+        await caricaAree();      // userà la cache
+        startGPS();
+        return;
+      }
+      showLogin("Serve la rete per il primo accesso");
+      return;
+    }
+
     if(!rm.data || !rm.data.length){ await sb.auth.signOut(); showLogin("Utente non associato a nessuna squadra"); return; }
     var m=rm.data[0];
 
     // 2) carico la squadra separatamente
     var squadraNome="Squadra";
-    var rs=await sb.from("hn_squadre").select("nome").eq("id",m.squadra_id).limit(1);
-    if(!rs.error && rs.data && rs.data.length) squadraNome=rs.data[0].nome;
+    try{
+      var rs=await sb.from("hn_squadre").select("nome").eq("id",m.squadra_id).limit(1);
+      if(!rs.error && rs.data && rs.data.length) squadraNome=rs.data[0].nome;
+    }catch(e3){}
 
     me={ user_id:u.id, email:u.email, membro_id:m.id, nome:m.nome, ruolo:m.ruolo,
          puo_mappare:(m.puo_mappare===true),
          squadra_id:m.squadra_id, squadra_nome:squadraNome };
+    try{ localStorage.setItem(ME_KEY, JSON.stringify(me)); }catch(e4){}
+
+    applicaProfilo();
+    showApp();
+    showView("home");
+    initMapOnce();
+    aggiornaBarraAzioni();
+    await caricaAree();
+    startGPS();
+  }
+
+  function applicaProfilo(){
     document.getElementById("h-squadra").textContent=me.squadra_nome;
     document.getElementById("h-utente").textContent=me.nome+" · "+me.ruolo;
     document.getElementById("home-squadra").textContent=me.squadra_nome;
     document.getElementById("home-utente").textContent=me.nome+" · "+me.ruolo;
     document.getElementById("i-account").textContent=me.nome+" ("+me.email+") · ruolo: "+me.ruolo;
-    showApp();
-    showView("home");
-    initMapOnce();
-    aggiornaBarraAzioni();   // il bottone "Segna posta" parte nascosto
-    await caricaAree();
-    startGPS();
   }
   async function doLogout(){
-    await sb.auth.signOut();
+    try{ await sb.auth.signOut(); }catch(e){}
+    // pulisco i dati locali: un altro utente non deve vederli
+    try{
+      localStorage.removeItem(ME_KEY);
+      localStorage.removeItem(CACHE_KEY);
+    }catch(e2){}
     me=null; aree=[]; areaAttivaId=null;
+    areaApertaInMappa=false; mappatura=false;
     stopGPS();
+    segnalaOffline(false);
     document.getElementById("l-pass").value="";
     showLogin();
   }
 
   /* ================= DATI (Supabase) ================= */
+  /* ================= CACHE LOCALE (offline) =================
+     Le aree e le poste scaricate si salvano sul telefono.
+     Se manca la rete, l'app le legge da qui invece che da Supabase.
+     Supabase resta la fonte di verità: questa è solo una copia di lavoro. */
+  var CACHE_KEY = "hunter_cache_aree";
+  var offline = false;   // true = stiamo lavorando senza rete
+
+  function salvaCacheAree(){
+    try{
+      localStorage.setItem(CACHE_KEY, JSON.stringify({
+        squadra_id: me ? me.squadra_id : null,
+        quando: Date.now(),
+        aree: aree
+      }));
+    }catch(e){ /* memoria piena: non è bloccante */ }
+  }
+  function leggiCacheAree(){
+    try{
+      var d=JSON.parse(localStorage.getItem(CACHE_KEY));
+      if(d && d.aree && me && d.squadra_id===me.squadra_id) return d;
+    }catch(e){}
+    return null;
+  }
+  function segnalaOffline(attivo, quando){
+    offline = attivo;
+    var b=document.getElementById("offlinebar");
+    if(!b) return;
+    b.classList.toggle("show", attivo);
+    if(attivo && quando){
+      var d=new Date(quando);
+      var gg=String(d.getDate()).padStart(2,"0"), mm=String(d.getMonth()+1).padStart(2,"0");
+      var hh=String(d.getHours()).padStart(2,"0"), mi=String(d.getMinutes()).padStart(2,"0");
+      document.getElementById("offline-quando").textContent="dati del "+gg+"/"+mm+" "+hh+":"+mi;
+    }
+  }
+
   async function caricaAree(){
     var root=document.getElementById("aree-scroll");
     root.innerHTML='<div class="loading">Carico le aree…</div>';
-    var ra=await sb.from("hn_aree").select("*").eq("squadra_id",me.squadra_id).order("creata_il",{ascending:true});
-    if(ra.error){ root.innerHTML='<div class="empty">Errore nel caricamento:<br>'+esc(ra.error.message)+'</div>'; return; }
+
+    var ra, rp;
+    try{
+      ra=await sb.from("hn_aree").select("*").eq("squadra_id",me.squadra_id).order("creata_il",{ascending:true});
+      if(ra.error) throw ra.error;
+    }catch(e){
+      // RETE ASSENTE: uso la copia salvata sul telefono
+      var c=leggiCacheAree();
+      if(c){
+        aree=c.aree||[];
+        segnalaOffline(true, c.quando);
+        if(!areaAttivaId && aree.length) areaAttivaId=aree[0].id;
+        renderAree(); refreshMapArea();
+        toast("Senza rete: uso i dati salvati sul telefono");
+        return;
+      }
+      root.innerHTML='<div class="empty">Senza rete e nessun dato salvato.<br>Collegati almeno una volta per scaricare le mappe.</div>';
+      segnalaOffline(true, null);
+      return;
+    }
+
+    // rete OK
+    segnalaOffline(false);
     aree=ra.data||[];
     if(aree.length){
       var ids=aree.map(function(a){return a.id;});
-      var rp=await sb.from("hn_poste").select("*").in("area_id",ids).order("numero",{ascending:true});
-      if(rp.error){ toast("Errore poste: "+rp.error.message); }
-      var poste=rp.data||[];
-      aree.forEach(function(a){ a.poste=poste.filter(function(p){return p.area_id===a.id;}); });
+      try{
+        rp=await sb.from("hn_poste").select("*").in("area_id",ids).order("numero",{ascending:true});
+        if(rp.error) throw rp.error;
+        var poste=rp.data||[];
+        aree.forEach(function(a){ a.poste=poste.filter(function(p){return p.area_id===a.id;}); });
+      }catch(e2){
+        toast("Errore nel caricare le poste");
+        aree.forEach(function(a){ if(!a.poste) a.poste=[]; });
+      }
     }
     if(!areaAttivaId && aree.length) areaAttivaId=aree[0].id;
     if(areaAttivaId && !aree.find(function(a){return a.id===areaAttivaId;})) areaAttivaId=aree.length?aree[0].id:null;
+
+    salvaCacheAree();   // salvo la copia per l'offline
     renderAree();
     refreshMapArea();
   }
@@ -1928,20 +2039,30 @@
   async function aggiornaApp(){
     toast("Cerco aggiornamenti…");
     try{
-      // 1) svuoto tutte le cache del browser per questa app
+      // 1) dico al service worker di svuotare le sue cache
+      if(navigator.serviceWorker && navigator.serviceWorker.controller){
+        navigator.serviceWorker.controller.postMessage("pulisci");
+      }
+      // 2) svuoto tutte le cache
       if(window.caches && caches.keys){
         var names=await caches.keys();
         for(var i=0;i<names.length;i++){ await caches.delete(names[i]); }
       }
-      // 2) rimuovo eventuali service worker registrati
+      // 3) tolgo i service worker: alla prossima apertura si reinstalla pulito
       if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
         var regs=await navigator.serviceWorker.getRegistrations();
         for(var j=0;j<regs.length;j++){ await regs[j].unregister(); }
       }
     }catch(e){ /* non bloccante */ }
-    // 3) ricarico forzando il download fresco (timestamp sempre diverso)
     var base=location.href.split("?")[0].split("#")[0];
     location.replace(base + "?agg=" + Date.now());
+  }
+
+  /* registro il service worker: fa aprire l'app anche senza rete */
+  function registraSW(){
+    if(!("serviceWorker" in navigator)) return;
+    // strategia network-first: non resta mai bloccato su una versione vecchia
+    navigator.serviceWorker.register("./sw.js").catch(function(){ /* non bloccante */ });
   }
 
   /* ================= MENU ================= */
@@ -2061,6 +2182,16 @@
       else { startGPS(); this.textContent="Sospendi GPS (risparmio batteria)"; }
     };
     window.addEventListener("resize",function(){ if(mode==="schema") drawSchema(); });
+
+    // la rete torna: ricarico i dati freschi
+    window.addEventListener("online", function(){
+      if(me){ toast("Rete tornata: aggiorno i dati"); caricaAree(); }
+    });
+    window.addEventListener("offline", function(){
+      var c=leggiCacheAree();
+      segnalaOffline(true, c?c.quando:null);
+      toast("Senza rete: uso i dati salvati");
+    });
   }
 
   /* ================= AVVIO ================= */
@@ -2072,6 +2203,7 @@
     document.getElementById("i-vernum").textContent = APP_VERSION;
     bind();
     initCompass();
+    registraSW();
     var s=await sb.auth.getSession();
     if(s.data && s.data.session){ await afterLogin(); }
     else showLogin();
