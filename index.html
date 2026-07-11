@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>Hunter · Zannalunga</title>
+
+<!-- icona per la home dell'iPhone -->
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Zannalunga">
+<meta name="theme-color" content="#2C2418">
+<link rel="manifest" href="manifest.json">
+
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{
+    --dark:#2C2418; --dark2:#3A3122; --dark3:#4A3F2C;
+    --gold:#E0B878; --cream:#F0E6D2; --brown:#8A5A2B; --muted:#B89968;
+    --red:#C0392B; --blue:#378ADD; --green:#5DAE6A; --amber:#E0922B;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; height:100%; background:var(--dark); color:var(--cream);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    overscroll-behavior:none; -webkit-text-size-adjust:100%;}
+  input,button,select,textarea{font-family:inherit; font-size:16px;}
+  #app{height:100%; display:flex; flex-direction:column;}
+
+  /* ---------- LOGIN ---------- */
+  #login{position:fixed; inset:0; z-index:3000; background:var(--dark);
+    display:flex; flex-direction:column; align-items:center; justify-content:center; padding:28px;}
+  #login.hide{display:none;}
+  #login .logo{width:120px; height:120px; border-radius:24px; margin-bottom:20px;
+    background:var(--dark2); display:flex; align-items:center; justify-content:center; font-size:60px; overflow:hidden;}
+  #login .logo img{width:100%; height:100%; object-fit:contain;}
+  #login h1{font-size:26px; margin:0 0 4px; color:var(--cream); font-weight:600; letter-spacing:1px;}
+  #login .sub{font-size:13px; color:var(--muted); margin-bottom:28px;}
+  #login .form{width:100%; max-width:340px;}
+  #login label{display:block; font-size:12px; color:var(--muted); margin:14px 0 6px;}
+  #login input{width:100%; background:var(--dark2); border:1px solid var(--dark3); color:var(--cream);
+    border-radius:12px; padding:14px;}
+  #login button{width:100%; margin-top:22px; background:var(--brown); color:var(--cream);
+    border:none; border-radius:12px; padding:15px; font-size:16px; font-weight:600;}
+  #login .err{margin-top:14px; font-size:13px; color:#e08b8b; text-align:center; min-height:18px;}
+
+  /* ---------- HEADER ---------- */
+  header{background:var(--dark); padding:11px 14px; display:flex; align-items:center; gap:10px;
+    border-bottom:1px solid var(--dark2); flex-shrink:0; padding-top:calc(11px + env(safe-area-inset-top));}
+  header .brand{width:32px; height:32px; border-radius:8px; background:var(--brown); overflow:hidden;
+    display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;}
+  header .brand img{width:100%; height:100%; object-fit:cover;}
+  header .t{font-size:15px; font-weight:600; color:var(--cream); line-height:1.1;}
+  header .s{font-size:11px; color:var(--muted); margin-top:1px;}
+  header .gps{margin-left:auto; display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted);}
+  header .gps .d{width:9px; height:9px; border-radius:50%; background:#777;}
+  header .gps.ok .d{background:var(--green);}
+  header .gps.weak .d{background:var(--amber);}
+  header .gps.off .d{background:var(--red);}
+
+  main{flex:1; position:relative; overflow:hidden;}
+  .view{position:absolute; inset:0; display:none; flex-direction:column;}
+  .view.active{display:flex;}
+
+  /* ---------- MAPPA ---------- */
+  #map{flex:1; background:#3d4a2a;}
+  #schema{flex:1; width:100%; display:block; background:#34401f;}
+  .mapbar{position:absolute; top:10px; left:10px; right:10px; z-index:500; display:flex; gap:6px; pointer-events:none;}
+  .pills{display:flex; gap:5px; pointer-events:auto; background:rgba(44,36,24,.88);
+    padding:4px; border-radius:11px; backdrop-filter:blur(4px);}
+  .pill{font-size:12px; padding:7px 11px; border-radius:8px; color:var(--muted); border:none; background:transparent;}
+  .pill.on{background:var(--brown); color:var(--cream);}
+  .areatag{margin-left:auto; pointer-events:auto; background:rgba(44,36,24,.88); backdrop-filter:blur(4px);
+    padding:8px 11px; border-radius:9px; font-size:12px; color:var(--gold); max-width:46%;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+  #navpanel{position:absolute; left:10px; right:10px; bottom:92px; z-index:500;
+    background:rgba(44,36,24,.95); border:1px solid var(--dark3); border-radius:16px;
+    padding:13px; display:none; align-items:center; gap:13px; backdrop-filter:blur(6px);}
+  #navpanel.show{display:flex;}
+  .arrowwrap{width:70px; height:70px; flex-shrink:0; border-radius:50%; background:var(--dark2);
+    display:flex; align-items:center; justify-content:center;}
+  #arrow{font-size:40px; color:var(--gold); transition:transform .25s ease-out; line-height:1;}
+  .navinfo{flex:1; min-width:0;}
+  .navinfo .nm{font-size:15px; font-weight:600; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .navinfo .dist{font-size:28px; font-weight:700; color:var(--gold); line-height:1.15;}
+  .navinfo .sub{font-size:11px; color:var(--muted);}
+  #navclose{background:var(--dark3); border:none; color:var(--cream); width:34px; height:34px;
+    border-radius:9px; font-size:17px; flex-shrink:0;}
+
+  .actionbar{position:absolute; left:10px; right:10px; bottom:12px; z-index:500; display:flex; gap:8px;}
+  .bigbtn{flex:1; border:none; border-radius:14px; padding:15px 10px; font-size:15px; font-weight:600;
+    display:flex; align-items:center; justify-content:center; gap:7px;}
+  .bigbtn.mark{background:var(--red); color:#fff;}
+  .bigbtn.ghost{background:rgba(44,36,24,.92); color:var(--cream); border:1px solid var(--dark3);
+    flex:0 0 54px; font-size:19px; backdrop-filter:blur(4px);}
+
+  /* ---------- LISTE ---------- */
+  .scroll{flex:1; overflow-y:auto; padding:14px 15px 90px; -webkit-overflow-scrolling:touch;}
+  .sechead{font-size:12px; letter-spacing:.6px; text-transform:uppercase; color:var(--muted); margin:18px 0 9px;}
+  .sechead:first-child{margin-top:2px;}
+  .card{background:var(--dark2); border-radius:13px; padding:13px 14px; margin-bottom:9px;}
+  .arearow{display:flex; align-items:center; gap:12px;}
+  .arearow .ic{width:40px; height:40px; border-radius:10px; background:var(--dark3);
+    display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0;}
+  .arearow .meta{flex:1; min-width:0;}
+  .arearow .meta .n{font-size:15px; font-weight:600; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .arearow .meta .c{font-size:12px; color:var(--muted);}
+  .arearow.active{outline:2px solid var(--brown); border-radius:8px; padding:4px; margin:-4px;}
+  .miniposte{margin-top:10px; border-top:1px solid var(--dark3); padding-top:9px;}
+  .posterow{display:flex; align-items:center; gap:10px; padding:6px 0;}
+  .posterow .num{width:26px; height:26px; border-radius:50%; background:var(--red); color:#fff;
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;}
+  .posterow .pn{flex:1; font-size:14px; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .posterow .acc{font-size:11px; color:var(--muted);}
+  .posterow .del{background:none; border:none; color:var(--muted); font-size:15px; padding:4px 6px;}
+
+  .btn{border:none; border-radius:11px; padding:13px; font-size:15px; font-weight:600; width:100%;}
+  .btn.primary{background:var(--brown); color:var(--cream);}
+  .btn.line{background:transparent; border:1px solid var(--dark3); color:var(--cream);}
+  .btn.danger{background:transparent; border:1px solid var(--red); color:#e08b8b;}
+  .btnrow{display:flex; gap:8px;}
+  .btnrow .btn{width:auto; flex:1;}
+  .empty{text-align:center; color:var(--muted); padding:36px 20px; font-size:14px; line-height:1.6;}
+  .loading{text-align:center; color:var(--muted); padding:30px; font-size:14px;}
+
+  /* ---------- TABS ---------- */
+  nav.tabs{flex-shrink:0; background:var(--dark); border-top:1px solid var(--dark2);
+    display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom));}
+  nav.tabs button{flex:1; background:none; border:none; color:var(--muted);
+    padding:8px 4px; font-size:11px; display:flex; flex-direction:column; align-items:center; gap:3px;}
+  nav.tabs button .i{font-size:20px;}
+  nav.tabs button.on{color:var(--gold);}
+
+  /* ---------- MODALI ---------- */
+  .modal{position:fixed; inset:0; z-index:2000; background:rgba(0,0,0,.6);
+    display:none; align-items:flex-end; justify-content:center;}
+  .modal.show{display:flex;}
+  .sheet{background:var(--dark); width:100%; max-width:520px; border-radius:18px 18px 0 0;
+    padding:20px 17px calc(20px + env(safe-area-inset-bottom)); border-top:1px solid var(--dark2);}
+  .sheet h3{margin:0 0 4px; font-size:18px; color:var(--cream); font-weight:600;}
+  .sheet p.hint{margin:0 0 14px; font-size:13px; color:var(--muted); line-height:1.5;}
+  .sheet label{display:block; font-size:12px; color:var(--muted); margin:12px 0 6px;}
+  .sheet input, .sheet select, .sheet textarea{width:100%; background:var(--dark2); border:1px solid var(--dark3);
+    color:var(--cream); border-radius:11px; padding:13px;}
+  .sheet textarea{min-height:70px; resize:vertical;}
+  .gpsbox{background:var(--dark2); border-radius:11px; padding:11px 13px; margin:13px 0 4px; font-size:13px;}
+  .gpsbox .lab{color:var(--muted);}
+  .gpsbox .val{color:var(--cream); font-weight:600;}
+  .toast{position:fixed; bottom:110px; left:50%; transform:translateX(-50%); z-index:2500;
+    background:var(--dark3); color:var(--cream); padding:11px 18px; border-radius:11px; font-size:14px;
+    opacity:0; transition:opacity .3s; pointer-events:none; max-width:88%; text-align:center;}
+  .toast.show{opacity:1;}
+  .leaflet-container{background:#3d4a2a;}
+</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="login">
+  <div class="logo"><img src="icon-180.png" alt="" onerror="this.parentNode.textContent='🐗'"></div>
+  <h1>ZANNALUNGA</h1>
+  <div class="sub">Hunter · gestione squadra</div>
+  <div class="form">
+    <label>Email</label>
+    <input id="l-email" type="email" autocomplete="username" inputmode="email" autocapitalize="none">
+    <label>Password</label>
+    <input id="l-pass" type="password" autocomplete="current-password">
+    <button id="l-btn">Entra</button>
+    <div class="err" id="l-err"></div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app" style="display:none">
+  <header>
+    <div class="brand"><img src="icon-180.png" alt="" onerror="this.parentNode.textContent='🐗'"></div>
+    <div style="min-width:0">
+      <div class="t" id="h-squadra">Zannalunga</div>
+      <div class="s" id="h-utente">—</div>
+    </div>
+    <div class="gps off" id="gpsdot"><span class="d"></span><span id="gpstxt">GPS</span></div>
+  </header>
+
+  <main>
+    <!-- MAPPA -->
+    <section class="view active" id="v-mappa">
+      <div id="map"></div>
+      <canvas id="schema" style="display:none"></canvas>
+      <div class="mapbar">
+        <div class="pills">
+          <button class="pill on" data-mode="sat" id="pill-sat">Satellite</button>
+          <button class="pill" data-mode="schema" id="pill-schema">Schema</button>
+        </div>
+        <div class="areatag" id="areatag">nessuna area</div>
+      </div>
+      <div id="navpanel">
+        <div class="arrowwrap"><div id="arrow">↑</div></div>
+        <div class="navinfo">
+          <div class="nm" id="nav-nome">—</div>
+          <div class="dist" id="nav-dist">— m</div>
+          <div class="sub" id="nav-sub">verso la postazione</div>
+        </div>
+        <button id="navclose">✕</button>
+      </div>
+      <div class="actionbar">
+        <button class="bigbtn mark" id="btn-mark">⊕ Segna posta qui</button>
+        <button class="bigbtn ghost" id="btn-center">◎</button>
+      </div>
+    </section>
+
+    <!-- AREE -->
+    <section class="view" id="v-aree">
+      <div class="scroll" id="aree-scroll"><div class="loading">Carico le aree…</div></div>
+    </section>
+
+    <!-- GUIDA -->
+    <section class="view" id="v-info">
+      <div class="scroll">
+        <div class="sechead">Come si usa sul campo</div>
+        <div class="card" style="line-height:1.65; font-size:14px;">
+          <b style="color:var(--gold)">1.</b> In <b>Aree</b> crea la mappa del terreno (es. "Bosco di Sopra").<br><br>
+          <b style="color:var(--gold)">2.</b> Cammina fino a una postazione e premi <b>Segna posta qui</b>.<br><br>
+          <b style="color:var(--gold)">3.</b> Le poste si salvano nel cloud: le vede tutta la squadra.<br><br>
+          <b style="color:var(--gold)">4.</b> Tocca una posta per avere <b>freccia e distanza</b> che ti guidano — funziona anche senza campo.
+        </div>
+        <div class="sechead">Modalità mappa</div>
+        <div class="card" style="line-height:1.6; font-size:13px; color:var(--muted)">
+          <b style="color:var(--cream)">Satellite</b> — foto reali, serve campo.<br>
+          <b style="color:var(--cream)">Schema</b> — disegno leggero con le sole poste: sempre disponibile, poca batteria.
+        </div>
+        <div class="sechead">GPS</div>
+        <div class="card" style="line-height:1.6; font-size:13px; color:var(--muted)">
+          Il pallino blu sei tu, col cerchio di precisione. Sotto gli alberi può ballare di qualche metro: è normale.
+          <div style="margin-top:12px">
+            <button class="btn line" id="btn-gps-toggle">Sospendi GPS (risparmio batteria)</button>
+          </div>
+        </div>
+        <div class="sechead">Account</div>
+        <div class="card">
+          <div style="font-size:13px; color:var(--muted); margin-bottom:12px;" id="i-account">—</div>
+          <button class="btn line" id="btn-logout">Esci</button>
+        </div>
+        <div style="text-align:center; color:var(--muted); font-size:11px; margin-top:18px">Hunter v1 · Zannalunga</div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs">
+    <button class="on" data-view="mappa"><span class="i">🗺️</span>Mappa</button>
+    <button data-view="aree"><span class="i">📍</span>Aree</button>
+    <button data-view="info"><span class="i">ⓘ</span>Guida</button>
+  </nav>
+</div>
+
+<!-- MODALE POSTA -->
+<div class="modal" id="m-posta">
+  <div class="sheet">
+    <h3>Nuova postazione</h3>
+    <p class="hint" id="m-posta-area">—</p>
+    <label>Nome della posta</label>
+    <input id="m-posta-nome" type="text" autocomplete="off">
+    <label>Tipo</label>
+    <select id="m-posta-tipo">
+      <option value="fissa">Fissa (parte del cerchio)</option>
+      <option value="occasionale">Occasionale (varco nuovo)</option>
+      <option value="controposta">Controposta (rinforzo)</option>
+    </select>
+    <label>Nota di sicurezza (facoltativa)</label>
+    <textarea id="m-posta-note" placeholder="Es. non sparare a destra oltre il sentiero"></textarea>
+    <div class="gpsbox">
+      <div style="display:flex; justify-content:space-between"><span class="lab">Coordinate</span><span class="val" id="m-posta-coord">—</span></div>
+      <div style="display:flex; justify-content:space-between; margin-top:6px"><span class="lab">Precisione</span><span class="val" id="m-posta-acc">—</span></div>
+    </div>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-posta-annulla">Annulla</button>
+      <button class="btn primary" id="m-posta-salva">Salva posta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE AREA -->
+<div class="modal" id="m-area">
+  <div class="sheet">
+    <h3>Nuova area di caccia</h3>
+    <p class="hint">Il terreno dove si svolge la battuta. Dentro registri le poste.</p>
+    <label>Nome dell'area</label>
+    <input id="m-area-nome" type="text" autocomplete="off" placeholder="Bosco di Sopra">
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-area-annulla">Annulla</button>
+      <button class="btn primary" id="m-area-salva">Crea area</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+(function(){
+  "use strict";
+
+  /* ================= CONFIG ================= */
+  var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
+  var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
+  var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  /* ================= STATO ================= */
+  var me = null;          // {user_id, nome, ruolo, squadra_id, squadra_nome}
+  var aree = [];          // aree della squadra, con .poste[]
+  var areaAttivaId = null;
+  var pos = null;         // {lat,lng,acc}
+  var heading = null;
+  var watchId = null;
+  var mode = "sat";
+  var navTarget = null;
+  var map, userMarker, accCircle, posteLayer;
+
+  function areaAttiva(){ return aree.find(function(a){return a.id===areaAttivaId;}) || null; }
+
+  /* ================= UTIL ================= */
+  function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+  var toastT;
+  function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show");
+    clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},2400); }
+  function distM(a,b){
+    var R=6371000,t=Math.PI/180;
+    var dLat=(b.lat-a.lat)*t,dLng=(b.lng-a.lng)*t,la1=a.lat*t,la2=b.lat*t;
+    var x=Math.sin(dLat/2)*Math.sin(dLat/2)+Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)*Math.sin(dLng/2);
+    return 2*R*Math.atan2(Math.sqrt(x),Math.sqrt(1-x));
+  }
+  function bearing(a,b){
+    var t=Math.PI/180,la1=a.lat*t,la2=b.lat*t,dLng=(b.lng-a.lng)*t;
+    var y=Math.sin(dLng)*Math.cos(la2);
+    var x=Math.cos(la1)*Math.sin(la2)-Math.sin(la1)*Math.cos(la2)*Math.cos(dLng);
+    return (Math.atan2(y,x)*180/Math.PI+360)%360;
+  }
+  function fmtDist(m){ return m<1000 ? Math.round(m)+" m" : (m/1000).toFixed(m<10000?2:1)+" km"; }
+
+  /* ================= LOGIN ================= */
+  function showLogin(msg){
+    document.getElementById("login").classList.remove("hide");
+    document.getElementById("app").style.display="none";
+    if(msg) document.getElementById("l-err").textContent=msg;
+  }
+  function showApp(){
+    document.getElementById("login").classList.add("hide");
+    document.getElementById("app").style.display="flex";
+  }
+  async function doLogin(){
+    var email=document.getElementById("l-email").value.trim();
+    var pass=document.getElementById("l-pass").value;
+    var err=document.getElementById("l-err");
+    err.textContent="";
+    if(!email||!pass){ err.textContent="Inserisci email e password"; return; }
+    var btn=document.getElementById("l-btn");
+    btn.disabled=true; btn.textContent="Entro…";
+    try{
+      var r=await sb.auth.signInWithPassword({email:email, password:pass});
+      if(r.error) throw r.error;
+      await afterLogin();
+    }catch(e){
+      err.textContent = (e && e.message && /Invalid/i.test(e.message)) ? "Email o password errate" : ("Errore: "+(e.message||e));
+    }finally{
+      btn.disabled=false; btn.textContent="Entra";
+    }
+  }
+  async function afterLogin(){
+    var u=(await sb.auth.getUser()).data.user;
+    if(!u){ showLogin(); return; }
+    // carico il membro + squadra
+    var r=await sb.from("hn_membri")
+      .select("id,nome,ruolo,squadra_id,hn_squadre(nome,codice)")
+      .eq("user_id",u.id).eq("attivo",true).limit(1);
+    if(r.error){ showLogin("Errore: "+r.error.message); return; }
+    if(!r.data || !r.data.length){ await sb.auth.signOut(); showLogin("Utente non associato a nessuna squadra"); return; }
+    var m=r.data[0];
+    me={ user_id:u.id, email:u.email, membro_id:m.id, nome:m.nome, ruolo:m.ruolo,
+         squadra_id:m.squadra_id, squadra_nome:(m.hn_squadre&&m.hn_squadre.nome)||"Squadra" };
+    document.getElementById("h-squadra").textContent=me.squadra_nome;
+    document.getElementById("h-utente").textContent=me.nome+" · "+me.ruolo;
+    document.getElementById("i-account").textContent=me.nome+" ("+me.email+") · ruolo: "+me.ruolo;
+    showApp();
+    initMapOnce();
+    await caricaAree();
+    startGPS();
+  }
+  async function doLogout(){
+    await sb.auth.signOut();
+    me=null; aree=[]; areaAttivaId=null;
+    stopGPS();
+    document.getElementById("l-pass").value="";
+    showLogin();
+  }
+
+  /* ================= DATI (Supabase) ================= */
+  async function caricaAree(){
+    var root=document.getElementById("aree-scroll");
+    root.innerHTML='<div class="loading">Carico le aree…</div>';
+    var ra=await sb.from("hn_aree").select("*").eq("squadra_id",me.squadra_id).order("creata_il",{ascending:true});
+    if(ra.error){ root.innerHTML='<div class="empty">Errore nel caricamento:<br>'+esc(ra.error.message)+'</div>'; return; }
+    aree=ra.data||[];
+    if(aree.length){
+      var ids=aree.map(function(a){return a.id;});
+      var rp=await sb.from("hn_poste").select("*").in("area_id",ids).order("numero",{ascending:true});
+      if(rp.error){ toast("Errore poste: "+rp.error.message); }
+      var poste=rp.data||[];
+      aree.forEach(function(a){ a.poste=poste.filter(function(p){return p.area_id===a.id;}); });
+    }
+    if(!areaAttivaId && aree.length) areaAttivaId=aree[0].id;
+    if(areaAttivaId && !aree.find(function(a){return a.id===areaAttivaId;})) areaAttivaId=aree.length?aree[0].id:null;
+    renderAree();
+    refreshMapArea();
+  }
+  async function creaArea(){
+    var nome=document.getElementById("m-area-nome").value.trim();
+    if(!nome){ toast("Dai un nome all'area"); return; }
+    var btn=document.getElementById("m-area-salva"); btn.disabled=true; btn.textContent="Creo…";
+    var r=await sb.from("hn_aree").insert({squadra_id:me.squadra_id, nome:nome, creata_da:me.user_id}).select().single();
+    btn.disabled=false; btn.textContent="Crea area";
+    if(r.error){ toast("Errore: "+r.error.message); return; }
+    document.getElementById("m-area").classList.remove("show");
+    document.getElementById("m-area-nome").value="";
+    areaAttivaId=r.data.id;
+    await caricaAree();
+    toast("Area creata: "+nome);
+  }
+  async function salvaPosta(){
+    var a=areaAttiva(); if(!a||!pos) return;
+    var nome=document.getElementById("m-posta-nome").value.trim()||("Posta "+((a.poste?a.poste.length:0)+1));
+    var tipo=document.getElementById("m-posta-tipo").value;
+    var note=document.getElementById("m-posta-note").value.trim();
+    var numero=(a.poste?a.poste.length:0)+1;
+    var btn=document.getElementById("m-posta-salva"); btn.disabled=true; btn.textContent="Salvo…";
+    var r=await sb.from("hn_poste").insert({
+      area_id:a.id, nome:nome, numero:numero,
+      lat:pos.lat, lng:pos.lng, accuratezza:Math.round(pos.acc),
+      tipo:tipo, note:note||null, creata_da:me.user_id
+    }).select().single();
+    btn.disabled=false; btn.textContent="Salva posta";
+    if(r.error){ toast("Errore: "+r.error.message); return; }
+    document.getElementById("m-posta").classList.remove("show");
+    document.getElementById("m-posta-note").value="";
+    if(!a.poste) a.poste=[];
+    a.poste.push(r.data);
+    renderAree(); refreshMapArea();
+    toast("Posta salvata: "+nome);
+  }
+  async function eliminaPosta(areaId, postaId){
+    var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
+    var p=a.poste.find(function(x){return x.id===postaId;});
+    if(!confirm('Eliminare "'+(p?p.nome:"la posta")+'"?')) return;
+    var r=await sb.from("hn_poste").delete().eq("id",postaId);
+    if(r.error){ toast("Errore: "+r.error.message); return; }
+    a.poste=a.poste.filter(function(x){return x.id!==postaId;});
+    renderAree(); refreshMapArea();
+    toast("Posta eliminata");
+  }
+  async function eliminaArea(areaId){
+    var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
+    if(!confirm('Eliminare l\'area "'+a.nome+'" e tutte le sue poste?')) return;
+    var r=await sb.from("hn_aree").delete().eq("id",areaId);
+    if(r.error){ toast("Errore: "+r.error.message); return; }
+    if(areaAttivaId===areaId) areaAttivaId=null;
+    await caricaAree();
+    toast("Area eliminata");
+  }
+
+  /* ================= GPS ================= */
+  function setGps(cls,txt){
+    var el=document.getElementById("gpsdot");
+    el.className="gps "+cls;
+    document.getElementById("gpstxt").textContent=txt;
+  }
+  function startGPS(){
+    if(!navigator.geolocation){ setGps("off","no GPS"); return; }
+    if(watchId!==null) return;
+    setGps("weak","GPS…");
+    watchId=navigator.geolocation.watchPosition(function(p){
+      pos={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy||999};
+      setGps(pos.acc<=15?"ok":(pos.acc<=40?"weak":"off"), "±"+Math.round(pos.acc)+"m");
+      updateUser(); updateNav();
+      if(mode==="schema") drawSchema();
+    }, function(err){
+      setGps("off", err.code===1?"permesso negato":"GPS assente");
+    },{enableHighAccuracy:true, maximumAge:1000, timeout:15000});
+  }
+  function stopGPS(){
+    if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
+    setGps("off","sospeso");
+  }
+  function initCompass(){
+    function handler(e){
+      var h=null;
+      if(typeof e.webkitCompassHeading==="number") h=e.webkitCompassHeading;
+      else if(e.absolute && typeof e.alpha==="number") h=360-e.alpha;
+      if(h!==null){ heading=h; updateNav(); }
+    }
+    if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
+      window.__askCompass=function(){
+        DeviceOrientationEvent.requestPermission().then(function(st){
+          if(st==="granted") window.addEventListener("deviceorientation",handler,true);
+        }).catch(function(){});
+      };
+    }else{
+      window.addEventListener("deviceorientationabsolute",handler,true);
+      window.addEventListener("deviceorientation",handler,true);
+    }
+  }
+
+  /* ================= MAPPA ================= */
+  var mapReady=false;
+  function initMapOnce(){
+    if(mapReady) return;
+    map=L.map("map",{zoomControl:false, attributionControl:false}).setView([38.67,16.10],13);
+    L.control.zoom({position:"bottomright"}).addTo(map);
+    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(map);
+    posteLayer=L.layerGroup().addTo(map);
+    mapReady=true;
+  }
+  function iconPosta(n,tipo){
+    var col = tipo==="occasionale" ? "#E0922B" : (tipo==="controposta" ? "#7B5EA7" : "#C0392B");
+    return L.divIcon({className:"", iconSize:[30,30], iconAnchor:[15,15],
+      html:'<div style="width:30px;height:30px;border-radius:50%;background:'+col+';border:3px solid #F0E6D2;display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.5)">'+n+'</div>'});
+  }
+  function iconUser(){
+    return L.divIcon({className:"", iconSize:[18,18], iconAnchor:[9,9],
+      html:'<div style="width:18px;height:18px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'});
+  }
+  function renderPoste(){
+    if(!posteLayer) return;
+    posteLayer.clearLayers();
+    var a=areaAttiva(); if(!a||!a.poste) return;
+    a.poste.forEach(function(p,i){
+      var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo)}).addTo(posteLayer);
+      m.on("click", function(){ setNav(p); });
+    });
+  }
+  function updateUser(){
+    if(!map||!pos) return;
+    if(!userMarker) userMarker=L.marker([pos.lat,pos.lng],{icon:iconUser(),zIndexOffset:1000}).addTo(map);
+    else userMarker.setLatLng([pos.lat,pos.lng]);
+    if(!accCircle) accCircle=L.circle([pos.lat,pos.lng],{radius:pos.acc,color:"#378ADD",weight:1,fillColor:"#378ADD",fillOpacity:.12}).addTo(map);
+    else { accCircle.setLatLng([pos.lat,pos.lng]); accCircle.setRadius(pos.acc); }
+  }
+  function centerOnUser(){
+    if(pos&&map) map.setView([pos.lat,pos.lng],17);
+    else toast("Posizione non ancora disponibile");
+  }
+  function fitArea(){
+    var a=areaAttiva();
+    if(map&&a&&a.poste&&a.poste.length){
+      map.fitBounds(L.latLngBounds(a.poste.map(function(p){return [p.lat,p.lng];})).pad(0.3));
+    }
+  }
+  function setMode(m){
+    mode=m;
+    document.getElementById("pill-sat").classList.toggle("on",m==="sat");
+    document.getElementById("pill-schema").classList.toggle("on",m==="schema");
+    document.getElementById("map").style.display = m==="sat"?"block":"none";
+    document.getElementById("schema").style.display = m==="schema"?"block":"none";
+    if(m==="sat"){ setTimeout(function(){ map.invalidateSize(); renderPoste(); fitArea(); },50); }
+    else drawSchema();
+  }
+  function refreshMapArea(){
+    var a=areaAttiva();
+    document.getElementById("areatag").textContent = a?a.nome:"nessuna area";
+    if(mode==="sat"){ renderPoste(); fitArea(); } else drawSchema();
+    clearNav();
+  }
+
+  /* ---------- schema offline ---------- */
+  function drawSchema(){
+    var cv=document.getElementById("schema");
+    var a=areaAttiva();
+    var dpr=window.devicePixelRatio||1;
+    var W=cv.clientWidth,H=cv.clientHeight;
+    if(!W||!H) return;
+    cv.width=W*dpr; cv.height=H*dpr;
+    var ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle="#34401f"; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle="rgba(255,255,255,.05)"; ctx.lineWidth=1;
+    for(var gx=0;gx<W;gx+=40){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+    for(var gy=0;gy<H;gy+=40){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+    var pts=(a&&a.poste)?a.poste.slice():[];
+    if(!pts.length && !pos){
+      ctx.fillStyle="#B89968"; ctx.font="14px sans-serif"; ctx.textAlign="center";
+      ctx.fillText("Nessuna posta da mostrare", W/2, H/2); return;
+    }
+    var all=pts.slice(); if(pos) all.push(pos);
+    var lat0=all.reduce(function(s,p){return s+p.lat;},0)/all.length;
+    var lng0=all.reduce(function(s,p){return s+p.lng;},0)/all.length;
+    var mLat=111320, mLng=111320*Math.cos(lat0*Math.PI/180);
+    function xy(p){ return {x:(p.lng-lng0)*mLng, y:-(p.lat-lat0)*mLat}; }
+    var A=all.map(xy);
+    var minX=Math.min.apply(null,A.map(function(q){return q.x;})), maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
+    var minY=Math.min.apply(null,A.map(function(q){return q.y;})), maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
+    var pad=44, spanX=Math.max(maxX-minX,30), spanY=Math.max(maxY-minY,30);
+    var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
+    function px(p){ var q=xy(p); return {x:pad+(q.x-minX)*sc, y:pad+(q.y-minY)*sc}; }
+    if(navTarget&&pos){
+      var u=px(pos), t=px(navTarget);
+      ctx.strokeStyle="#E0B878"; ctx.lineWidth=2; ctx.setLineDash([6,6]);
+      ctx.beginPath(); ctx.moveTo(u.x,u.y); ctx.lineTo(t.x,t.y); ctx.stroke(); ctx.setLineDash([]);
+    }
+    pts.forEach(function(p,i){
+      var c=px(p);
+      var col = p.tipo==="occasionale" ? "#E0922B" : (p.tipo==="controposta" ? "#7B5EA7" : "#C0392B");
+      ctx.fillStyle=(navTarget&&navTarget.id===p.id)?"#E0B878":col;
+      ctx.beginPath(); ctx.arc(c.x,c.y,13,0,7); ctx.fill();
+      ctx.strokeStyle="#F0E6D2"; ctx.lineWidth=2.5; ctx.stroke();
+      ctx.fillStyle="#fff"; ctx.font="700 12px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(String(p.numero||(i+1)),c.x,c.y);
+      ctx.fillStyle="#F0E6D2"; ctx.font="11px sans-serif"; ctx.textBaseline="top";
+      ctx.fillText(p.nome||("Posta "+(i+1)),c.x,c.y+16);
+    });
+    if(pos){
+      var c2=px(pos);
+      ctx.fillStyle="rgba(55,138,221,.18)"; ctx.beginPath(); ctx.arc(c2.x,c2.y,Math.max(pos.acc*sc,10),0,7); ctx.fill();
+      ctx.fillStyle="#378ADD"; ctx.beginPath(); ctx.arc(c2.x,c2.y,8,0,7); ctx.fill();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=2.5; ctx.stroke();
+    }
+  }
+
+  /* ---------- navigazione ---------- */
+  function setNav(p){
+    navTarget=p;
+    document.getElementById("nav-nome").textContent=p.nome||"Posta";
+    document.getElementById("navpanel").classList.add("show");
+    if(window.__askCompass) window.__askCompass();
+    updateNav();
+    if(mode==="schema") drawSchema();
+  }
+  function clearNav(){
+    navTarget=null;
+    document.getElementById("navpanel").classList.remove("show");
+    if(mode==="schema") drawSchema();
+  }
+  function updateNav(){
+    if(!navTarget) return;
+    if(!pos){ document.getElementById("nav-dist").textContent="GPS…"; return; }
+    var d=distM(pos,navTarget);
+    document.getElementById("nav-dist").textContent=fmtDist(d);
+    var b=bearing(pos,navTarget);
+    document.getElementById("arrow").style.transform="rotate("+(heading!==null?(b-heading):b)+"deg)";
+    var sub=document.getElementById("nav-sub");
+    sub.textContent = d<12 ? "sei sulla postazione"
+      : (heading!==null ? "punta nella direzione della freccia" : "la freccia indica il nord");
+  }
+
+  /* ================= RENDER AREE ================= */
+  function renderAree(){
+    var root=document.getElementById("aree-scroll");
+    var h='<div class="sechead">Aree di caccia · '+esc(me?me.squadra_nome:"")+'</div>';
+    if(!aree.length){
+      h+='<div class="empty">Nessuna area ancora.<br>Crea la prima per iniziare a segnare le poste.</div>';
+    }
+    aree.forEach(function(a){
+      var act=a.id===areaAttivaId;
+      var np=(a.poste||[]).length;
+      h+='<div class="card">';
+      h+='<div class="arearow '+(act?"active":"")+'" data-sel="'+a.id+'">';
+      h+='<div class="ic">🌲</div><div class="meta"><div class="n">'+esc(a.nome)+'</div>';
+      h+='<div class="c">'+np+' post'+(np===1?"a":"e")+(act?" · attiva":"")+'</div></div>';
+      h+='<button class="del" data-delarea="'+a.id+'">🗑</button></div>';
+      if(np){
+        h+='<div class="miniposte">';
+        (a.poste||[]).forEach(function(p,i){
+          h+='<div class="posterow"><div class="num" style="background:'+(p.tipo==="occasionale"?"#E0922B":(p.tipo==="controposta"?"#7B5EA7":"#C0392B"))+'">'+(p.numero||(i+1))+'</div>';
+          h+='<div class="pn">'+esc(p.nome)+'</div>';
+          h+='<div class="acc">±'+(p.accuratezza||0)+'m</div>';
+          h+='<button class="del" data-delposta="'+a.id+'|'+p.id+'">✕</button></div>';
+        });
+        h+='</div>';
+      }
+      if(!act) h+='<button class="btn line" style="margin-top:10px" data-attiva="'+a.id+'">Rendi attiva</button>';
+      h+='</div>';
+    });
+    h+='<button class="btn primary" style="margin-top:6px" id="btn-newarea">+ Nuova area</button>';
+    root.innerHTML=h;
+
+    root.querySelector("#btn-newarea").onclick=function(){
+      document.getElementById("m-area").classList.add("show");
+      setTimeout(function(){document.getElementById("m-area-nome").focus();},120);
+    };
+    root.querySelectorAll("[data-attiva]").forEach(function(b){
+      b.onclick=function(){ areaAttivaId=b.dataset.attiva; renderAree(); refreshMapArea(); toast("Area attiva: "+areaAttiva().nome); };
+    });
+    root.querySelectorAll("[data-sel]").forEach(function(el){
+      el.onclick=function(e){ if(e.target.closest("[data-delarea]")) return; areaAttivaId=el.dataset.sel; renderAree(); refreshMapArea(); };
+    });
+    root.querySelectorAll("[data-delarea]").forEach(function(b){
+      b.onclick=function(e){ e.stopPropagation(); eliminaArea(b.dataset.delarea); };
+    });
+    root.querySelectorAll("[data-delposta]").forEach(function(b){
+      b.onclick=function(){ var p=b.dataset.delposta.split("|"); eliminaPosta(p[0],p[1]); };
+    });
+  }
+
+  /* ================= VISTE ================= */
+  function showView(v){
+    document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
+    document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
+    if(v==="mappa"){ setTimeout(function(){ if(map) map.invalidateSize(); if(mode==="schema") drawSchema(); },80); }
+  }
+
+  function openNuovaPosta(){
+    var a=areaAttiva();
+    if(!a){ toast("Crea prima un'area"); showView("aree"); return; }
+    if(!pos){ toast("Aspetta il segnale GPS"); return; }
+    document.getElementById("m-posta-area").textContent="In: "+a.nome;
+    document.getElementById("m-posta-nome").value="Posta "+(((a.poste||[]).length)+1);
+    document.getElementById("m-posta-tipo").value="fissa";
+    document.getElementById("m-posta-coord").textContent=pos.lat.toFixed(5)+", "+pos.lng.toFixed(5);
+    document.getElementById("m-posta-acc").textContent="± "+Math.round(pos.acc)+" m";
+    document.getElementById("m-posta").classList.add("show");
+  }
+
+  /* ================= BIND ================= */
+  function bind(){
+    document.getElementById("l-btn").onclick=doLogin;
+    document.getElementById("l-pass").addEventListener("keydown",function(e){ if(e.key==="Enter") doLogin(); });
+    document.getElementById("btn-logout").onclick=doLogout;
+
+    document.querySelectorAll("nav.tabs button").forEach(function(b){ b.onclick=function(){ showView(b.dataset.view); }; });
+    document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
+
+    document.getElementById("btn-mark").onclick=openNuovaPosta;
+    document.getElementById("btn-center").onclick=centerOnUser;
+    document.getElementById("navclose").onclick=clearNav;
+
+    document.getElementById("m-posta-salva").onclick=salvaPosta;
+    document.getElementById("m-posta-annulla").onclick=function(){ document.getElementById("m-posta").classList.remove("show"); };
+    document.getElementById("m-area-salva").onclick=creaArea;
+    document.getElementById("m-area-annulla").onclick=function(){ document.getElementById("m-area").classList.remove("show"); };
+
+    document.getElementById("btn-gps-toggle").onclick=function(){
+      if(watchId!==null){ stopGPS(); this.textContent="Riattiva GPS"; }
+      else { startGPS(); this.textContent="Sospendi GPS (risparmio batteria)"; }
+    };
+    window.addEventListener("resize",function(){ if(mode==="schema") drawSchema(); });
+  }
+
+  /* ================= AVVIO ================= */
+  async function init(){
+    bind();
+    initCompass();
+    var s=await sb.auth.getSession();
+    if(s.data && s.data.session){ await afterLogin(); }
+    else showLogin();
+  }
+  if(document.readyState!=="loading") init();
+  else document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
