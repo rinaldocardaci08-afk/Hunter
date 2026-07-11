@@ -918,7 +918,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.19";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.20";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1184,17 +1184,21 @@
     btn.disabled=true; btn.textContent="Salvo…";
 
     var r;
-    if(areaEditId){
-      // MODIFICA di una mappa esistente
-      r=await sb.from("hn_aree").update({nome:nome, comune:comune||null}).eq("id",areaEditId).select().single();
-    }else{
-      // NUOVA mappa
-      r=await sb.from("hn_aree").insert({
-        squadra_id:me.squadra_id, nome:nome, comune:comune||null, creata_da:me.user_id
-      }).select().single();
+    try{
+      if(areaEditId){
+        r=await sb.from("hn_aree").update({nome:nome, comune:comune||null}).eq("id",areaEditId).select().single();
+      }else{
+        r=await sb.from("hn_aree").insert({
+          squadra_id:me.squadra_id, nome:nome, comune:comune||null, creata_da:me.user_id
+        }).select().single();
+      }
+      if(r.error) throw r.error;
+    }catch(e){
+      btn.disabled=false; btn.textContent=testoOrig;
+      toast("Serve la rete per salvare la mappa");
+      return;
     }
     btn.disabled=false; btn.textContent=testoOrig;
-    if(r.error){ toast("Errore: "+r.error.message); return; }
 
     document.getElementById("m-area").classList.remove("show");
     var era=areaEditId;
@@ -1297,8 +1301,10 @@
     if(np) msg+='\n\nPerderai anche le sue '+np+' post'+(np===1?'a':'e')+'.';
     msg+='\n\nQuesta operazione non si può annullare.';
     if(!confirm(msg)) return;
-    var r=await sb.from("hn_aree").delete().eq("id",areaId);
-    if(r.error){ toast("Errore: "+r.error.message); return; }
+    try{
+      var r=await sb.from("hn_aree").delete().eq("id",areaId);
+      if(r.error) throw r.error;
+    }catch(e){ toast("Serve la rete per eliminare"); return; }
     if(areaAttivaId===areaId) areaAttivaId=null;
     if(mappatura) esciMappatura();
     document.getElementById("m-area").classList.remove("show");
@@ -2120,11 +2126,18 @@
   }
   async function salvaNote(){
     if(!postaAperta) return;
+    if(!puoMappare()){ toast("Non hai il permesso di modificare le note"); return; }
     var testo=document.getElementById("m-note-testo").value.trim();
     var btn=document.getElementById("m-note-salva"); btn.disabled=true; btn.textContent="Salvo…";
-    var r=await sb.from("hn_poste").update({note:testo||null}).eq("id",postaAperta.id);
+    try{
+      var r=await sb.from("hn_poste").update({note:testo||null}).eq("id",postaAperta.id);
+      if(r.error) throw r.error;
+    }catch(e){
+      btn.disabled=false; btn.textContent="Salva note";
+      toast("Serve la rete per salvare le note");
+      return;
+    }
     btn.disabled=false; btn.textContent="Salva note";
-    if(r.error){ toast("Errore: "+r.error.message); return; }
     postaAperta.note=testo||null;
     // aggiorno anche l'oggetto in memoria
     var a=areaAttiva();
@@ -2493,8 +2506,11 @@
     document.getElementById("mb-pass").value="";
     if(m && m.user_id){
       box.className="accbox show";
-      box.innerHTML='<span>✓</span><span class="em">Ha già l\'accesso all\'app</span>';
+      box.innerHTML='<span>✓</span><span class="em">Ha già l\'accesso all\'app</span>'+
+                    '<button id="mb-reset" style="background:rgba(255,255,255,.9);border:none;color:#1d3a2a;border-radius:7px;padding:6px 10px;font-size:12px;font-weight:600;flex-shrink:0">Reimposta password</button>';
       form.style.display="none";
+      var rb=document.getElementById("mb-reset");
+      if(rb) rb.onclick=chiediResetPassword;
     }else if(m && m.tipo==="ospite"){
       box.className="accbox show";
       box.style.background="#3a3122"; box.style.borderColor="#4a3f2c"; box.style.color="#b89968";
@@ -2565,6 +2581,38 @@
     var d = await r.json();
     if(!r.ok || d.error) throw new Error(d.error || "Errore nella creazione dell'account");
     return d;
+  }
+
+  /* --- reimposta la password di un componente --- */
+  async function resetPassword(membroId, nuovaPass){
+    var url = SUPABASE_URL + "/functions/v1/smart-responder";
+    var sess = await sb.auth.getSession();
+    var token = (sess.data && sess.data.session) ? sess.data.session.access_token : SUPABASE_KEY;
+    var r = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type":"application/json", "Authorization":"Bearer "+token, "apikey":SUPABASE_KEY },
+      body: JSON.stringify({ azione:"reset_password", membro_id:membroId, password:nuovaPass })
+    });
+    var d = await r.json();
+    if(!r.ok || d.error) throw new Error(d.error || "Errore nel reset");
+    return d;
+  }
+
+  async function chiediResetPassword(){
+    if(!membroEdit || !membroEdit.user_id) return;
+    if(!puoGestireSquadra()){ toast("Non hai il permesso"); return; }
+    var p=prompt("Nuova password per "+membroEdit.nome+"\n(almeno 6 caratteri)\n\nGliela comunicherai tu, e lui potrà cambiarla.");
+    if(p===null) return;
+    p=p.trim();
+    if(p.length<6){ toast("La password deve avere almeno 6 caratteri"); return; }
+    toast("Reimposto la password…");
+    try{
+      await resetPassword(membroEdit.id, p);
+      toast("Password reimpostata: "+p);
+      alert("Password di "+membroEdit.nome+" reimpostata.\n\nNuova password: "+p+"\n\nComunicagliela: potrà cambiarla dopo il primo accesso.");
+    }catch(e){
+      toast("Errore: "+(e.message||e));
+    }
   }
 
   async function salvaMembro(){
@@ -2736,25 +2784,36 @@
     });
   }
   async function salvaAnnuncio(){
+    if(!puoPubblicare()){ toast("Non hai il permesso di pubblicare"); return; }
     var titolo=document.getElementById("m-ann-titolo").value.trim();
     var testo=document.getElementById("m-ann-testo").value.trim();
     if(!testo){ toast("Scrivi il testo dell'annuncio"); return; }
     var btn=document.getElementById("m-ann-salva"); btn.disabled=true; btn.textContent="Pubblico…";
-    var r=await sb.from("hn_annunci").insert({
-      squadra_id:me.squadra_id, titolo:titolo||null, testo:testo,
-      autore_id:me.user_id, autore_nome:me.nome
-    }).select().single();
+    var r;
+    try{
+      r=await sb.from("hn_annunci").insert({
+        squadra_id:me.squadra_id, titolo:titolo||null, testo:testo,
+        autore_id:me.user_id, autore_nome:me.nome
+      }).select().single();
+      if(r.error) throw r.error;
+    }catch(e){
+      btn.disabled=false; btn.textContent="Pubblica";
+      toast("Serve la rete per pubblicare");
+      return;
+    }
     btn.disabled=false; btn.textContent="Pubblica";
-    if(r.error){ toast("Errore: "+r.error.message); return; }
     document.getElementById("m-annuncio").classList.remove("show");
     annunci.unshift(r.data);
     renderBacheca();
     toast("Annuncio pubblicato");
   }
   async function eliminaAnnuncio(id){
+    if(!puoPubblicare()){ toast("Non hai il permesso"); return; }
     if(!confirm("Eliminare questo annuncio?")) return;
-    var r=await sb.from("hn_annunci").delete().eq("id",id);
-    if(r.error){ toast("Errore: "+r.error.message); return; }
+    try{
+      var r=await sb.from("hn_annunci").delete().eq("id",id);
+      if(r.error) throw r.error;
+    }catch(e){ toast("Serve la rete per eliminare"); return; }
     annunci=annunci.filter(function(a){return a.id!==id;});
     renderBacheca();
     toast("Annuncio eliminato");
