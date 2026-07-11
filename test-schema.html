@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<title>Test Schema · Hunter</title>
+<style>
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; background:#2C2418; color:#F0E6D2;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;}
+  #wrap{height:100%; display:flex; flex-direction:column;}
+  header{padding:12px 14px; background:#3A3122; flex-shrink:0;}
+  header h1{font-size:16px; font-weight:600;}
+  header p{font-size:12px; color:#B89968; margin-top:3px;}
+
+  /* === struttura IDENTICA all'app === */
+  main{flex:1; position:relative; overflow:hidden;}
+  .view{position:absolute; inset:0; display:none; flex-direction:column;}
+  .view.active{display:flex;}
+  #schema{position:absolute; top:0; left:0; right:0; bottom:0; width:100%; height:100%;
+    display:block; background:#34401f;}
+
+  #log{flex-shrink:0; background:#1a150d; padding:10px 12px; max-height:42%; overflow-y:auto;
+    font-family:ui-monospace,Menlo,monospace; font-size:11px; line-height:1.6;}
+  #log .ok{color:#7be0a8;}
+  #log .no{color:#e08b8b;}
+  #log .in{color:#E0B878;}
+  .bar{flex-shrink:0; display:flex; gap:6px; padding:8px; background:#2C2418;}
+  .bar button{flex:1; padding:12px 6px; border:none; border-radius:9px; background:#8A5A2B;
+    color:#F0E6D2; font-size:13px; font-weight:600; font-family:inherit;}
+  .bar button.alt{background:#3A3122; border:1px solid #4A3F2C;}
+</style>
+</head>
+<body>
+<div id="wrap">
+  <header>
+    <h1>Test Schema — diagnosi</h1>
+    <p>Premi "Disegna" e mandami quello che compare sotto.</p>
+  </header>
+
+  <main>
+    <section class="view active" id="v-test">
+      <canvas id="schema"></canvas>
+    </section>
+  </main>
+
+  <div id="log"></div>
+
+  <div class="bar">
+    <button id="b-draw">Disegna</button>
+    <button id="b-copy" class="alt">Copia esito</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var righe=[];
+  function log(t,cls){
+    righe.push(t);
+    var d=document.createElement("div");
+    if(cls) d.className=cls;
+    d.textContent=t;
+    document.getElementById("log").appendChild(d);
+    document.getElementById("log").scrollTop=99999;
+  }
+
+  // poste finte: un piccolo cerchio attorno a Cittanova
+  var poste=[
+    {id:"1",nome:"Posta 1",numero:1,lat:38.3540,lng:16.0790,tipo:"fissa"},
+    {id:"2",nome:"Posta 2",numero:2,lat:38.3548,lng:16.0805,tipo:"fissa"},
+    {id:"3",nome:"Posta 3",numero:3,lat:38.3535,lng:16.0812,tipo:"occasionale"},
+    {id:"4",nome:"Posta 4",numero:4,lat:38.3528,lng:16.0798,tipo:"fissa"}
+  ];
+  var pos={lat:38.3538, lng:16.0800, acc:8};
+
+  function test(){
+    document.getElementById("log").innerHTML="";
+    log("--- INIZIO TEST ---","in");
+
+    var cv=document.getElementById("schema");
+    if(!cv){ log("FALLITO: canvas non trovato","no"); return; }
+    log("canvas trovato","ok");
+
+    // 1) DIMENSIONI
+    var W=cv.clientWidth, H=cv.clientHeight;
+    log("clientWidth = "+W+"  clientHeight = "+H, (W&&H)?"ok":"no");
+    if(!W||!H){
+      var box=cv.parentNode.getBoundingClientRect();
+      W=Math.round(box.width); H=Math.round(box.height);
+      log("fallback contenitore: "+W+" x "+H, (W&&H)?"ok":"no");
+    }
+    if(!W||!H){ log("FALLITO: nessuna dimensione utile","no"); return; }
+
+    // 2) CONTESTO 2D
+    var dpr=window.devicePixelRatio||1;
+    log("devicePixelRatio = "+dpr);
+    cv.width=W*dpr; cv.height=H*dpr;
+    cv.style.width=W+"px"; cv.style.height=H+"px";
+    log("canvas.width impostato a "+cv.width+" x "+cv.height);
+
+    var ctx;
+    try{ ctx=cv.getContext("2d"); }catch(e){ log("FALLITO getContext: "+e.message,"no"); return; }
+    if(!ctx){ log("FALLITO: getContext ha restituito null","no"); return; }
+    log("contesto 2D creato","ok");
+
+    // 3) DISEGNO BASE
+    try{
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      ctx.fillStyle="#34401f"; ctx.fillRect(0,0,W,H);
+      log("sfondo disegnato","ok");
+    }catch(e){ log("FALLITO sfondo: "+e.message,"no"); return; }
+
+    // 4) DISEGNO POSTE (la logica vera dell'app)
+    try{
+      var all=poste.slice(); all.push(pos);
+      var lat0=all.reduce(function(s,p){return s+p.lat;},0)/all.length;
+      var lng0=all.reduce(function(s,p){return s+p.lng;},0)/all.length;
+      var mLat=111320, mLng=111320*Math.cos(lat0*Math.PI/180);
+      function xy(p){ return {x:(p.lng-lng0)*mLng, y:-(p.lat-lat0)*mLat}; }
+      var A=all.map(xy);
+      var minX=Math.min.apply(null,A.map(function(q){return q.x;}));
+      var maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
+      var minY=Math.min.apply(null,A.map(function(q){return q.y;}));
+      var maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
+      log("bbox metri: X "+Math.round(maxX-minX)+"  Y "+Math.round(maxY-minY));
+      var pad=44, spanX=Math.max(maxX-minX,30), spanY=Math.max(maxY-minY,30);
+      var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
+      log("scala = "+sc.toFixed(4)+" px/m", isFinite(sc)&&sc>0?"ok":"no");
+      if(!isFinite(sc)||sc<=0){ log("FALLITO: scala non valida","no"); return; }
+      function px(p){ var q=xy(p); return {x:pad+(q.x-minX)*sc, y:pad+(q.y-minY)*sc}; }
+
+      poste.forEach(function(p,i){
+        var c=px(p);
+        ctx.fillStyle = p.tipo==="occasionale" ? "#E0922B" : "#C0392B";
+        ctx.beginPath(); ctx.arc(c.x,c.y,14,0,Math.PI*2); ctx.fill();
+        ctx.strokeStyle="#F0E6D2"; ctx.lineWidth=3; ctx.stroke();
+        ctx.fillStyle="#fff"; ctx.font="700 13px sans-serif";
+        ctx.textAlign="center"; ctx.textBaseline="middle";
+        ctx.fillText(String(p.numero), c.x, c.y);
+        ctx.fillStyle="#F0E6D2"; ctx.font="11px sans-serif"; ctx.textBaseline="top";
+        ctx.fillText(p.nome, c.x, c.y+18);
+      });
+      log("disegnate "+poste.length+" poste","ok");
+
+      var cu=px(pos);
+      ctx.fillStyle="#378ADD"; ctx.beginPath(); ctx.arc(cu.x,cu.y,9,0,Math.PI*2); ctx.fill();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.stroke();
+      log("disegnato pallino utente","ok");
+    }catch(e){
+      log("FALLITO nel disegno poste: "+e.message,"no"); return;
+    }
+
+    log("--- TUTTO OK: dovresti VEDERE 4 pallini rossi e uno blu sopra ---","ok");
+    log("Se sopra e' verde vuoto, il canvas disegna ma non si vede (problema CSS).","in");
+  }
+
+  document.getElementById("b-draw").onclick=test;
+  document.getElementById("b-copy").onclick=function(){
+    var t=righe.join("\n");
+    if(navigator.clipboard) navigator.clipboard.writeText(t).then(function(){ alert("Copiato! Incollalo nella chat."); });
+    else prompt("Copia questo testo:", t);
+  };
+  // test automatico all'apertura
+  setTimeout(test, 300);
+})();
+</script>
+</body>
+</html>

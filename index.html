@@ -109,6 +109,21 @@
   #menu .panel .hd{padding:12px 16px 8px; font-size:11px; color:var(--muted);
     text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--dark3);}
 
+  /* ---------- BUSSOLA (sempre visibile sulla mappa) ---------- */
+  #compass{position:absolute; left:12px; bottom:92px; z-index:600;
+    display:flex; flex-direction:column; align-items:center; gap:3px; pointer-events:auto;}
+  #compass .rose{width:56px; height:56px; border-radius:50%;
+    background:rgba(44,36,24,.9); border:1px solid var(--dark3);
+    backdrop-filter:blur(4px); position:relative;
+    transition:transform .25s ease-out;}
+  #compass .rose .n{position:absolute; top:3px; left:0; right:0; text-align:center;
+    font-size:10px; font-weight:700; color:var(--red);}
+  #compass .rose .needle{position:absolute; top:13px; left:50%; margin-left:-2px;
+    width:4px; height:30px; border-radius:2px;
+    background:linear-gradient(180deg,var(--red) 0%,var(--red) 50%,var(--cream) 50%,var(--cream) 100%);}
+  #compass .deg{font-size:10px; color:var(--cream); background:rgba(44,36,24,.9);
+    padding:2px 7px; border-radius:6px; backdrop-filter:blur(4px);}
+
   #navpanel{position:absolute; left:10px; right:10px; bottom:92px; z-index:500;
     background:rgba(44,36,24,.95); border:1px solid var(--dark3); border-radius:16px;
     padding:13px; display:none; align-items:center; gap:13px; backdrop-filter:blur(6px);}
@@ -361,6 +376,15 @@
         </div>
         <div class="areatag" id="areatag">nessuna area</div>
       </div>
+
+      <!-- BUSSOLA sempre presente (toccabile: su iPhone attiva il sensore) -->
+      <div id="compass">
+        <div class="rose" id="compass-rose">
+          <div class="n">N</div>
+          <div class="needle"></div>
+        </div>
+        <div class="deg" id="compass-deg">—</div>
+      </div>
       <div id="navpanel">
         <div class="arrowwrap"><div id="arrow">↑</div></div>
         <div class="navinfo">
@@ -518,7 +542,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.5";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.6";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -722,7 +746,7 @@
       var h=null;
       if(typeof e.webkitCompassHeading==="number") h=e.webkitCompassHeading;
       else if(e.absolute && typeof e.alpha==="number") h=360-e.alpha;
-      if(h!==null){ heading=h; updateNav(); }
+      if(h!==null){ heading=h; updateNav(); updateBussola(); }
     }
     if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
       window.__askCompass=function(){
@@ -734,6 +758,19 @@
       window.addEventListener("deviceorientationabsolute",handler,true);
       window.addEventListener("deviceorientation",handler,true);
     }
+  }
+  function cardinale(g){
+    var dirs=["N","NE","E","SE","S","SO","O","NO"];
+    return dirs[Math.round(g/45)%8];
+  }
+  function updateBussola(){
+    var rose=document.getElementById("compass-rose");
+    var deg=document.getElementById("compass-deg");
+    if(!rose||!deg) return;
+    if(heading===null){ deg.textContent="tocca"; return; }
+    // ruoto la rosa in senso opposto: la N punta sempre al nord vero
+    rose.style.transform="rotate("+(-heading)+"deg)";
+    deg.textContent=Math.round(heading)+"° "+cardinale(heading);
   }
 
   /* ================= MAPPA ================= */
@@ -1104,6 +1141,10 @@
     document.getElementById("btn-mark").onclick=openNuovaPosta;
     document.getElementById("btn-center").onclick=centerOnUser;
     document.getElementById("navclose").onclick=clearNav;
+    // toccare la bussola chiede il permesso al sensore (obbligatorio su iPhone)
+    document.getElementById("compass").onclick=function(){
+      if(window.__askCompass){ window.__askCompass(); toast("Bussola attivata"); }
+    };
 
     document.getElementById("m-posta-salva").onclick=salvaPosta;
     document.getElementById("m-posta-annulla").onclick=function(){ document.getElementById("m-posta").classList.remove("show"); };
