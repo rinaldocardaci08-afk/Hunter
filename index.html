@@ -76,6 +76,50 @@
   #codabadge button{margin-left:auto; background:rgba(255,255,255,.9); border:none;
     color:#1d3a5a; border-radius:7px; padding:6px 11px; font-size:12px; font-weight:600; flex-shrink:0;}
 
+  /* ---------- SQUADRA ---------- */
+  .ci{width:17px; height:17px; flex-shrink:0; vertical-align:-3px;}
+  .ci.big{width:21px; height:21px;}
+
+  .lbl{display:block; font-size:12px; color:var(--muted); margin:16px 0 7px;
+    text-transform:uppercase; letter-spacing:.5px;}
+  .lbl:first-child{margin-top:2px;}
+  .lbl .opt{text-transform:none; letter-spacing:0; color:#6b5a3a;}
+  .inp{width:100%; background:var(--dark2); border:1px solid var(--dark3); color:var(--cream);
+    border-radius:11px; padding:13px;}
+
+  .chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{display:flex; align-items:center; gap:6px; padding:10px 12px; border-radius:10px;
+    background:var(--dark2); border:1px solid var(--dark3); color:var(--muted); font-size:13px;}
+  .chip.on{background:var(--brown); border-color:var(--brown); color:var(--cream);}
+  .chip:disabled{opacity:.35;}
+
+  .opz{display:flex; align-items:center; gap:11px; width:100%; padding:12px;
+    background:var(--dark2); border:1px solid var(--dark3); border-radius:11px;
+    color:var(--muted); font-size:14px; margin-bottom:6px; text-align:left;}
+  .opz .box{width:20px; height:20px; border-radius:6px; border:2px solid #6b5a3a; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700;}
+  .opz .tx{flex:1; min-width:0;}
+  .opz.on{background:#4a3320; border-color:var(--gold); color:var(--cream);}
+  .opz.on .box{background:var(--gold); border-color:var(--gold); color:var(--dark);}
+  .opz.on .box::after{content:"✓";}
+
+  .hintbox{font-size:11px; color:var(--amber); margin-top:7px; min-height:14px;}
+
+  .memrow{display:flex; align-items:center; gap:11px; padding:10px 11px;
+    background:var(--dark2); border-radius:11px; margin-bottom:6px;}
+  .memrow .av{width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;}
+  .memrow .av.carica{border-radius:9px; transform:rotate(45deg);}
+  .memrow .av.carica svg{transform:rotate(-45deg);}
+  .memrow .nm{flex:1; min-width:0;}
+  .memrow .nm .a{font-size:14px; color:var(--cream); font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .memrow .nm .b{font-size:11px; color:var(--muted);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .memrow .tag{font-size:9px; color:#9fc8ed; background:#1d3a5a;
+    padding:3px 6px; border-radius:5px; flex-shrink:0;}
+  .memrow.ospite{background:#2f2818; border:1px dashed var(--dark3);}
+
   main{flex:1; position:relative; overflow:hidden;}
   .view{position:absolute; inset:0; display:none; flex-direction:column;}
   .view.active{display:flex;}
@@ -287,6 +331,49 @@
 
 <!-- ================= APP ================= -->
 <div id="app" style="display:none">
+
+<!-- ===== ICONE DEI RUOLI (SVG, serie B geometrica) ===== -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+<defs>
+  <symbol id="ic-stella" viewBox="0 0 24 24">
+    <path d="M12 3l2.4 5.4 5.9.6-4.4 4 1.3 5.8L12 15.9 6.8 18.8l1.3-5.8-4.4-4 5.9-.6z" fill="currentColor"/>
+  </symbol>
+  <symbol id="ic-bersaglio" viewBox="0 0 24 24">
+    <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+    <circle cx="12" cy="12" r="7" fill="none" stroke="currentColor" stroke-width="2.2"/>
+    <circle cx="12" cy="12" r="2.6" fill="currentColor"/>
+  </symbol>
+  <symbol id="ic-bandiera" viewBox="0 0 24 24">
+    <rect x="5" y="3" width="2" height="18" rx="1" fill="currentColor"/>
+    <path d="M8 4h11l-3 4 3 4H8z" fill="currentColor"/>
+  </symbol>
+  <symbol id="ic-voce" viewBox="0 0 24 24">
+    <path d="M3 9.5h3.5L13 5v14l-6.5-4.5H3z" fill="currentColor"/>
+    <path d="M16 8.5c1.3 1 2 2.2 2 3.5s-.7 2.5-2 3.5" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/>
+    <path d="M19 6c2 1.6 3 3.7 3 6s-1 4.4-3 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" opacity="0.65"/>
+  </symbol>
+  <symbol id="ic-cane" viewBox="0 0 24 24">
+    <path d="M3 5l3.5 2.5M21 5l-3.5 2.5" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+    <path d="M3 5v5.5l3.5-3z" fill="currentColor"/>
+    <path d="M21 5v5.5l-3.5-3z" fill="currentColor"/>
+    <path d="M5.5 8.5h13v5.5c0 3.6-2.9 6.5-6.5 6.5S5.5 17.6 5.5 14z" fill="currentColor"/>
+    <circle cx="9.2" cy="12.5" r="1.3" fill="#2C2418"/>
+    <circle cx="14.8" cy="12.5" r="1.3" fill="#2C2418"/>
+    <path d="M12 16.2c-1.2 0-2 .8-2 1.6h4c0-.8-.8-1.6-2-1.6z" fill="#2C2418"/>
+  </symbol>
+  <symbol id="ic-fucile" viewBox="0 0 24 24">
+    <rect x="2" y="9.8" width="17" height="2.4" rx="1" fill="currentColor"/>
+    <rect x="19" y="8.8" width="3.5" height="4.4" rx="1" fill="currentColor"/>
+    <path d="M6.5 12.2l-1.2 4.5-2.6-.7 1.2-3.8z" fill="currentColor"/>
+    <rect x="10.5" y="12.2" width="1.8" height="3" rx=".8" fill="currentColor"/>
+  </symbol>
+  <symbol id="ic-persona" viewBox="0 0 24 24">
+    <circle cx="12" cy="8" r="4" fill="currentColor"/>
+    <path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z" fill="currentColor"/>
+  </symbol>
+</defs>
+</svg>
+
   <header>
     <div class="brand"><img src="icon-180.png" alt="" onerror="this.parentNode.textContent='🐗'"></div>
     <div style="min-width:0">
@@ -334,8 +421,7 @@
             <div class="nm">Battuta</div>
             <div class="ds">Adesioni, presenze, poste</div>
           </button>
-          <button class="tile soon" data-soon="Squadra">
-            <span class="badge">presto</span>
+          <button class="tile" data-go="squadra">
             <div class="ic">👥</div>
             <div class="nm">Squadra</div>
             <div class="ds">Componenti e ruoli</div>
@@ -406,6 +492,89 @@
         <div class="ttl">Bacheca</div>
       </div>
       <div class="scroll" id="bacheca-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- SQUADRA -->
+    <section class="view" id="v-squadra">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl">Squadra</div>
+      </div>
+      <div class="scroll" id="squadra-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- NUOVO / MODIFICA MEMBRO (pagina piena) -->
+    <section class="view" id="v-membro">
+      <div class="backbar">
+        <button id="mb-indietro">‹ Squadra</button>
+        <div class="ttl" id="mb-titolo">Nuovo componente</div>
+      </div>
+      <div class="scroll">
+
+        <label class="lbl">Nome e cognome</label>
+        <input id="mb-nome" type="text" class="inp" autocomplete="off" placeholder="Antonio Ferraro">
+
+        <label class="lbl">Tipo</label>
+        <div class="chips" id="mb-tipo">
+          <button class="chip on" data-tipo="socio">Socio</button>
+          <button class="chip" data-tipo="ospite">Ospite</button>
+        </div>
+
+        <label class="lbl">Carica <span class="opt">(facoltativa)</span></label>
+        <div class="chips" id="mb-carica">
+          <button class="chip on" data-carica="cacciatore">Nessuna</button>
+          <button class="chip" data-carica="capocaccia"><svg class="ci" style="color:#F2C230"><use href="#ic-stella"/></svg> Capocaccia</button>
+          <button class="chip" data-carica="vicecapocaccia"><svg class="ci" style="color:#4A9FE0"><use href="#ic-stella"/></svg> Vicecapocaccia</button>
+          <button class="chip" data-carica="vicecapobattuta"><svg class="ci" style="color:#D4879F"><use href="#ic-bersaglio"/></svg> Vicecapobattuta</button>
+        </div>
+        <div class="hintbox" id="mb-limite"></div>
+
+        <label class="lbl">Compiti <span class="opt">(puoi sceglierne più d'uno)</span></label>
+        <div id="mb-compiti">
+          <button class="opz" data-compito="postaiolo">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#C0392B"><use href="#ic-bandiera"/></svg>
+            <span class="tx">Postaiolo</span>
+          </button>
+          <button class="opz" data-compito="battitore">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#E0922B"><use href="#ic-voce"/></svg>
+            <span class="tx">Battitore</span>
+          </button>
+          <button class="opz" data-compito="canaio">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#5DAE6A"><use href="#ic-cane"/></svg>
+            <span class="tx">Canaio</span>
+          </button>
+          <button class="opz" data-compito="acc_canaio">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#3d7a48"><use href="#ic-cane"/></svg>
+            <span class="tx">Accompagnatore canaio</span>
+          </button>
+          <button class="opz" data-compito="acc_battitore">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#a86f22"><use href="#ic-voce"/></svg>
+            <span class="tx">Accompagnatore battitore</span>
+          </button>
+        </div>
+
+        <label class="lbl">Permessi</label>
+        <div id="mb-permessi">
+          <button class="opz on" data-perm="porto_armi">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#E0B878"><use href="#ic-fucile"/></svg>
+            <span class="tx">Ha il porto d'armi</span>
+          </button>
+          <button class="opz" data-perm="puo_mappare">
+            <span class="box"></span>
+            <span class="ci big" style="font-size:18px">🗺️</span>
+            <span class="tx">Può creare e modificare le mappe</span>
+          </button>
+        </div>
+
+        <button class="btn primary" id="mb-salva" style="margin-top:18px">Aggiungi alla squadra</button>
+        <button class="btn danger" id="mb-elimina" style="margin-top:9px; display:none">🗑 Rimuovi dalla squadra</button>
+      </div>
     </section>
 
     <!-- MAPPA -->
@@ -528,6 +697,7 @@
     <div class="hd" id="menu-hd">—</div>
     <button data-go="home">🏠 &nbsp;Home</button>
     <button data-go="bacheca">📢 &nbsp;Bacheca</button>
+    <button data-go="squadra">👥 &nbsp;Squadra</button>
     <button data-go="aree">📍 &nbsp;Aree e poste</button>
     <button data-go="info">ⓘ &nbsp;Guida</button>
     <button id="menu-gps">🔋 &nbsp;Sospendi GPS</button>
@@ -710,7 +880,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.15";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.16";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1752,6 +1922,7 @@
       },120);
     }
     if(v==="bacheca") caricaBacheca();
+    if(v==="squadra") caricaSquadra();
     window.scrollTo(0,0);
   }
 
@@ -2095,6 +2266,241 @@
     }
   }
 
+  /* ================= SQUADRA ================= */
+  var membri=[];
+  var membroEdit=null;   // null = nuovo
+
+  // definizioni: cariche (con limiti) e compiti
+  var CARICHE = {
+    capocaccia:      { nome:"Capocaccia",      icona:"#ic-stella",    col:"#F2C230", max:3 },
+    vicecapocaccia:  { nome:"Vicecapocaccia",  icona:"#ic-stella",    col:"#4A9FE0", max:3 },
+    vicecapobattuta: { nome:"Vicecapobattuta", icona:"#ic-bersaglio", col:"#D4879F", max:5 }
+  };
+  var COMPITI = {
+    postaiolo:      { nome:"Postaiolo",                icona:"#ic-bandiera", col:"#C0392B" },
+    battitore:      { nome:"Battitore",                icona:"#ic-voce",     col:"#E0922B" },
+    canaio:         { nome:"Canaio",                   icona:"#ic-cane",     col:"#5DAE6A" },
+    acc_canaio:     { nome:"Accompagnatore canaio",    icona:"#ic-cane",     col:"#3d7a48" },
+    acc_battitore:  { nome:"Accompagnatore battitore", icona:"#ic-voce",     col:"#a86f22" }
+  };
+
+  function puoGestireSquadra(){
+    return me && (me.ruolo==="admin" || me.ruolo==="capocaccia");
+  }
+
+  async function caricaSquadra(){
+    var root=document.getElementById("squadra-scroll");
+    root.innerHTML='<div class="loading">Carico…</div>';
+    try{
+      var r=await sb.from("hn_membri").select("*")
+        .eq("squadra_id",me.squadra_id).eq("attivo",true)
+        .order("nome",{ascending:true});
+      if(r.error) throw r.error;
+      membri=r.data||[];
+      try{ localStorage.setItem("hunter_cache_membri", JSON.stringify(membri)); }catch(e){}
+    }catch(e){
+      try{
+        var c=JSON.parse(localStorage.getItem("hunter_cache_membri"));
+        if(c){ membri=c; toast("Senza rete: uso i dati salvati"); }
+        else { root.innerHTML='<div class="empty">Senza rete e nessun dato salvato.</div>'; return; }
+      }catch(e2){ root.innerHTML='<div class="empty">Errore nel caricamento.</div>'; return; }
+    }
+    renderSquadra();
+  }
+
+  function contaCarica(car){
+    return membri.filter(function(m){ return m.ruolo===car && (!membroEdit || m.id!==membroEdit.id); }).length;
+  }
+
+  function iconaMembro(m){
+    var c=CARICHE[m.ruolo];
+    if(c){
+      return '<div class="av carica" style="background:'+c.col+'22; border:2px solid '+c.col+'">'+
+             '<svg class="ci" style="color:'+c.col+'"><use href="'+c.icona+'"/></svg></div>';
+    }
+    if(m.tipo==="ospite"){
+      return '<div class="av" style="background:#4a3f2c"><svg class="ci" style="color:#b89968"><use href="#ic-persona"/></svg></div>';
+    }
+    var comp=(m.compiti||[])[0];
+    var d=COMPITI[comp];
+    if(d){
+      return '<div class="av" style="background:'+d.col+'"><svg class="ci" style="color:#2C2418"><use href="'+d.icona+'"/></svg></div>';
+    }
+    return '<div class="av" style="background:#4a3f2c"><svg class="ci" style="color:#b89968"><use href="#ic-persona"/></svg></div>';
+  }
+
+  function descrizioneMembro(m){
+    var parti=[];
+    if(m.ruolo==="admin") parti.push("Amministratore");
+    else if(CARICHE[m.ruolo]) parti.push(CARICHE[m.ruolo].nome);
+    var comp=(m.compiti||[]).map(function(c){ return COMPITI[c] ? COMPITI[c].nome.toLowerCase() : c; });
+    if(comp.length) parti.push(comp.join(", "));
+    if(m.tipo==="ospite") parti.unshift("Ospite");
+    return parti.join(" · ") || "Cacciatore";
+  }
+
+  function renderSquadra(){
+    var root=document.getElementById("squadra-scroll");
+    var puo=puoGestireSquadra();
+    var h="";
+
+    if(puo) h+='<button class="btn primary" id="btn-newmembro" style="margin-bottom:14px">+ Nuovo componente</button>';
+
+    var conCarica = membri.filter(function(m){ return m.ruolo==="admin" || CARICHE[m.ruolo]; });
+    var cacciatori = membri.filter(function(m){ return !CARICHE[m.ruolo] && m.ruolo!=="admin" && m.tipo!=="ospite"; });
+    var ospiti = membri.filter(function(m){ return m.tipo==="ospite"; });
+
+    function riga(m){
+      var s='<div class="memrow '+(m.tipo==="ospite"?"ospite":"")+'" '+(puo?'data-mem="'+m.id+'" style="cursor:pointer"':'')+'>';
+      s+=iconaMembro(m);
+      s+='<div class="nm"><div class="a">'+esc(m.nome)+'</div><div class="b">'+esc(descrizioneMembro(m))+'</div></div>';
+      if(m.puo_mappare) s+='<span class="tag">mappe</span>';
+      if(m.porto_armi) s+='<svg class="ci" style="color:#E0B878"><use href="#ic-fucile"/></svg>';
+      s+='</div>';
+      return s;
+    }
+
+    if(conCarica.length){
+      h+='<div class="sechead">Cariche</div>';
+      conCarica.forEach(function(m){ h+=riga(m); });
+    }
+    if(cacciatori.length){
+      h+='<div class="sechead">Cacciatori</div>';
+      cacciatori.forEach(function(m){ h+=riga(m); });
+    }
+    if(ospiti.length){
+      h+='<div class="sechead">Ospiti</div>';
+      ospiti.forEach(function(m){ h+=riga(m); });
+    }
+    if(!membri.length) h+='<div class="empty">Nessun componente.</div>';
+
+    h+='<div style="text-align:center; color:var(--muted); font-size:11px; margin-top:16px">'+
+       membri.length+' component'+(membri.length===1?'e':'i')+' · '+
+       membri.filter(function(m){return m.porto_armi;}).length+' con fucile</div>';
+
+    root.innerHTML=h;
+    var nb=root.querySelector("#btn-newmembro");
+    if(nb) nb.onclick=function(){ apriMembro(null); };
+    root.querySelectorAll("[data-mem]").forEach(function(el){
+      el.onclick=function(){
+        var m=membri.find(function(x){return x.id===el.dataset.mem;});
+        if(m) apriMembro(m);
+      };
+    });
+  }
+
+  /* --- modulo nuovo/modifica membro --- */
+  function apriMembro(m){
+    membroEdit=m;
+    document.getElementById("mb-titolo").textContent = m ? "Modifica componente" : "Nuovo componente";
+    document.getElementById("mb-nome").value = m ? m.nome : "";
+    document.getElementById("mb-salva").textContent = m ? "Salva modifiche" : "Aggiungi alla squadra";
+    document.getElementById("mb-elimina").style.display = m ? "block" : "none";
+
+    var tipo = m ? (m.tipo||"socio") : "socio";
+    document.querySelectorAll("#mb-tipo .chip").forEach(function(b){
+      b.classList.toggle("on", b.dataset.tipo===tipo);
+    });
+
+    var carica = m ? (CARICHE[m.ruolo] ? m.ruolo : "cacciatore") : "cacciatore";
+    document.querySelectorAll("#mb-carica .chip").forEach(function(b){
+      b.classList.toggle("on", b.dataset.carica===carica);
+    });
+
+    var compiti = m ? (m.compiti||[]) : [];
+    document.querySelectorAll("#mb-compiti .opz").forEach(function(b){
+      b.classList.toggle("on", compiti.indexOf(b.dataset.compito)>=0);
+    });
+
+    document.querySelector('#mb-permessi [data-perm="porto_armi"]')
+      .classList.toggle("on", m ? m.porto_armi!==false : true);
+    document.querySelector('#mb-permessi [data-perm="puo_mappare"]')
+      .classList.toggle("on", m ? m.puo_mappare===true : false);
+
+    verificaLimiti();
+    showView("membro");
+  }
+
+  // disabilita le cariche già al completo
+  function verificaLimiti(){
+    var msg="";
+    document.querySelectorAll("#mb-carica .chip").forEach(function(b){
+      var k=b.dataset.carica;
+      if(k==="cacciatore"){ b.disabled=false; return; }
+      var def=CARICHE[k];
+      var n=contaCarica(k);
+      var pieno = n>=def.max;
+      b.disabled = pieno && !b.classList.contains("on");
+      if(pieno && b.classList.contains("on")) msg="";
+      else if(pieno) msg = def.nome+": già "+n+" su "+def.max+" (limite raggiunto)";
+    });
+    document.getElementById("mb-limite").textContent=msg;
+  }
+
+  function raccogliMembro(){
+    var nome=document.getElementById("mb-nome").value.trim();
+    if(!nome) return null;
+    var tipo="socio";
+    document.querySelectorAll("#mb-tipo .chip").forEach(function(b){ if(b.classList.contains("on")) tipo=b.dataset.tipo; });
+    var carica="cacciatore";
+    document.querySelectorAll("#mb-carica .chip").forEach(function(b){ if(b.classList.contains("on")) carica=b.dataset.carica; });
+    var compiti=[];
+    document.querySelectorAll("#mb-compiti .opz.on").forEach(function(b){ compiti.push(b.dataset.compito); });
+    var porto = document.querySelector('#mb-permessi [data-perm="porto_armi"]').classList.contains("on");
+    var mappe = document.querySelector('#mb-permessi [data-perm="puo_mappare"]').classList.contains("on");
+    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti, porto_armi:porto, puo_mappare:mappe };
+  }
+
+  async function salvaMembro(){
+    if(!puoGestireSquadra()){ toast("Non hai il permesso"); return; }
+    var d=raccogliMembro();
+    if(!d){ toast("Scrivi il nome"); return; }
+
+    // il canaio non può essere postaiolo (regola della squadra)
+    if(d.compiti.indexOf("canaio")>=0 && d.compiti.indexOf("postaiolo")>=0){
+      toast("Il canaio non può essere postaiolo: sta coi cani");
+      return;
+    }
+
+    var btn=document.getElementById("mb-salva");
+    var t=btn.textContent; btn.disabled=true; btn.textContent="Salvo…";
+    var r;
+    try{
+      if(membroEdit){
+        r=await sb.from("hn_membri").update(d).eq("id",membroEdit.id).select().single();
+      }else{
+        d.squadra_id=me.squadra_id;
+        d.attivo=true;
+        r=await sb.from("hn_membri").insert(d).select().single();
+      }
+      if(r.error) throw r.error;
+    }catch(e){
+      btn.disabled=false; btn.textContent=t;
+      toast("Serve la rete per salvare");
+      return;
+    }
+    btn.disabled=false; btn.textContent=t;
+    membroEdit=null;
+    await caricaSquadra();
+    showView("squadra");
+    toast("Componente salvato");
+  }
+
+  async function eliminaMembro(){
+    if(!membroEdit) return;
+    if(!puoGestireSquadra()){ toast("Non hai il permesso"); return; }
+    if(membroEdit.user_id===me.user_id){ toast("Non puoi rimuovere te stesso"); return; }
+    if(!confirm('Rimuovere "'+membroEdit.nome+'" dalla squadra?')) return;
+    try{
+      var r=await sb.from("hn_membri").update({attivo:false}).eq("id",membroEdit.id);
+      if(r.error) throw r.error;
+    }catch(e){ toast("Serve la rete"); return; }
+    membroEdit=null;
+    await caricaSquadra();
+    showView("squadra");
+    toast("Componente rimosso");
+  }
+
   /* ================= BACHECA ================= */
   var annunci=[];
   async function caricaBacheca(){
@@ -2286,6 +2692,30 @@
     };
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
     document.getElementById("coda-carica").onclick=function(){ sincronizzaCoda(false); };
+
+    // --- SQUADRA ---
+    document.getElementById("mb-indietro").onclick=function(){ membroEdit=null; showView("squadra"); };
+    document.getElementById("mb-salva").onclick=salvaMembro;
+    document.getElementById("mb-elimina").onclick=eliminaMembro;
+    // tipo e carica: scelta singola
+    document.querySelectorAll("#mb-tipo .chip").forEach(function(b){
+      b.onclick=function(){
+        document.querySelectorAll("#mb-tipo .chip").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+      };
+    });
+    document.querySelectorAll("#mb-carica .chip").forEach(function(b){
+      b.onclick=function(){
+        if(b.disabled) return;
+        document.querySelectorAll("#mb-carica .chip").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+        verificaLimiti();
+      };
+    });
+    // compiti e permessi: scelta multipla
+    document.querySelectorAll("#mb-compiti .opz, #mb-permessi .opz").forEach(function(b){
+      b.onclick=function(){ b.classList.toggle("on"); };
+    });
 
     // popup dell'area
     document.getElementById("ma-apri").onclick=apriAreaInMappa;
