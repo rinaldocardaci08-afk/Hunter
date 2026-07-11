@@ -373,6 +373,10 @@
     <path d="M6.5 12.2l-1.2 4.5-2.6-.7 1.2-3.8z" fill="currentColor"/>
     <rect x="10.5" y="12.2" width="1.8" height="3" rx=".8" fill="currentColor"/>
   </symbol>
+  <symbol id="ic-scudo" viewBox="0 0 24 24">
+    <path d="M12 2l8 3.2v5.4c0 5-3.4 9.6-8 11.4-4.6-1.8-8-6.4-8-11.4V5.2z" fill="currentColor"/>
+    <path d="M9 12l2.2 2.2L15.5 10" stroke="#2C2418" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </symbol>
   <symbol id="ic-persona" viewBox="0 0 24 24">
     <circle cx="12" cy="8" r="4" fill="currentColor"/>
     <path d="M4 21c0-4.4 3.6-7 8-7s8 2.6 8 7z" fill="currentColor"/>
@@ -578,6 +582,11 @@
 
         <label class="lbl">Permessi</label>
         <div id="mb-permessi">
+          <button class="opz" data-perm="is_admin">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#E0B878"><use href="#ic-scudo"/></svg>
+            <span class="tx">Amministratore <span style="color:var(--muted); font-size:11px">— gestisce il sistema, indipendente dalla carica</span></span>
+          </button>
           <button class="opz on" data-perm="porto_armi">
             <span class="box"></span>
             <svg class="ci big" style="color:#E0B878"><use href="#ic-fucile"/></svg>
@@ -909,7 +918,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.18";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.19";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -988,7 +997,7 @@
     var rm;
     try{
       rm=await sb.from("hn_membri")
-        .select("id,nome,ruolo,squadra_id,puo_mappare,vede_aree,vede_poste")
+        .select("id,nome,ruolo,squadra_id,is_admin,puo_mappare,vede_aree,vede_poste")
         .eq("user_id",u.id).eq("attivo",true).limit(1);
       if(rm.error) throw rm.error;
     }catch(e){
@@ -1021,6 +1030,7 @@
     }catch(e3){}
 
     me={ user_id:u.id, email:u.email, membro_id:m.id, nome:m.nome, ruolo:m.ruolo,
+         is_admin:(m.is_admin===true),
          puo_mappare:(m.puo_mappare===true),
          vede_aree:(m.vede_aree===true),
          vede_poste:(m.vede_poste===true),
@@ -1039,11 +1049,15 @@
   }
 
   function applicaProfilo(){
+    var qual=[];
+    if(me.is_admin) qual.push("admin");
+    if(me.ruolo && me.ruolo!=="cacciatore") qual.push(me.ruolo);
+    var et = qual.length ? qual.join(" · ") : "cacciatore";
     document.getElementById("h-squadra").textContent=me.squadra_nome;
-    document.getElementById("h-utente").textContent=me.nome+" · "+me.ruolo;
+    document.getElementById("h-utente").textContent=me.nome+" · "+et;
     document.getElementById("home-squadra").textContent=me.squadra_nome;
-    document.getElementById("home-utente").textContent=me.nome+" · "+me.ruolo;
-    document.getElementById("i-account").textContent=me.nome+" ("+me.email+") · ruolo: "+me.ruolo;
+    document.getElementById("home-utente").textContent=me.nome+" · "+et;
+    document.getElementById("i-account").textContent=me.nome+" ("+me.email+") · "+et;
   }
   async function doLogout(){
     try{ await sb.auth.signOut(); }catch(e){}
@@ -2329,7 +2343,7 @@
   };
 
   function puoGestireSquadra(){
-    return me && (me.ruolo==="admin" || me.ruolo==="capocaccia");
+    return me && (me.is_admin===true || me.ruolo==="capocaccia");
   }
 
   async function caricaSquadra(){
@@ -2358,6 +2372,10 @@
 
   function iconaMembro(m){
     var c=CARICHE[m.ruolo];
+    if(!c && m.is_admin){
+      return '<div class="av carica" style="background:#4a3320; border:2px solid #E0B878">'+
+             '<svg class="ci" style="color:#E0B878"><use href="#ic-scudo"/></svg></div>';
+    }
     if(c){
       return '<div class="av carica" style="background:'+c.col+'22; border:2px solid '+c.col+'">'+
              '<svg class="ci" style="color:'+c.col+'"><use href="'+c.icona+'"/></svg></div>';
@@ -2375,8 +2393,8 @@
 
   function descrizioneMembro(m){
     var parti=[];
-    if(m.ruolo==="admin") parti.push("Amministratore");
-    else if(CARICHE[m.ruolo]) parti.push(CARICHE[m.ruolo].nome);
+    if(m.is_admin) parti.push("Amministratore");
+    if(CARICHE[m.ruolo]) parti.push(CARICHE[m.ruolo].nome);
     var comp=(m.compiti||[]).map(function(c){ return COMPITI[c] ? COMPITI[c].nome.toLowerCase() : c; });
     if(comp.length) parti.push(comp.join(", "));
     if(m.tipo==="ospite") parti.unshift("Ospite");
@@ -2390,8 +2408,8 @@
 
     if(puo) h+='<button class="btn primary" id="btn-newmembro" style="margin-bottom:14px">+ Nuovo componente</button>';
 
-    var conCarica = membri.filter(function(m){ return m.ruolo==="admin" || CARICHE[m.ruolo]; });
-    var cacciatori = membri.filter(function(m){ return !CARICHE[m.ruolo] && m.ruolo!=="admin" && m.tipo!=="ospite"; });
+    var conCarica = membri.filter(function(m){ return m.is_admin || CARICHE[m.ruolo]; });
+    var cacciatori = membri.filter(function(m){ return !CARICHE[m.ruolo] && !m.is_admin && m.tipo!=="ospite"; });
     var ospiti = membri.filter(function(m){ return m.tipo==="ospite"; });
 
     function riga(m){
@@ -2457,6 +2475,8 @@
       b.classList.toggle("on", compiti.indexOf(b.dataset.compito)>=0);
     });
 
+    document.querySelector('#mb-permessi [data-perm="is_admin"]')
+      .classList.toggle("on", m ? m.is_admin===true : false);
     document.querySelector('#mb-permessi [data-perm="porto_armi"]')
       .classList.toggle("on", m ? m.porto_armi!==false : true);
     document.querySelector('#mb-permessi [data-perm="vede_aree"]')
@@ -2515,14 +2535,16 @@
     document.querySelectorAll("#mb-carica .chip").forEach(function(b){ if(b.classList.contains("on")) carica=b.dataset.carica; });
     var compiti=[];
     document.querySelectorAll("#mb-compiti .opz.on").forEach(function(b){ compiti.push(b.dataset.compito); });
+    var admin = document.querySelector('#mb-permessi [data-perm="is_admin"]').classList.contains("on");
     var porto = document.querySelector('#mb-permessi [data-perm="porto_armi"]').classList.contains("on");
     var vAree = document.querySelector('#mb-permessi [data-perm="vede_aree"]').classList.contains("on");
     var vPoste= document.querySelector('#mb-permessi [data-perm="vede_poste"]').classList.contains("on");
     var mappe = document.querySelector('#mb-permessi [data-perm="puo_mappare"]').classList.contains("on");
-    // i permessi salgono a scala: chi modifica vede tutto, chi vede le poste vede le aree
+    // i permessi salgono a scala
+    if(admin){ vAree=true; vPoste=true; mappe=true; }
     if(mappe){ vAree=true; vPoste=true; }
     if(vPoste){ vAree=true; }
-    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti,
+    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti, is_admin:admin,
              porto_armi:porto, vede_aree:vAree, vede_poste:vPoste, puo_mappare:mappe };
   }
 
@@ -2549,6 +2571,12 @@
     if(!puoGestireSquadra()){ toast("Non hai il permesso"); return; }
     var d=raccogliMembro();
     if(!d){ toast("Scrivi il nome"); return; }
+
+    // non posso togliermi l'admin da solo: resterei fuori
+    if(membroEdit && membroEdit.user_id===me.user_id && me.is_admin && !d.is_admin){
+      toast("Non puoi toglierti l'amministrazione da solo");
+      return;
+    }
 
     // il canaio non può essere postaiolo (regola della squadra)
     if(d.compiti.indexOf("canaio")>=0 && d.compiti.indexOf("postaiolo")>=0){
@@ -2650,12 +2678,13 @@
     return gg+"/"+mm+"/"+aa+" "+hh+":"+mi;
   }
   function puoPubblicare(){
-    return me && (me.ruolo==="admin" || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
+    return me && (me.is_admin===true || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
   }
 
-  /* --- I TRE PERMESSI SULLE MAPPE, in scala --- */
-  var CAPI = ["admin","capocaccia","vicecapocaccia"];
-  function isCapo(){ return me && CAPI.indexOf(me.ruolo)>=0; }
+  /* --- I TRE PERMESSI SULLE MAPPE, in scala ---
+     ADMIN è un FLAG separato dalla carica: si può essere admin E vicecapobattuta. */
+  var CAPI = ["capocaccia","vicecapocaccia"];
+  function isCapo(){ return me && (me.is_admin===true || CAPI.indexOf(me.ruolo)>=0); }
 
   // 1) vedere le AREE (i poligoni sulla mappa)
   function puoVedereAree(){
@@ -2873,6 +2902,7 @@
           var el=document.querySelector('#mb-permessi [data-perm="'+nome+'"]');
           if(el) el.classList.toggle("on", v);
         }
+        if(p==="is_admin" && on){ set("vede_aree",true); set("vede_poste",true); set("puo_mappare",true); }
         if(p==="puo_mappare" && on){ set("vede_aree",true); set("vede_poste",true); }
         if(p==="vede_poste" && on){ set("vede_aree",true); }
         // e al contrario: se spengo la vista aree, spengo tutto il resto
