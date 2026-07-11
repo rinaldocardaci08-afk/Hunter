@@ -138,6 +138,17 @@
   #navclose{background:var(--dark3); border:none; color:var(--cream); width:34px; height:34px;
     border-radius:9px; font-size:17px; flex-shrink:0;}
 
+  /* ---------- BANNER MAPPATURA ---------- */
+  #mapbanner{position:absolute; left:10px; right:10px; top:56px; z-index:650;
+    background:rgba(192,57,43,.95); border-radius:12px; padding:10px 12px;
+    display:none; align-items:center; gap:10px; backdrop-filter:blur(4px);}
+  #mapbanner.show{display:flex;}
+  #mapbanner .tx{flex:1; min-width:0;}
+  #mapbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
+  #mapbanner .tx .b{font-size:11px; color:#fbeae3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #mapbanner button{background:rgba(255,255,255,.9); border:none; color:#7a2e1d;
+    border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; flex-shrink:0;}
+
   .actionbar{position:absolute; left:10px; right:10px; bottom:12px; z-index:500; display:flex; gap:8px;}
   .bigbtn{flex:1; border:none; border-radius:14px; padding:15px 10px; font-size:15px; font-weight:600;
     display:flex; align-items:center; justify-content:center; gap:7px;}
@@ -299,8 +310,8 @@
           </button>
           <button class="tile" data-go="aree">
             <div class="ic">📍</div>
-            <div class="nm">Aree e poste</div>
-            <div class="ds">Mappa i terreni</div>
+            <div class="nm">Mappe e poste</div>
+            <div class="ds">Crea e modifica i terreni</div>
           </button>
           <button class="tile" data-go="mappa">
             <div class="ic">🗺️</div>
@@ -394,6 +405,15 @@
         </div>
         <button id="navclose">✕</button>
       </div>
+      <!-- barra MODALITÀ MAPPATURA (compare solo mappando) -->
+      <div id="mapbanner">
+        <div class="tx">
+          <div class="a">Mappatura in corso</div>
+          <div class="b" id="mapbanner-area">—</div>
+        </div>
+        <button id="mapbanner-fine">Fine</button>
+      </div>
+
       <div class="actionbar">
         <button class="bigbtn mark" id="btn-mark">⊕ Segna posta qui</button>
         <button class="bigbtn ghost" id="btn-center">◎</button>
@@ -404,7 +424,7 @@
     <section class="view" id="v-aree">
       <div class="backbar">
         <button data-home>‹ Home</button>
-        <div class="ttl">Aree e poste</div>
+        <div class="ttl">Mappe e poste</div>
       </div>
       <div class="scroll" id="aree-scroll"><div class="loading">Carico le aree…</div></div>
     </section>
@@ -519,17 +539,20 @@
   </div>
 </div>
 
-<!-- MODALE AREA -->
+<!-- MODALE MAPPA (crea / modifica) -->
 <div class="modal" id="m-area">
   <div class="sheet">
-    <h3>Nuova area di caccia</h3>
-    <p class="hint">Il terreno dove si svolge la battuta. Dentro registri le poste.</p>
-    <label>Nome dell'area</label>
+    <h3 id="m-area-titolo">Nuova mappa</h3>
+    <p class="hint">Il terreno di battuta. Dentro registri le poste.</p>
+    <label>Nome della mappa</label>
     <input id="m-area-nome" type="text" autocomplete="off" placeholder="Bosco di Sopra">
+    <label>Comune</label>
+    <input id="m-area-comune" type="text" autocomplete="off" placeholder="Cittanova">
     <div class="btnrow" style="margin-top:15px">
       <button class="btn line" id="m-area-annulla">Annulla</button>
-      <button class="btn primary" id="m-area-salva">Crea area</button>
+      <button class="btn primary" id="m-area-salva">Crea mappa</button>
     </div>
+    <button class="btn danger" id="m-area-elimina" style="margin-top:9px; display:none">🗑 Elimina questa mappa</button>
   </div>
 </div>
 
@@ -542,7 +565,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.6";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.7";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -555,6 +578,8 @@
   var heading = null;
   var watchId = null;
   var mode = "sat";
+  var mappatura = false;   // true = si stanno inserendo poste in una mappa
+  var areaEditId = null;   // id della mappa in modifica (null = nuova)
   var navTarget = null;
   var map, userMarker, accCircle, posteLayer;
 
@@ -613,7 +638,7 @@
 
     // 1) carico il membro (query semplice, niente join annidata)
     var rm=await sb.from("hn_membri")
-      .select("id,nome,ruolo,squadra_id")
+      .select("id,nome,ruolo,squadra_id,puo_mappare")
       .eq("user_id",u.id).eq("attivo",true).limit(1);
     if(rm.error){ showLogin("Errore membri: "+rm.error.message); return; }
     if(!rm.data || !rm.data.length){ await sb.auth.signOut(); showLogin("Utente non associato a nessuna squadra"); return; }
@@ -625,6 +650,7 @@
     if(!rs.error && rs.data && rs.data.length) squadraNome=rs.data[0].nome;
 
     me={ user_id:u.id, email:u.email, membro_id:m.id, nome:m.nome, ruolo:m.ruolo,
+         puo_mappare:(m.puo_mappare===true),
          squadra_id:m.squadra_id, squadra_nome:squadraNome };
     document.getElementById("h-squadra").textContent=me.squadra_nome;
     document.getElementById("h-utente").textContent=me.nome+" · "+me.ruolo;
@@ -634,6 +660,7 @@
     showApp();
     showView("home");
     initMapOnce();
+    aggiornaBarraAzioni();   // il bottone "Segna posta" parte nascosto
     await caricaAree();
     startGPS();
   }
@@ -665,19 +692,38 @@
     refreshMapArea();
   }
   async function creaArea(){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var nome=document.getElementById("m-area-nome").value.trim();
-    if(!nome){ toast("Dai un nome all'area"); return; }
-    var btn=document.getElementById("m-area-salva"); btn.disabled=true; btn.textContent="Creo…";
-    var r=await sb.from("hn_aree").insert({squadra_id:me.squadra_id, nome:nome, creata_da:me.user_id}).select().single();
-    btn.disabled=false; btn.textContent="Crea area";
+    var comune=document.getElementById("m-area-comune").value.trim();
+    if(!nome){ toast("Dai un nome alla mappa"); return; }
+    var btn=document.getElementById("m-area-salva");
+    var testoOrig=btn.textContent;
+    btn.disabled=true; btn.textContent="Salvo…";
+
+    var r;
+    if(areaEditId){
+      // MODIFICA di una mappa esistente
+      r=await sb.from("hn_aree").update({nome:nome, comune:comune||null}).eq("id",areaEditId).select().single();
+    }else{
+      // NUOVA mappa
+      r=await sb.from("hn_aree").insert({
+        squadra_id:me.squadra_id, nome:nome, comune:comune||null, creata_da:me.user_id
+      }).select().single();
+    }
+    btn.disabled=false; btn.textContent=testoOrig;
     if(r.error){ toast("Errore: "+r.error.message); return; }
+
     document.getElementById("m-area").classList.remove("show");
-    document.getElementById("m-area-nome").value="";
-    areaAttivaId=r.data.id;
+    var era=areaEditId;
+    areaEditId=null;
+    if(!era) areaAttivaId=r.data.id;
     await caricaAree();
-    toast("Area creata: "+nome);
+    toast(era ? "Mappa aggiornata" : "Mappa creata: "+nome);
+    // dopo aver CREATO una mappa nuova, entro subito in mappatura
+    if(!era) entraMappatura(r.data.id);
   }
   async function salvaPosta(){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var a=areaAttiva(); if(!a||!pos) return;
     var nome=document.getElementById("m-posta-nome").value.trim()||("Posta "+((a.poste?a.poste.length:0)+1));
     var tipo=document.getElementById("m-posta-tipo").value;
@@ -699,6 +745,7 @@
     toast("Posta salvata: "+nome);
   }
   async function eliminaPosta(areaId, postaId){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
     var p=a.poste.find(function(x){return x.id===postaId;});
     if(!confirm('Eliminare "'+(p?p.nome:"la posta")+'"?')) return;
@@ -709,13 +756,21 @@
     toast("Posta eliminata");
   }
   async function eliminaArea(areaId){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
-    if(!confirm('Eliminare l\'area "'+a.nome+'" e tutte le sue poste?')) return;
+    var np=(a.poste||[]).length;
+    var msg='Eliminare la mappa "'+a.nome+'"?';
+    if(np) msg+='\n\nPerderai anche le sue '+np+' post'+(np===1?'a':'e')+'.';
+    msg+='\n\nQuesta operazione non si può annullare.';
+    if(!confirm(msg)) return;
     var r=await sb.from("hn_aree").delete().eq("id",areaId);
     if(r.error){ toast("Errore: "+r.error.message); return; }
     if(areaAttivaId===areaId) areaAttivaId=null;
+    if(mappatura) esciMappatura();
+    document.getElementById("m-area").classList.remove("show");
+    areaEditId=null;
     await caricaAree();
-    toast("Area eliminata");
+    toast("Mappa eliminata");
   }
 
   /* ================= GPS ================= */
@@ -922,50 +977,99 @@
   /* ================= RENDER AREE ================= */
   function renderAree(){
     var root=document.getElementById("aree-scroll");
-    var h='<div class="sechead">Aree di caccia · '+esc(me?me.squadra_nome:"")+'</div>';
-    if(!aree.length){
-      h+='<div class="empty">Nessuna area ancora.<br>Crea la prima per iniziare a segnare le poste.</div>';
+    var puo=puoMappare();
+    var h='<div class="sechead">Mappe di '+esc(me?me.squadra_nome:"")+'</div>';
+
+    if(!puo){
+      h+='<div class="card" style="background:#3a3122; font-size:12px; color:var(--muted); line-height:1.5; margin-bottom:12px">'+
+         '🔒 Puoi consultare le mappe, ma non modificarle. Il permesso lo dà l\'amministratore.</div>';
     }
+
+    if(!aree.length){
+      h+='<div class="empty">Nessuna mappa ancora.'+(puo?'<br>Creane una per iniziare a segnare le poste.':'')+'</div>';
+    }
+
+    // raggruppo per comune
+    var gruppi={};
     aree.forEach(function(a){
-      var act=a.id===areaAttivaId;
-      var np=(a.poste||[]).length;
-      h+='<div class="card">';
-      h+='<div class="arearow '+(act?"active":"")+'" data-sel="'+a.id+'">';
-      h+='<div class="ic">🌲</div><div class="meta"><div class="n">'+esc(a.nome)+'</div>';
-      h+='<div class="c">'+np+' post'+(np===1?"a":"e")+(act?" · attiva":"")+'</div></div>';
-      h+='<button class="del" data-delarea="'+a.id+'">🗑</button></div>';
-      if(np){
-        h+='<div class="miniposte">';
-        (a.poste||[]).forEach(function(p,i){
-          h+='<div class="posterow"><div class="num" style="background:'+(p.tipo==="occasionale"?"#E0922B":(p.tipo==="controposta"?"#7B5EA7":"#C0392B"))+'">'+(p.numero||(i+1))+'</div>';
-          h+='<div class="pn">'+esc(p.nome)+'</div>';
-          h+='<div class="acc">±'+(p.accuratezza||0)+'m</div>';
-          h+='<button class="del" data-delposta="'+a.id+'|'+p.id+'">✕</button></div>';
-        });
-        h+='</div>';
-      }
-      if(!act) h+='<button class="btn line" style="margin-top:10px" data-attiva="'+a.id+'">Rendi attiva</button>';
-      h+='</div>';
+      var c=(a.comune||"Senza comune").trim();
+      if(!gruppi[c]) gruppi[c]=[];
+      gruppi[c].push(a);
     });
-    h+='<button class="btn primary" style="margin-top:6px" id="btn-newarea">+ Nuova area</button>';
+    Object.keys(gruppi).sort().forEach(function(comune){
+      if(aree.length>1) h+='<div class="sechead" style="margin-top:14px">'+esc(comune)+'</div>';
+      gruppi[comune].forEach(function(a){
+        var act=a.id===areaAttivaId;
+        var np=(a.poste||[]).length;
+        h+='<div class="card">';
+        h+='<div class="arearow '+(act?"active":"")+'" data-sel="'+a.id+'">';
+        h+='<div class="ic">🌲</div><div class="meta"><div class="n">'+esc(a.nome)+'</div>';
+        h+='<div class="c">'+np+' post'+(np===1?"a":"e")+(a.comune?' · '+esc(a.comune):'')+(act?" · attiva":"")+'</div></div>';
+        h+='</div>';
+
+        if(np){
+          h+='<div class="miniposte">';
+          (a.poste||[]).forEach(function(p,i){
+            var col=(p.tipo==="occasionale"?"#E0922B":(p.tipo==="controposta"?"#7B5EA7":"#C0392B"));
+            h+='<div class="posterow"><div class="num" style="background:'+col+'">'+(p.numero||(i+1))+'</div>';
+            h+='<div class="pn">'+esc(p.nome)+'</div>';
+            h+='<div class="acc">±'+(p.accuratezza||0)+'m</div>';
+            if(puo) h+='<button class="del" data-delposta="'+a.id+'|'+p.id+'">✕</button>';
+            h+='</div>';
+          });
+          h+='</div>';
+        }
+
+        // azioni sulla mappa
+        h+='<div class="btnrow" style="margin-top:10px">';
+        if(!act) h+='<button class="btn line" data-attiva="'+a.id+'">Rendi attiva</button>';
+        if(puo){
+          h+='<button class="btn primary" data-mappa="'+a.id+'">✎ Modifica / poste</button>';
+        }
+        h+='</div>';
+        h+='</div>';
+      });
+    });
+
+    if(puo) h+='<button class="btn primary" style="margin-top:14px" id="btn-newarea">+ Nuova mappa</button>';
     root.innerHTML=h;
 
-    root.querySelector("#btn-newarea").onclick=function(){
+    var nb=root.querySelector("#btn-newarea");
+    if(nb) nb.onclick=function(){
+      areaEditId=null;
+      document.getElementById("m-area-titolo").textContent="Nuova mappa";
+      document.getElementById("m-area-nome").value="";
+      document.getElementById("m-area-comune").value="";
+      document.getElementById("m-area-salva").textContent="Crea mappa";
+      document.getElementById("m-area-elimina").style.display="none";
       document.getElementById("m-area").classList.add("show");
       setTimeout(function(){document.getElementById("m-area-nome").focus();},120);
     };
     root.querySelectorAll("[data-attiva]").forEach(function(b){
-      b.onclick=function(){ areaAttivaId=b.dataset.attiva; renderAree(); refreshMapArea(); toast("Area attiva: "+areaAttiva().nome); };
+      b.onclick=function(e){ e.stopPropagation(); areaAttivaId=b.dataset.attiva; renderAree(); refreshMapArea(); toast("Mappa attiva: "+areaAttiva().nome); };
     });
     root.querySelectorAll("[data-sel]").forEach(function(el){
-      el.onclick=function(e){ if(e.target.closest("[data-delarea]")) return; areaAttivaId=el.dataset.sel; renderAree(); refreshMapArea(); };
+      el.onclick=function(){ areaAttivaId=el.dataset.sel; renderAree(); refreshMapArea(); };
     });
-    root.querySelectorAll("[data-delarea]").forEach(function(b){
-      b.onclick=function(e){ e.stopPropagation(); eliminaArea(b.dataset.delarea); };
+    root.querySelectorAll("[data-mappa]").forEach(function(b){
+      b.onclick=function(e){ e.stopPropagation(); apriModificaMappa(b.dataset.mappa); };
     });
     root.querySelectorAll("[data-delposta]").forEach(function(b){
-      b.onclick=function(){ var p=b.dataset.delposta.split("|"); eliminaPosta(p[0],p[1]); };
+      b.onclick=function(e){ e.stopPropagation(); var p=b.dataset.delposta.split("|"); eliminaPosta(p[0],p[1]); };
     });
+  }
+
+  /* apre il modale di modifica di una mappa esistente */
+  function apriModificaMappa(id){
+    var a=aree.find(function(x){return x.id===id;});
+    if(!a) return;
+    areaEditId=id;
+    document.getElementById("m-area-titolo").textContent="Modifica mappa";
+    document.getElementById("m-area-nome").value=a.nome||"";
+    document.getElementById("m-area-comune").value=a.comune||"";
+    document.getElementById("m-area-salva").textContent="Salva modifiche";
+    document.getElementById("m-area-elimina").style.display="block";
+    document.getElementById("m-area").classList.add("show");
   }
 
   /* ================= VISTE ================= */
@@ -978,15 +1082,49 @@
   }
 
   function openNuovaPosta(){
+    if(!mappatura){ toast("Entra in modalità mappatura da Aree e poste"); return; }
+    if(!puoMappare()){ toast("Non hai il permesso di modificare le mappe"); return; }
     var a=areaAttiva();
-    if(!a){ toast("Crea prima un'area"); showView("aree"); return; }
+    if(!a){ toast("Nessuna mappa attiva"); showView("aree"); return; }
     if(!pos){ toast("Aspetta il segnale GPS"); return; }
     document.getElementById("m-posta-area").textContent="In: "+a.nome;
     document.getElementById("m-posta-nome").value="Posta "+(((a.poste||[]).length)+1);
     document.getElementById("m-posta-tipo").value="fissa";
+    document.getElementById("m-posta-note").value="";
     document.getElementById("m-posta-coord").textContent=pos.lat.toFixed(5)+", "+pos.lng.toFixed(5);
     document.getElementById("m-posta-acc").textContent="± "+Math.round(pos.acc)+" m";
     document.getElementById("m-posta").classList.add("show");
+  }
+
+  /* ================= MODALITÀ MAPPATURA ================= */
+  function entraMappatura(areaId){
+    if(!puoMappare()){ toast("Non hai il permesso di modificare le mappe"); return; }
+    var a=aree.find(function(x){return x.id===areaId;});
+    if(!a){ toast("Mappa non trovata"); return; }
+    areaAttivaId=areaId;
+    mappatura=true;
+    document.getElementById("mapbanner-area").textContent=a.nome+(a.comune?" · "+a.comune:"");
+    document.getElementById("mapbanner").classList.add("show");
+    aggiornaBarraAzioni();
+    showView("mappa");
+    refreshMapArea();
+    setTimeout(centerOnUser,300);
+    toast("Modalità mappatura: cammina e segna le poste");
+  }
+  function esciMappatura(){
+    mappatura=false;
+    document.getElementById("mapbanner").classList.remove("show");
+    aggiornaBarraAzioni();
+    renderAree();
+    toast("Mappatura chiusa");
+  }
+  // Il bottone "Segna posta qui" esiste SOLO in modalità mappatura
+  function aggiornaBarraAzioni(){
+    var btn=document.getElementById("btn-mark");
+    if(!btn) return;
+    btn.style.display = mappatura ? "flex" : "none";
+    var center=document.getElementById("btn-center");
+    if(center) center.style.flex = mappatura ? "0 0 54px" : "1";
   }
 
   /* ================= BACHECA ================= */
@@ -1011,6 +1149,13 @@
   }
   function puoPubblicare(){
     return me && (me.ruolo==="admin" || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
+  }
+  // Permesso di CREARE e MODIFICARE le mappe (aree e poste).
+  // Di default: admin, capocaccia, vicecapocaccia. Gli altri solo se autorizzati col flag.
+  function puoMappare(){
+    if(!me) return false;
+    if(me.ruolo==="admin" || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia") return true;
+    return me.puo_mappare===true;
   }
   function renderBacheca(){
     var root=document.getElementById("bacheca-scroll");
@@ -1149,7 +1294,14 @@
     document.getElementById("m-posta-salva").onclick=salvaPosta;
     document.getElementById("m-posta-annulla").onclick=function(){ document.getElementById("m-posta").classList.remove("show"); };
     document.getElementById("m-area-salva").onclick=creaArea;
-    document.getElementById("m-area-annulla").onclick=function(){ document.getElementById("m-area").classList.remove("show"); };
+    document.getElementById("m-area-annulla").onclick=function(){
+      document.getElementById("m-area").classList.remove("show");
+      areaEditId=null;
+    };
+    document.getElementById("m-area-elimina").onclick=function(){
+      if(areaEditId) eliminaArea(areaEditId);
+    };
+    document.getElementById("mapbanner-fine").onclick=esciMappatura;
 
     document.getElementById("btn-gps-toggle").onclick=function(){
       if(watchId!==null){ stopGPS(); this.textContent="Riattiva GPS"; }
