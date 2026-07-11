@@ -431,6 +431,7 @@
 
       <div class="actionbar">
         <button class="bigbtn mark" id="btn-mark">⊕ Segna posta qui</button>
+        <button class="bigbtn ghost" id="btn-territorio" title="Vedi tutte le aree">🌍</button>
         <button class="bigbtn ghost" id="btn-center">◎</button>
       </div>
     </section>
@@ -603,7 +604,16 @@
       <button id="mv-chiudi" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:7px 13px;font-size:13px;">Chiudi</button>
     </div>
     <div style="flex:1; padding:14px; overflow-y:auto;">
-      <canvas id="mv-schema" style="width:100%; height:230px; border-radius:14px; background:#34401f; display:block; margin-bottom:13px;"></canvas>
+      <!-- commutatore satellite / schema -->
+      <div style="display:flex; gap:5px; background:var(--dark2); border-radius:10px; padding:4px; margin-bottom:11px;">
+        <button class="vpill on" data-vmode="sat" id="vp-sat" style="flex:1; font-size:13px; padding:9px; border:none; border-radius:7px; background:var(--brown); color:var(--cream);">Satellite</button>
+        <button class="vpill" data-vmode="schema" id="vp-schema" style="flex:1; font-size:13px; padding:9px; border:none; border-radius:7px; background:transparent; color:var(--muted);">Schema</button>
+      </div>
+
+      <div style="position:relative; width:100%; height:250px; border-radius:14px; overflow:hidden; margin-bottom:13px;">
+        <div id="mv-map" style="position:absolute; inset:0; background:#3d4a2a;"></div>
+        <canvas id="mv-schema" style="position:absolute; inset:0; width:100%; height:100%; background:#34401f; display:none;"></canvas>
+      </div>
 
       <div style="background:var(--dark2); border-radius:14px; padding:13px; display:flex; align-items:center; gap:13px; margin-bottom:12px;">
         <div style="width:60px;height:60px;border-radius:50%;background:var(--dark);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
@@ -676,7 +686,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.11";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.13";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -692,7 +702,7 @@
   var mappatura = false;   // true = si stanno inserendo poste in una mappa
   var areaEditId = null;   // id della mappa in modifica (null = nuova)
   var navTarget = null;
-  var map, userMarker, accCircle, posteLayer;
+  var map, userMarker, accCircle, posteLayer, areeLayer;
 
   function areaAttiva(){ return aree.find(function(a){return a.id===areaAttivaId;}) || null; }
 
@@ -976,7 +986,8 @@
     map=L.map("map",{zoomControl:false, attributionControl:false}).setView([start.lat,start.lng], zoom);
     L.control.zoom({position:"topright"}).addTo(map);
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(map);
-    posteLayer=L.layerGroup().addTo(map);
+    areeLayer=L.layerGroup().addTo(map);    // i poligoni delle aree (sotto)
+    posteLayer=L.layerGroup().addTo(map);   // le poste (sopra)
     mapReady=true;
   }
   function iconPosta(n,tipo){
@@ -989,6 +1000,82 @@
       html:'<div style="width:18px;height:18px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'});
   }
   var areaApertaInMappa = false;   // true = ho aperto un'area e ne vedo le poste
+
+  /* ---------- POLIGONI DELLE AREE (vista strategica del territorio) ----------
+     Solo per chi può mappare. Mostra dove sono le aree e quanto coprono,
+     senza rivelare le singole poste. Serve a capire cosa è mappato e cosa no. */
+
+  // inviluppo convesso (Andrew monotone chain) sui punti delle poste
+  function inviluppo(punti){
+    if(punti.length<3) return punti.slice();
+    var p=punti.slice().sort(function(a,b){ return a.x-b.x || a.y-b.y; });
+    function cross(o,a,b){ return (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x); }
+    var lower=[];
+    for(var i=0;i<p.length;i++){
+      while(lower.length>=2 && cross(lower[lower.length-2],lower[lower.length-1],p[i])<=0) lower.pop();
+      lower.push(p[i]);
+    }
+    var upper=[];
+    for(var j=p.length-1;j>=0;j--){
+      while(upper.length>=2 && cross(upper[upper.length-2],upper[upper.length-1],p[j])<=0) upper.pop();
+      upper.push(p[j]);
+    }
+    lower.pop(); upper.pop();
+    return lower.concat(upper);
+  }
+
+  function renderAreePoligoni(){
+    if(!areeLayer) return;
+    areeLayer.clearLayers();
+    // riservato: solo admin/capocaccia/autorizzati vedono il territorio
+    if(!puoMappare()) return;
+    // quando un'area è aperta, i poligoni si tolgono di mezzo
+    if(areaApertaInMappa) return;
+
+    aree.forEach(function(a){
+      var poste=(a.poste||[]);
+      if(!poste.length) return;
+
+      var col = "#E0B878";
+      var latlngs;
+
+      if(poste.length>=3){
+        var pts=poste.map(function(p){ return {x:p.lng, y:p.lat}; });
+        var hull=inviluppo(pts);
+        latlngs=hull.map(function(q){ return [q.y, q.x]; });
+      }else{
+        // 1 o 2 poste: disegno un piccolo cerchio attorno
+        var lat=poste.reduce(function(s,p){return s+p.lat;},0)/poste.length;
+        var lng=poste.reduce(function(s,p){return s+p.lng;},0)/poste.length;
+        var c=L.circle([lat,lng],{radius:90, color:col, weight:2, opacity:.75,
+          fillColor:col, fillOpacity:.12, dashArray:"6,5"}).addTo(areeLayer);
+        c.on("click", function(){ apriPopupArea(a.id); });
+        aggiungiEtichettaArea(a, lat, lng);
+        return;
+      }
+
+      // poligono semitrasparente: si vede il terreno sotto
+      var poly=L.polygon(latlngs,{
+        color:col, weight:2, opacity:.8,
+        fillColor:col, fillOpacity:.13,
+        dashArray:"6,5"
+      }).addTo(areeLayer);
+      poly.on("click", function(){ apriPopupArea(a.id); });
+
+      var b=poly.getBounds().getCenter();
+      aggiungiEtichettaArea(a, b.lat, b.lng);
+    });
+  }
+
+  function aggiungiEtichettaArea(a, lat, lng){
+    var np=(a.poste||[]).length;
+    var et=L.marker([lat,lng],{icon:L.divIcon({className:"", iconSize:[0,0],
+      html:'<div style="transform:translate(-50%,-50%); white-space:nowrap; background:rgba(44,36,24,.9);'+
+           'border:1px solid #E0B878; color:#F0E6D2; font:600 12px sans-serif; padding:4px 9px;'+
+           'border-radius:8px; box-shadow:0 1px 5px rgba(0,0,0,.4)">'+esc(a.nome)+
+           '<span style="color:#B89968; font-weight:400"> · '+np+'</span></div>'})}).addTo(areeLayer);
+    et.on("click", function(){ apriPopupArea(a.id); });
+  }
 
   function renderPoste(){
     if(!posteLayer) return;
@@ -1011,6 +1098,18 @@
     if(!accCircle) accCircle=L.circle([pos.lat,pos.lng],{radius:pos.acc,color:"#378ADD",weight:1,fillColor:"#378ADD",fillOpacity:.12}).addTo(map);
     else { accCircle.setLatLng([pos.lat,pos.lng]); accCircle.setRadius(pos.acc); }
   }
+  /* inquadra TUTTE le aree: vista d'insieme del territorio mappato */
+  function vediTerritorio(){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    if(areaApertaInMappa) chiudiAreaInMappa();
+    var punti=[];
+    aree.forEach(function(a){ (a.poste||[]).forEach(function(p){ punti.push([p.lat,p.lng]); }); });
+    if(!punti.length){ toast("Nessuna area mappata"); return; }
+    renderAreePoligoni();
+    map.fitBounds(L.latLngBounds(punti).pad(0.25));
+    toast(aree.length+" area"+(aree.length===1?"":"e")+" mappate · tocca per aprirle");
+  }
+
   function centerOnUser(){
     if(pos&&map) map.setView([pos.lat,pos.lng],17);
     else toast("Posizione non ancora disponibile");
@@ -1044,7 +1143,8 @@
   }
   function refreshMapArea(){
     var a=areaAttiva();
-    document.getElementById("areatag").textContent = (areaApertaInMappa && a) ? a.nome : "Mappa";
+    document.getElementById("areatag").textContent = (areaApertaInMappa && a) ? ("✕ "+a.nome) : "Mappa";
+    renderAreePoligoni();
     renderPoste();
     if(areaApertaInMappa) fitArea();
     clearNav();
@@ -1420,6 +1520,7 @@
     if(posteLayer) posteLayer.clearLayers();
     document.getElementById("areatag").textContent="Mappa";
     setMode("sat");
+    renderAreePoligoni();   // tornano i poligoni delle aree
     clearNav();
     toast("Area chiusa");
   }
@@ -1456,6 +1557,7 @@
           }
           mappaMaiCentrata=false;
         }
+        renderAreePoligoni();
         if(mode==="schema") drawSchema();
       },120);
     }
@@ -1543,9 +1645,22 @@
     var A=all.map(xy);
     var minX=Math.min.apply(null,A.map(function(q){return q.x;})), maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
     var minY=Math.min.apply(null,A.map(function(q){return q.y;})), maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
-    var pad=grande?46:34, spanX=Math.max(maxX-minX,25), spanY=Math.max(maxY-minY,25);
+    var pad=grande?54:38, spanX=Math.max(maxX-minX,25), spanY=Math.max(maxY-minY,25);
     var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
-    function px(p){ var q=xy(p); return {x:pad+(q.x-minX)*sc, y:pad+(q.y-minY)*sc}; }
+    // limito lo zoom massimo così la posta non diventa gigante quando i vicini sono pochi
+    sc=Math.min(sc, grande?3.2:2.4);
+    // centro sulla POSTA (non sul baricentro): è lei la protagonista
+    var cP=xy(posta);
+    function px(p){ var q=xy(p); return {x:W/2+(q.x-cP.x)*sc, y:H/2+(q.y-cP.y)*sc}; }
+
+    // scala metrica
+    var passi=[10,25,50,100,250], passo=passi[0];
+    for(var pi=0; pi<passi.length; pi++){ if(passi[pi]*sc>=40){ passo=passi[pi]; break; } passo=passi[pi]; }
+    ctx.strokeStyle="rgba(240,230,210,.5)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(12, H-12); ctx.lineTo(12+passo*sc, H-12); ctx.stroke();
+    ctx.fillStyle="rgba(240,230,210,.7)"; ctx.font="10px sans-serif";
+    ctx.textAlign="left"; ctx.textBaseline="bottom";
+    ctx.fillText(passo+" m", 16+passo*sc, H-8);
 
     // vicini (col nome, come richiesto)
     vic.forEach(function(v){
@@ -1605,13 +1720,14 @@
     toast("Note salvate");
   }
 
+  var mvMap=null, mvLayer=null, mvMode="sat";
+
   function apriVistaPostaiolo(){
     if(!postaAperta) return;
     var p=postaAperta;
     document.getElementById("mv-nome").textContent=p.nome||"Posta";
     var note=(p.note||"").trim();
     document.getElementById("mv-note").textContent = note || "Nessuna avvertenza per questa posta.";
-    document.getElementById("mv-notebox").style.display = "block";
     if(pos){
       var d=distM(pos,p);
       document.getElementById("mv-dist").textContent=fmtDist(d);
@@ -1622,7 +1738,62 @@
       document.getElementById("mv-arrow").style.transform="rotate(0deg)";
     }
     document.getElementById("m-vista").classList.add("show");
-    setTimeout(function(){ disegnaMiniSchema("mv-schema", p, true); }, 90);
+    mvSetMode(mvMode);
+  }
+
+  function mvSetMode(m){
+    mvMode=m;
+    var bs=document.getElementById("vp-sat"), bx=document.getElementById("vp-schema");
+    if(bs){ bs.style.background = m==="sat" ? "var(--brown)" : "transparent"; bs.style.color = m==="sat" ? "var(--cream)" : "var(--muted)"; }
+    if(bx){ bx.style.background = m==="schema" ? "var(--brown)" : "transparent"; bx.style.color = m==="schema" ? "var(--cream)" : "var(--muted)"; }
+    document.getElementById("mv-map").style.display = m==="sat" ? "block" : "none";
+    document.getElementById("mv-schema").style.display = m==="schema" ? "block" : "none";
+    if(m==="sat") setTimeout(mvDisegnaSat, 120);
+    else setTimeout(mvDisegnaSchema, 120);
+  }
+
+  /* SATELLITE: la posta al centro, coi vicini attorno */
+  function mvDisegnaSat(){
+    var p=postaAperta; if(!p) return;
+    var a=areaAttiva(); if(!a) return;
+    if(!mvMap){
+      mvMap=L.map("mv-map",{zoomControl:true, attributionControl:false});
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(mvMap);
+      mvLayer=L.layerGroup().addTo(mvMap);
+    }
+    mvMap.invalidateSize();
+    mvLayer.clearLayers();
+
+    var vic=viciniDi(p,(a.poste||[]),2);
+    // i vicini, col nome
+    vic.forEach(function(v){
+      var op = v.grado===1 ? 1 : 0.62;
+      var sz = v.grado===1 ? 24 : 20;
+      L.marker([v.p.lat,v.p.lng],{icon:L.divIcon({className:"",iconSize:[sz,sz],iconAnchor:[sz/2,sz/2],
+        html:'<div style="opacity:'+op+'"><div style="width:'+sz+'px;height:'+sz+'px;border-radius:50%;background:#B89968;border:2px solid #2C2418;"></div>'+
+             '<div style="position:absolute;top:'+(sz+2)+'px;left:50%;transform:translateX(-50%);white-space:nowrap;background:rgba(44,36,24,.85);color:#D8C6A8;font:10px sans-serif;padding:1px 5px;border-radius:4px;">'+
+             esc(v.p.nome||("Posta "+v.p.numero))+'</div></div>'})}).addTo(mvLayer);
+    });
+    // LA SUA posta
+    L.marker([p.lat,p.lng],{icon:L.divIcon({className:"",iconSize:[34,34],iconAnchor:[17,17],
+      html:'<div style="width:34px;height:34px;border-radius:50%;background:#C0392B;border:3px solid #fff;display:flex;align-items:center;justify-content:center;color:#fff;font:700 14px sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.5)">'+(p.numero||"?")+'</div>'+
+           '<div style="position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#2C2418;color:#F0E6D2;font:10px sans-serif;padding:2px 6px;border-radius:5px;">la tua</div>'}),zIndexOffset:800}).addTo(mvLayer);
+    // l'utente
+    if(pos){
+      L.marker([pos.lat,pos.lng],{icon:L.divIcon({className:"",iconSize:[16,16],iconAnchor:[8,8],
+        html:'<div style="width:16px;height:16px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'}),zIndexOffset:900}).addTo(mvLayer);
+    }
+    // inquadro la posta e i suoi vicini, ZOOMATO
+    var punti=[[p.lat,p.lng]].concat(vic.map(function(v){return [v.p.lat,v.p.lng];}));
+    if(pos) punti.push([pos.lat,pos.lng]);
+    if(punti.length>1) mvMap.fitBounds(L.latLngBounds(punti).pad(0.28), {maxZoom:18});
+    else mvMap.setView([p.lat,p.lng], 18);
+  }
+
+  /* SCHEMA: la posta al centro, zoomata sui vicini */
+  function mvDisegnaSchema(){
+    var p=postaAperta; if(!p) return;
+    disegnaMiniSchema("mv-schema", p, true);
   }
 
   /* ================= MODALITÀ MAPPATURA ================= */
@@ -1652,6 +1823,7 @@
     document.getElementById("areatag").textContent="Mappa";
     aggiornaBarraAzioni();
     if(posteLayer) posteLayer.clearLayers();
+    renderAreePoligoni();
     renderAree();
     toast("Mappatura chiusa");
   }
@@ -1660,8 +1832,10 @@
     var btn=document.getElementById("btn-mark");
     if(!btn) return;
     btn.style.display = mappatura ? "flex" : "none";
+    var terr=document.getElementById("btn-territorio");
+    if(terr) terr.style.display = (puoMappare() && !mappatura) ? "flex" : "none";
     var center=document.getElementById("btn-center");
-    if(center) center.style.flex = mappatura ? "0 0 54px" : "1";
+    if(center) center.style.flex = mappatura ? "0 0 54px" : (puoMappare() ? "1" : "1");
   }
 
   /* ================= BACHECA ================= */
@@ -1826,6 +2000,7 @@
     document.getElementById("areatag").onclick=chiudiAreaInMappa;
     document.getElementById("btn-mark").onclick=openNuovaPosta;
     document.getElementById("btn-center").onclick=centerOnUser;
+    document.getElementById("btn-territorio").onclick=vediTerritorio;
     document.getElementById("navclose").onclick=clearNav;
     // toccare la bussola chiede il permesso al sensore (obbligatorio su iPhone)
     document.getElementById("compass").onclick=function(){
@@ -1879,6 +2054,7 @@
     document.getElementById("m-note-annulla").onclick=function(){ document.getElementById("m-note").classList.remove("show"); };
     // vista postaiolo
     document.getElementById("mv-chiudi").onclick=function(){ document.getElementById("m-vista").classList.remove("show"); };
+    document.querySelectorAll(".vpill").forEach(function(b){ b.onclick=function(){ mvSetMode(b.dataset.vmode); }; });
 
     document.getElementById("btn-gps-toggle").onclick=function(){
       if(watchId!==null){ stopGPS(); this.textContent="Riattiva GPS"; }
