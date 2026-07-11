@@ -157,6 +157,38 @@
   .loading{text-align:center; color:var(--muted); padding:30px; font-size:14px;}
 
   /* ---------- TABS ---------- */
+  /* ---------- HOME a piena pagina ---------- */
+  #v-home .scroll{padding:16px 15px calc(24px + env(safe-area-inset-bottom));}
+  .hero{background:linear-gradient(135deg,var(--dark2),#463a26); border-radius:16px;
+    padding:16px; margin-bottom:16px; display:flex; align-items:center; gap:13px;}
+  .hero .em{width:46px; height:46px; border-radius:11px; background:var(--brown);
+    display:flex; align-items:center; justify-content:center; font-size:24px; flex-shrink:0; overflow:hidden;}
+  .hero .em img{width:100%; height:100%; object-fit:cover;}
+  .hero .tx{flex:1; min-width:0;}
+  .hero .tx .a{font-size:17px; font-weight:600; color:var(--cream);}
+  .hero .tx .b{font-size:12px; color:var(--muted); margin-top:2px;}
+
+  .grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
+  .tile{background:var(--dark2); border:1px solid var(--dark3); border-radius:15px;
+    padding:15px 13px; display:flex; flex-direction:column; gap:8px; min-height:96px;
+    text-align:left; color:var(--cream); position:relative;}
+  .tile .ic{font-size:25px; line-height:1;}
+  .tile .nm{font-size:14px; font-weight:600; color:var(--cream);}
+  .tile .ds{font-size:11px; color:var(--muted); line-height:1.35;}
+  .tile.soon{opacity:.5;}
+  .tile.soon .badge{position:absolute; top:9px; right:9px; font-size:9px; color:var(--muted);
+    background:var(--dark3); padding:2px 6px; border-radius:5px;}
+  .tile.wide{grid-column:1 / -1; flex-direction:row; align-items:center; min-height:0; gap:12px;}
+  .tile.wide .ic{font-size:22px;}
+  .tile.wide .tx{flex:1;}
+
+  /* barra "torna" nelle sezioni */
+  .backbar{flex-shrink:0; display:flex; align-items:center; gap:10px; padding:10px 14px;
+    background:var(--dark); border-bottom:1px solid var(--dark2);}
+  .backbar button{background:var(--dark2); border:1px solid var(--dark3); color:var(--cream);
+    border-radius:9px; padding:8px 12px; font-size:14px;}
+  .backbar .ttl{font-size:15px; font-weight:600; color:var(--cream);}
+
   nav.tabs{flex-shrink:0; background:var(--dark); border-top:1px solid var(--dark2);
     display:flex; padding:6px 6px calc(6px + env(safe-area-inset-bottom));}
   nav.tabs button{flex:1; background:none; border:none; color:var(--muted);
@@ -218,8 +250,105 @@
   </header>
 
   <main>
+    <!-- HOME -->
+    <section class="view active" id="v-home">
+      <div class="scroll">
+        <div class="hero">
+          <div class="em"><img src="icon-180.png" alt="" onerror="this.parentNode.textContent='🐗'"></div>
+          <div class="tx">
+            <div class="a" id="home-squadra">Zannalunga</div>
+            <div class="b" id="home-utente">—</div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <button class="tile" data-go="bacheca">
+            <div class="ic">📢</div>
+            <div class="nm">Bacheca</div>
+            <div class="ds">Annunci e comunicazioni</div>
+          </button>
+          <button class="tile soon" data-soon="Battuta">
+            <span class="badge">presto</span>
+            <div class="ic">🔥</div>
+            <div class="nm">Battuta</div>
+            <div class="ds">Adesioni, presenze, poste</div>
+          </button>
+          <button class="tile soon" data-soon="Squadra">
+            <span class="badge">presto</span>
+            <div class="ic">👥</div>
+            <div class="nm">Squadra</div>
+            <div class="ds">Componenti e ruoli</div>
+          </button>
+          <button class="tile" data-go="aree">
+            <div class="ic">📍</div>
+            <div class="nm">Aree e poste</div>
+            <div class="ds">Mappa i terreni</div>
+          </button>
+          <button class="tile" data-go="mappa">
+            <div class="ic">🗺️</div>
+            <div class="nm">Mappa</div>
+            <div class="ds">Satellite, schema, bussola</div>
+          </button>
+          <button class="tile soon" data-soon="Cassa">
+            <span class="badge">presto</span>
+            <div class="ic">💰</div>
+            <div class="nm">Cassa</div>
+            <div class="ds">Quote, spese, saldi</div>
+          </button>
+          <button class="tile soon" data-soon="Sondaggi">
+            <span class="badge">presto</span>
+            <div class="ic">📊</div>
+            <div class="nm">Sondaggi</div>
+            <div class="ds">Si decide insieme</div>
+          </button>
+          <button class="tile soon" data-soon="Classifica">
+            <span class="badge">presto</span>
+            <div class="ic">🏆</div>
+            <div class="nm">Classifica</div>
+            <div class="ds">Punteggi e storici</div>
+          </button>
+          <button class="tile soon" data-soon="Sergente Mario">
+            <span class="badge">presto</span>
+            <div class="ic">🎖️</div>
+            <div class="nm">Sergente Mario</div>
+            <div class="ds">Giudice di giornata</div>
+          </button>
+          <button class="tile soon" data-soon="Le mie scadenze">
+            <span class="badge">presto</span>
+            <div class="ic">📋</div>
+            <div class="nm">Le mie scadenze</div>
+            <div class="ds">Tasse e assicurazione</div>
+          </button>
+          <button class="tile wide soon" data-soon="Amministrazione">
+            <span class="badge">presto</span>
+            <div class="ic">⚙️</div>
+            <div class="tx">
+              <div class="nm">Amministrazione</div>
+              <div class="ds">Gestione squadra e sistema</div>
+            </div>
+          </button>
+          <button class="tile wide" data-go="info">
+            <div class="ic">ⓘ</div>
+            <div class="tx">
+              <div class="nm">Guida</div>
+              <div class="ds">Come si usa sul campo</div>
+            </div>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- BACHECA -->
+    <section class="view" id="v-bacheca">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl">Bacheca</div>
+      </div>
+      <div class="scroll" id="bacheca-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
     <!-- MAPPA -->
-    <section class="view active" id="v-mappa">
+    <section class="view" id="v-mappa">
       <div id="map"></div>
       <canvas id="schema" style="display:none"></canvas>
       <div class="mapbar">
@@ -246,11 +375,19 @@
 
     <!-- AREE -->
     <section class="view" id="v-aree">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl">Aree e poste</div>
+      </div>
       <div class="scroll" id="aree-scroll"><div class="loading">Carico le aree…</div></div>
     </section>
 
     <!-- GUIDA -->
     <section class="view" id="v-info">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl">Guida</div>
+      </div>
       <div class="scroll">
         <div class="sechead">Come si usa sul campo</div>
         <div class="card" style="line-height:1.65; font-size:14px;">
@@ -282,9 +419,10 @@
   </main>
 
   <nav class="tabs">
-    <button class="on" data-view="mappa"><span class="i">🗺️</span>Mappa</button>
+    <button class="on" data-view="home"><span class="i">🏠</span>Home</button>
+    <button data-view="bacheca"><span class="i">📢</span>Bacheca</button>
+    <button data-view="mappa"><span class="i">🗺️</span>Mappa</button>
     <button data-view="aree"><span class="i">📍</span>Aree</button>
-    <button data-view="info"><span class="i">ⓘ</span>Guida</button>
   </nav>
 </div>
 
@@ -292,11 +430,29 @@
 <div id="menu">
   <div class="panel">
     <div class="hd" id="menu-hd">—</div>
+    <button data-go="home">🏠 &nbsp;Home</button>
+    <button data-go="bacheca">📢 &nbsp;Bacheca</button>
     <button data-go="aree">📍 &nbsp;Aree e poste</button>
     <button data-go="info">ⓘ &nbsp;Guida</button>
     <button id="menu-gps">🔋 &nbsp;Sospendi GPS</button>
     <button id="menu-ricarica">↻ &nbsp;Ricarica dati</button>
     <button class="danger" id="menu-esci">⏻ &nbsp;Esci</button>
+  </div>
+</div>
+
+<!-- MODALE ANNUNCIO -->
+<div class="modal" id="m-annuncio">
+  <div class="sheet">
+    <h3>Nuovo annuncio</h3>
+    <p class="hint">Lo vedranno tutti i componenti della squadra.</p>
+    <label>Titolo (facoltativo)</label>
+    <input id="m-ann-titolo" type="text" autocomplete="off" placeholder="Es. Battuta di domenica">
+    <label>Testo</label>
+    <textarea id="m-ann-testo" style="min-height:110px" placeholder="Scrivi la comunicazione…"></textarea>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-ann-annulla">Annulla</button>
+      <button class="btn primary" id="m-ann-salva">Pubblica</button>
+    </div>
   </div>
 </div>
 
@@ -349,7 +505,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.3";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.4";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -435,8 +591,11 @@
          squadra_id:m.squadra_id, squadra_nome:squadraNome };
     document.getElementById("h-squadra").textContent=me.squadra_nome;
     document.getElementById("h-utente").textContent=me.nome+" · "+me.ruolo;
+    document.getElementById("home-squadra").textContent=me.squadra_nome;
+    document.getElementById("home-utente").textContent=me.nome+" · "+me.ruolo;
     document.getElementById("i-account").textContent=me.nome+" ("+me.email+") · ruolo: "+me.ruolo;
     showApp();
+    showView("home");
     initMapOnce();
     await caricaAree();
     startGPS();
@@ -764,6 +923,8 @@
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
     if(v==="mappa"){ setTimeout(function(){ if(map) map.invalidateSize(); if(mode==="schema") drawSchema(); },80); }
+    if(v==="bacheca") caricaBacheca();
+    window.scrollTo(0,0);
   }
 
   function openNuovaPosta(){
@@ -776,6 +937,85 @@
     document.getElementById("m-posta-coord").textContent=pos.lat.toFixed(5)+", "+pos.lng.toFixed(5);
     document.getElementById("m-posta-acc").textContent="± "+Math.round(pos.acc)+" m";
     document.getElementById("m-posta").classList.add("show");
+  }
+
+  /* ================= BACHECA ================= */
+  var annunci=[];
+  async function caricaBacheca(){
+    var root=document.getElementById("bacheca-scroll");
+    root.innerHTML='<div class="loading">Carico…</div>';
+    var r=await sb.from("hn_annunci").select("*").eq("squadra_id",me.squadra_id).order("creato_il",{ascending:false});
+    if(r.error){ root.innerHTML='<div class="empty">Errore:<br>'+esc(r.error.message)+'</div>'; return; }
+    annunci=r.data||[];
+    renderBacheca();
+  }
+  function fmtData(iso){
+    if(!iso) return "";
+    var d=new Date(iso);
+    var gg=String(d.getDate()).padStart(2,"0");
+    var mm=String(d.getMonth()+1).padStart(2,"0");
+    var aa=d.getFullYear();
+    var hh=String(d.getHours()).padStart(2,"0");
+    var mi=String(d.getMinutes()).padStart(2,"0");
+    return gg+"/"+mm+"/"+aa+" "+hh+":"+mi;
+  }
+  function puoPubblicare(){
+    return me && (me.ruolo==="admin" || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
+  }
+  function renderBacheca(){
+    var root=document.getElementById("bacheca-scroll");
+    var h="";
+    if(puoPubblicare()){
+      h+='<button class="btn primary" id="btn-newannuncio" style="margin-bottom:14px">+ Nuovo annuncio</button>';
+    }
+    if(!annunci.length){
+      h+='<div class="empty">Nessun annuncio.<br>'+(puoPubblicare()?"Pubblica il primo per la squadra.":"Le comunicazioni compariranno qui.")+'</div>';
+    }
+    annunci.forEach(function(a){
+      h+='<div class="card">';
+      h+='<div style="display:flex; align-items:flex-start; gap:9px">';
+      h+='<div style="flex:1; min-width:0">';
+      if(a.titolo) h+='<div style="font-size:15px; font-weight:600; color:var(--gold); margin-bottom:5px">'+esc(a.titolo)+'</div>';
+      h+='<div style="font-size:14px; color:var(--cream); line-height:1.55; white-space:pre-wrap">'+esc(a.testo)+'</div>';
+      h+='<div style="font-size:11px; color:var(--muted); margin-top:9px">'+esc(a.autore_nome||"")+' · '+fmtData(a.creato_il)+'</div>';
+      h+='</div>';
+      if(puoPubblicare()) h+='<button class="del" data-delann="'+a.id+'" style="background:none;border:none;color:var(--muted);font-size:15px;padding:2px 4px">🗑</button>';
+      h+='</div></div>';
+    });
+    root.innerHTML=h;
+    var nb=root.querySelector("#btn-newannuncio");
+    if(nb) nb.onclick=function(){
+      document.getElementById("m-ann-titolo").value="";
+      document.getElementById("m-ann-testo").value="";
+      document.getElementById("m-annuncio").classList.add("show");
+    };
+    root.querySelectorAll("[data-delann]").forEach(function(b){
+      b.onclick=function(){ eliminaAnnuncio(b.dataset.delann); };
+    });
+  }
+  async function salvaAnnuncio(){
+    var titolo=document.getElementById("m-ann-titolo").value.trim();
+    var testo=document.getElementById("m-ann-testo").value.trim();
+    if(!testo){ toast("Scrivi il testo dell'annuncio"); return; }
+    var btn=document.getElementById("m-ann-salva"); btn.disabled=true; btn.textContent="Pubblico…";
+    var r=await sb.from("hn_annunci").insert({
+      squadra_id:me.squadra_id, titolo:titolo||null, testo:testo,
+      autore_id:me.user_id, autore_nome:me.nome
+    }).select().single();
+    btn.disabled=false; btn.textContent="Pubblica";
+    if(r.error){ toast("Errore: "+r.error.message); return; }
+    document.getElementById("m-annuncio").classList.remove("show");
+    annunci.unshift(r.data);
+    renderBacheca();
+    toast("Annuncio pubblicato");
+  }
+  async function eliminaAnnuncio(id){
+    if(!confirm("Eliminare questo annuncio?")) return;
+    var r=await sb.from("hn_annunci").delete().eq("id",id);
+    if(r.error){ toast("Errore: "+r.error.message); return; }
+    annunci=annunci.filter(function(a){return a.id!==id;});
+    renderBacheca();
+    toast("Annuncio eliminato");
   }
 
   /* ================= MENU ================= */
@@ -807,6 +1047,21 @@
       chiudiMenu(); toast("Ricarico…"); await caricaAree(); toast("Dati aggiornati");
     };
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
+
+    // HOME: tiles attive e "presto"
+    document.querySelectorAll(".tile[data-go]").forEach(function(t){
+      t.onclick=function(){ showView(t.dataset.go); };
+    });
+    document.querySelectorAll(".tile[data-soon]").forEach(function(t){
+      t.onclick=function(){ toast(t.dataset.soon+" — in arrivo"); };
+    });
+    // pulsanti "‹ Home" nelle sezioni
+    document.querySelectorAll("[data-home]").forEach(function(b){
+      b.onclick=function(){ showView("home"); };
+    });
+    // annunci
+    document.getElementById("m-ann-salva").onclick=salvaAnnuncio;
+    document.getElementById("m-ann-annulla").onclick=function(){ document.getElementById("m-annuncio").classList.remove("show"); };
 
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.onclick=function(){ showView(b.dataset.view); }; });
     document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
