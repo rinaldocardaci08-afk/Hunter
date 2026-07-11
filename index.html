@@ -3,6 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Hunter · Zannalunga</title>
 
 <!-- icona per la home dell'iPhone -->
@@ -408,6 +411,15 @@
             <button class="btn line" id="btn-gps-toggle">Sospendi GPS (risparmio batteria)</button>
           </div>
         </div>
+        <div class="sechead">Versione</div>
+        <div class="card">
+          <div style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:12px;">
+            Stai usando <b style="color:var(--gold)" id="i-vernum">—</b>.<br>
+            Se il capo ha pubblicato una versione nuova, premi qui per scaricarla.
+          </div>
+          <button class="btn primary" id="btn-aggiorna">⬇️ Aggiorna app</button>
+        </div>
+
         <div class="sechead">Account</div>
         <div class="card">
           <div style="font-size:13px; color:var(--muted); margin-bottom:12px;" id="i-account">—</div>
@@ -436,6 +448,7 @@
     <button data-go="info">ⓘ &nbsp;Guida</button>
     <button id="menu-gps">🔋 &nbsp;Sospendi GPS</button>
     <button id="menu-ricarica">↻ &nbsp;Ricarica dati</button>
+    <button id="menu-aggiorna">⬇️ &nbsp;Aggiorna app</button>
     <button class="danger" id="menu-esci">⏻ &nbsp;Esci</button>
   </div>
 </div>
@@ -505,7 +518,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.4";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.5";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1018,6 +1031,26 @@
     toast("Annuncio eliminato");
   }
 
+  /* ================= AGGIORNAMENTO APP ================= */
+  async function aggiornaApp(){
+    toast("Cerco aggiornamenti…");
+    try{
+      // 1) svuoto tutte le cache del browser per questa app
+      if(window.caches && caches.keys){
+        var names=await caches.keys();
+        for(var i=0;i<names.length;i++){ await caches.delete(names[i]); }
+      }
+      // 2) rimuovo eventuali service worker registrati
+      if(navigator.serviceWorker && navigator.serviceWorker.getRegistrations){
+        var regs=await navigator.serviceWorker.getRegistrations();
+        for(var j=0;j<regs.length;j++){ await regs[j].unregister(); }
+      }
+    }catch(e){ /* non bloccante */ }
+    // 3) ricarico forzando il download fresco (timestamp sempre diverso)
+    var base=location.href.split("?")[0].split("#")[0];
+    location.replace(base + "?agg=" + Date.now());
+  }
+
   /* ================= MENU ================= */
   function apriMenu(){
     document.getElementById("menu-hd").textContent = (me ? (me.nome+" · "+me.ruolo) : "—") + "  ·  " + APP_VERSION;
@@ -1046,6 +1079,8 @@
     document.getElementById("menu-ricarica").onclick=async function(){
       chiudiMenu(); toast("Ricarico…"); await caricaAree(); toast("Dati aggiornati");
     };
+    document.getElementById("menu-aggiorna").onclick=function(){ chiudiMenu(); aggiornaApp(); };
+    document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
 
     // HOME: tiles attive e "presto"
@@ -1088,6 +1123,7 @@
     document.getElementById("h-ver").textContent = APP_VERSION;
     document.getElementById("l-ver").textContent = "Hunter " + APP_VERSION;
     document.getElementById("i-ver").textContent = "Hunter " + APP_VERSION + " · Zannalunga";
+    document.getElementById("i-vernum").textContent = APP_VERSION;
     bind();
     initCompass();
     var s=await sb.auth.getSession();
