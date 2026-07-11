@@ -513,6 +513,90 @@
   </div>
 </div>
 
+<!-- MODALE: dopo la modifica, apro la mappa per le poste? -->
+<div class="modal" id="m-dopomod">
+  <div class="sheet">
+    <h3>Modifiche salvate</h3>
+    <p class="hint">Vuoi aprire la mappa per inserire o spostare le poste di <b id="m-dopo-nome" style="color:var(--gold)">—</b>?</p>
+    <div class="btnrow" style="margin-top:6px">
+      <button class="btn line" id="m-dopo-no">No, ho finito</button>
+      <button class="btn primary" id="m-dopo-si">Sì, apri mappa</button>
+    </div>
+    <div style="font-size:11px; color:var(--muted); margin-top:11px; line-height:1.5; text-align:center">
+      Nome, comune e note della mappa sono già stati salvati.
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: scheda della singola posta -->
+<div class="modal" id="m-posta-info">
+  <div class="sheet">
+    <div style="display:flex; align-items:center; gap:11px; margin-bottom:13px;">
+      <div id="mp-num" style="width:38px;height:38px;border-radius:50%;background:var(--red);border:3px solid var(--cream);display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:700;flex-shrink:0;">1</div>
+      <div style="flex:1; min-width:0;">
+        <div id="mp-nome" style="font-size:17px; font-weight:600; color:var(--cream);">Posta</div>
+        <div id="mp-meta" style="font-size:11px; color:var(--muted);">—</div>
+      </div>
+      <button id="mp-chiudi" style="background:none;border:none;color:var(--muted);font-size:20px;padding:4px 8px;">✕</button>
+    </div>
+
+    <canvas id="mp-schema" style="width:100%; height:150px; border-radius:12px; background:#34401f; display:block; margin-bottom:13px;"></canvas>
+
+    <div style="font-size:10px; color:var(--gold); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px;">⚠ Note di sicurezza</div>
+    <div id="mp-note-box" style="background:#4a3320; border:1px solid #6b4a28; border-radius:11px; padding:11px 12px; margin-bottom:12px;">
+      <div id="mp-note" style="font-size:13px; color:var(--cream); line-height:1.5;">—</div>
+    </div>
+
+    <div class="btnrow">
+      <button class="btn line" id="mp-modifica">✎ Modifica note</button>
+      <button class="btn line" id="mp-vista" style="background:#1d3a5a; border-color:#2a4d6e; color:#9fc8ed;">👁 Vista postaiolo</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: modifica note della posta -->
+<div class="modal" id="m-note">
+  <div class="sheet">
+    <h3>Note della posta</h3>
+    <p class="hint" id="m-note-titolo">—</p>
+    <label>Avvertenze per chi va in questa posta</label>
+    <textarea id="m-note-testo" style="min-height:110px" placeholder="Es. Libera da qui verso il fosso. Attenzione a destra: c'è la posta 5."></textarea>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-note-annulla">Annulla</button>
+      <button class="btn primary" id="m-note-salva">Salva note</button>
+    </div>
+  </div>
+</div>
+
+<!-- VISTA POSTAIOLO (anteprima a pagina piena) -->
+<div class="modal" id="m-vista" style="align-items:stretch;">
+  <div style="background:var(--dark); width:100%; display:flex; flex-direction:column;">
+    <div style="background:#1d3a5a; padding:calc(12px + env(safe-area-inset-top)) 14px 12px; display:flex; align-items:center; gap:10px;">
+      <div style="flex:1; font-size:13px; color:#9fc8ed;">👁 Anteprima — così la vede il postaiolo</div>
+      <button id="mv-chiudi" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:7px 13px;font-size:13px;">Chiudi</button>
+    </div>
+    <div style="flex:1; padding:14px; overflow-y:auto;">
+      <canvas id="mv-schema" style="width:100%; height:230px; border-radius:14px; background:#34401f; display:block; margin-bottom:13px;"></canvas>
+
+      <div style="background:var(--dark2); border-radius:14px; padding:13px; display:flex; align-items:center; gap:13px; margin-bottom:12px;">
+        <div style="width:60px;height:60px;border-radius:50%;background:var(--dark);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+          <span id="mv-arrow" style="font-size:32px; color:var(--gold); display:inline-block;">↑</span>
+        </div>
+        <div style="flex:1; min-width:0;">
+          <div id="mv-nome" style="font-size:14px; color:var(--cream); font-weight:600;">Posta</div>
+          <div id="mv-dist" style="font-size:28px; color:var(--gold); font-weight:700; line-height:1.15;">— m</div>
+          <div style="font-size:11px; color:var(--muted);">freccia e distanza verso la posta</div>
+        </div>
+      </div>
+
+      <div id="mv-notebox" style="background:#4a3320; border:1px solid #6b4a28; border-radius:12px; padding:12px 13px;">
+        <div style="font-size:11px; color:var(--gold); margin-bottom:5px;">⚠ La tua nota di sicurezza</div>
+        <div id="mv-note" style="font-size:13px; color:var(--cream); line-height:1.55;">—</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE POSTA -->
 <div class="modal" id="m-posta">
   <div class="sheet">
@@ -565,7 +649,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.7";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.8";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -718,9 +802,18 @@
     areaEditId=null;
     if(!era) areaAttivaId=r.data.id;
     await caricaAree();
-    toast(era ? "Mappa aggiornata" : "Mappa creata: "+nome);
-    // dopo aver CREATO una mappa nuova, entro subito in mappatura
-    if(!era) entraMappatura(r.data.id);
+
+    if(!era){
+      // mappa NUOVA: entro subito in mappatura
+      toast("Mappa creata: "+nome);
+      entraMappatura(r.data.id);
+    }else{
+      // mappa MODIFICATA: chiedo se vuole aprire la mappa per le poste
+      areaAttivaId=era;
+      document.getElementById("m-dopo-nome").textContent=nome;
+      document.getElementById("m-dopomod").classList.add("show");
+      window.__areaDaMappare=era;
+    }
   }
   async function salvaPosta(){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
@@ -784,9 +877,16 @@
     if(watchId!==null) return;
     setGps("weak","GPS…");
     watchId=navigator.geolocation.watchPosition(function(p){
+      var primoFix = !pos;
       pos={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy||999};
+      salvaUltimaPos(pos);
       setGps(pos.acc<=15?"ok":(pos.acc<=40?"weak":"off"), "±"+Math.round(pos.acc)+"m");
       updateUser(); updateNav();
+      // al primo aggancio centro la mappa su di me (se non sto già guardando delle poste)
+      if(primoFix && map){
+        var a=areaAttiva();
+        if(!a || !(a.poste||[]).length) map.setView([pos.lat,pos.lng], 17);
+      }
       if(mode==="schema") drawSchema();
     }, function(err){
       setGps("off", err.code===1?"permesso negato":"GPS assente");
@@ -830,9 +930,20 @@
 
   /* ================= MAPPA ================= */
   var mapReady=false;
+  var LASTPOS_KEY="hunter_ultima_pos";
+  function ultimaPosNota(){
+    try{ var d=JSON.parse(localStorage.getItem(LASTPOS_KEY)); if(d&&d.lat&&d.lng) return d; }catch(e){}
+    return null;
+  }
+  function salvaUltimaPos(p){
+    try{ localStorage.setItem(LASTPOS_KEY, JSON.stringify({lat:p.lat,lng:p.lng})); }catch(e){}
+  }
   function initMapOnce(){
     if(mapReady) return;
-    map=L.map("map",{zoomControl:false, attributionControl:false}).setView([38.67,16.10],13);
+    // apro sulla posizione nota (GPS o ultima salvata), non sul mondo intero
+    var start = pos || ultimaPosNota() || {lat:38.3538, lng:16.0800};
+    var zoom  = (pos || ultimaPosNota()) ? 16 : 12;
+    map=L.map("map",{zoomControl:false, attributionControl:false}).setView([start.lat,start.lng], zoom);
     L.control.zoom({position:"topright"}).addTo(map);
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(map);
     posteLayer=L.layerGroup().addTo(map);
@@ -853,7 +964,7 @@
     var a=areaAttiva(); if(!a||!a.poste) return;
     a.poste.forEach(function(p,i){
       var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo)}).addTo(posteLayer);
-      m.on("click", function(){ setNav(p); });
+      m.on("click", function(){ apriSchedaPosta(p); });
     });
   }
   function updateUser(){
@@ -1011,8 +1122,11 @@
           h+='<div class="miniposte">';
           (a.poste||[]).forEach(function(p,i){
             var col=(p.tipo==="occasionale"?"#E0922B":(p.tipo==="controposta"?"#7B5EA7":"#C0392B"));
-            h+='<div class="posterow"><div class="num" style="background:'+col+'">'+(p.numero||(i+1))+'</div>';
+            var haNota=!!(p.note&&p.note.trim());
+            h+='<div class="posterow" data-posta="'+a.id+'|'+p.id+'" style="cursor:pointer">';
+            h+='<div class="num" style="background:'+col+'">'+(p.numero||(i+1))+'</div>';
             h+='<div class="pn">'+esc(p.nome)+'</div>';
+            if(haNota) h+='<span style="font-size:13px; color:var(--gold)" title="ha una nota">⚠</span>';
             h+='<div class="acc">±'+(p.accuratezza||0)+'m</div>';
             if(puo) h+='<button class="del" data-delposta="'+a.id+'|'+p.id+'">✕</button>';
             h+='</div>';
@@ -1022,10 +1136,8 @@
 
         // azioni sulla mappa
         h+='<div class="btnrow" style="margin-top:10px">';
-        if(!act) h+='<button class="btn line" data-attiva="'+a.id+'">Rendi attiva</button>';
-        if(puo){
-          h+='<button class="btn primary" data-mappa="'+a.id+'">✎ Modifica / poste</button>';
-        }
+        h+='<button class="btn line" data-vedi="'+a.id+'">👁 Vedi area battuta</button>';
+        if(puo) h+='<button class="btn primary" data-mappa="'+a.id+'">✎ Modifica</button>';
         h+='</div>';
         h+='</div>';
       });
@@ -1045,17 +1157,39 @@
       document.getElementById("m-area").classList.add("show");
       setTimeout(function(){document.getElementById("m-area-nome").focus();},120);
     };
-    root.querySelectorAll("[data-attiva]").forEach(function(b){
-      b.onclick=function(e){ e.stopPropagation(); areaAttivaId=b.dataset.attiva; renderAree(); refreshMapArea(); toast("Mappa attiva: "+areaAttiva().nome); };
-    });
     root.querySelectorAll("[data-sel]").forEach(function(el){
       el.onclick=function(){ areaAttivaId=el.dataset.sel; renderAree(); refreshMapArea(); };
     });
     root.querySelectorAll("[data-mappa]").forEach(function(b){
       b.onclick=function(e){ e.stopPropagation(); apriModificaMappa(b.dataset.mappa); };
     });
+    root.querySelectorAll("[data-vedi]").forEach(function(b){
+      b.onclick=function(e){
+        e.stopPropagation();
+        areaAttivaId=b.dataset.vedi;
+        var a=areaAttiva();
+        if(!a || !(a.poste||[]).length){ toast("Questa mappa non ha ancora poste"); return; }
+        renderAree();
+        showView("mappa");
+        refreshMapArea();
+        setTimeout(fitArea,200);
+        toast("Tocca una posta per vedere le sue note");
+      };
+    });
     root.querySelectorAll("[data-delposta]").forEach(function(b){
       b.onclick=function(e){ e.stopPropagation(); var p=b.dataset.delposta.split("|"); eliminaPosta(p[0],p[1]); };
+    });
+    // toccare una posta apre la sua scheda (con note e vista postaiolo)
+    root.querySelectorAll("[data-posta]").forEach(function(el){
+      el.onclick=function(e){
+        if(e.target.closest("[data-delposta]")) return;
+        var parts=el.dataset.posta.split("|");
+        var ar=aree.find(function(x){return x.id===parts[0];});
+        if(!ar) return;
+        areaAttivaId=ar.id;
+        var pp=(ar.poste||[]).find(function(x){return x.id===parts[1];});
+        if(pp) apriSchedaPosta(pp);
+      };
     });
   }
 
@@ -1094,6 +1228,153 @@
     document.getElementById("m-posta-coord").textContent=pos.lat.toFixed(5)+", "+pos.lng.toFixed(5);
     document.getElementById("m-posta-acc").textContent="± "+Math.round(pos.acc)+" m";
     document.getElementById("m-posta").classList.add("show");
+  }
+
+  /* ================= SCHEDA POSTA / NOTE / VISTA POSTAIOLO ================= */
+  var postaAperta=null;
+
+  // i vicini di una posta: quelli prima e dopo nel giro (fino al 2°), come sul cerchio
+  function viciniDi(posta, poste, quanti){
+    quanti = quanti || 2;
+    var i = poste.findIndex(function(p){ return p.id===posta.id; });
+    if(i<0) return [];
+    var out=[], n=poste.length;
+    for(var d=1; d<=quanti; d++){
+      if(n>2*d){
+        out.push({p:poste[(i-d+n)%n], lato:"sx", grado:d});
+        out.push({p:poste[(i+d)%n],   lato:"dx", grado:d});
+      }
+    }
+    return out;
+  }
+
+  function apriSchedaPosta(p){
+    var a=areaAttiva(); if(!a) return;
+    postaAperta=p;
+    document.getElementById("mp-num").textContent=p.numero||"?";
+    document.getElementById("mp-num").style.background =
+      p.tipo==="occasionale" ? "#E0922B" : (p.tipo==="controposta" ? "#7B5EA7" : "#C0392B");
+    document.getElementById("mp-nome").textContent=p.nome||"Posta";
+    document.getElementById("mp-meta").textContent =
+      a.nome + " · " + (p.tipo||"fissa") + " · ±" + (p.accuratezza||0) + "m";
+    var note=(p.note||"").trim();
+    document.getElementById("mp-note").textContent = note || "Nessuna nota. Toccane l'aggiunta per scriverne una.";
+    document.getElementById("mp-note").style.color = note ? "var(--cream)" : "var(--muted)";
+    document.getElementById("m-posta-info").classList.add("show");
+    setTimeout(function(){ disegnaMiniSchema("mp-schema", p, false); }, 80);
+  }
+
+  // disegna una posta con i suoi vicini. conNomi = mostra i nomi dei vicini
+  function disegnaMiniSchema(canvasId, posta, grande){
+    var cv=document.getElementById(canvasId);
+    if(!cv) return;
+    var a=areaAttiva(); if(!a) return;
+    var poste=(a.poste||[]);
+    var box=cv.getBoundingClientRect();
+    var W=Math.round(box.width), H=Math.round(box.height);
+    if(!W||!H){ setTimeout(function(){ disegnaMiniSchema(canvasId,posta,grande); },120); return; }
+    var dpr=window.devicePixelRatio||1;
+    cv.width=W*dpr; cv.height=H*dpr;
+    var ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.fillStyle="#34401f"; ctx.fillRect(0,0,W,H);
+
+    var vic=viciniDi(posta, poste, 2);
+    var pts=[posta].concat(vic.map(function(v){return v.p;}));
+    var all=pts.slice(); if(pos) all.push(pos);
+    if(all.length<2){ // una posta sola: la metto al centro
+      ctx.fillStyle="#C0392B"; ctx.beginPath(); ctx.arc(W/2,H/2,16,0,7); ctx.fill();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.stroke();
+      ctx.fillStyle="#fff"; ctx.font="700 14px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(String(posta.numero||"?"), W/2, H/2);
+      return;
+    }
+    var lat0=all.reduce(function(s,p){return s+p.lat;},0)/all.length;
+    var lng0=all.reduce(function(s,p){return s+p.lng;},0)/all.length;
+    var mLat=111320, mLng=111320*Math.cos(lat0*Math.PI/180);
+    function xy(p){ return {x:(p.lng-lng0)*mLng, y:-(p.lat-lat0)*mLat}; }
+    var A=all.map(xy);
+    var minX=Math.min.apply(null,A.map(function(q){return q.x;})), maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
+    var minY=Math.min.apply(null,A.map(function(q){return q.y;})), maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
+    var pad=grande?46:34, spanX=Math.max(maxX-minX,25), spanY=Math.max(maxY-minY,25);
+    var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
+    function px(p){ var q=xy(p); return {x:pad+(q.x-minX)*sc, y:pad+(q.y-minY)*sc}; }
+
+    // vicini (col nome, come richiesto)
+    vic.forEach(function(v){
+      var c=px(v.p);
+      var r=v.grado===1?11:9;
+      ctx.globalAlpha = v.grado===1?0.95:0.6;
+      ctx.fillStyle="#B89968"; ctx.beginPath(); ctx.arc(c.x,c.y,r,0,7); ctx.fill();
+      ctx.strokeStyle="#2C2418"; ctx.lineWidth=2; ctx.stroke();
+      ctx.globalAlpha=1;
+      ctx.fillStyle="#D8C6A8"; ctx.font=(grande?"11px":"10px")+" sans-serif";
+      ctx.textAlign="center"; ctx.textBaseline="top";
+      ctx.fillText(v.p.nome||("Posta "+v.p.numero), c.x, c.y+r+4);
+    });
+    // la posta
+    var c0=px(posta);
+    var col = posta.tipo==="occasionale" ? "#E0922B" : (posta.tipo==="controposta" ? "#7B5EA7" : "#C0392B");
+    ctx.fillStyle=col; ctx.beginPath(); ctx.arc(c0.x,c0.y,grande?18:15,0,7); ctx.fill();
+    ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.stroke();
+    ctx.fillStyle="#fff"; ctx.font="700 "+(grande?15:13)+"px sans-serif";
+    ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText(String(posta.numero||"?"), c0.x, c0.y);
+    ctx.fillStyle="#F0E6D2"; ctx.font=(grande?"12px":"11px")+" sans-serif"; ctx.textBaseline="top";
+    ctx.fillText("la tua", c0.x, c0.y+(grande?22:19));
+    // utente
+    if(pos){
+      var cu=px(pos);
+      ctx.fillStyle="#378ADD"; ctx.beginPath(); ctx.arc(cu.x,cu.y,grande?9:7,0,7); ctx.fill();
+      ctx.strokeStyle="#fff"; ctx.lineWidth=2.5; ctx.stroke();
+    }
+  }
+
+  function apriNote(){
+    if(!postaAperta) return;
+    if(!puoMappare()){ toast("Non hai il permesso di modificare le note"); return; }
+    document.getElementById("m-note-titolo").textContent=postaAperta.nome||"Posta";
+    document.getElementById("m-note-testo").value=postaAperta.note||"";
+    document.getElementById("m-note").classList.add("show");
+  }
+  async function salvaNote(){
+    if(!postaAperta) return;
+    var testo=document.getElementById("m-note-testo").value.trim();
+    var btn=document.getElementById("m-note-salva"); btn.disabled=true; btn.textContent="Salvo…";
+    var r=await sb.from("hn_poste").update({note:testo||null}).eq("id",postaAperta.id);
+    btn.disabled=false; btn.textContent="Salva note";
+    if(r.error){ toast("Errore: "+r.error.message); return; }
+    postaAperta.note=testo||null;
+    // aggiorno anche l'oggetto in memoria
+    var a=areaAttiva();
+    if(a && a.poste){
+      var p=a.poste.find(function(x){return x.id===postaAperta.id;});
+      if(p) p.note=testo||null;
+    }
+    document.getElementById("m-note").classList.remove("show");
+    document.getElementById("mp-note").textContent = testo || "Nessuna nota.";
+    document.getElementById("mp-note").style.color = testo ? "var(--cream)" : "var(--muted)";
+    renderAree();
+    toast("Note salvate");
+  }
+
+  function apriVistaPostaiolo(){
+    if(!postaAperta) return;
+    var p=postaAperta;
+    document.getElementById("mv-nome").textContent=p.nome||"Posta";
+    var note=(p.note||"").trim();
+    document.getElementById("mv-note").textContent = note || "Nessuna avvertenza per questa posta.";
+    document.getElementById("mv-notebox").style.display = "block";
+    if(pos){
+      var d=distM(pos,p);
+      document.getElementById("mv-dist").textContent=fmtDist(d);
+      var b=bearing(pos,p);
+      document.getElementById("mv-arrow").style.transform="rotate("+(heading!==null?(b-heading):b)+"deg)";
+    }else{
+      document.getElementById("mv-dist").textContent="GPS spento";
+      document.getElementById("mv-arrow").style.transform="rotate(0deg)";
+    }
+    document.getElementById("m-vista").classList.add("show");
+    setTimeout(function(){ disegnaMiniSchema("mv-schema", p, true); }, 90);
   }
 
   /* ================= MODALITÀ MAPPATURA ================= */
@@ -1302,6 +1583,28 @@
       if(areaEditId) eliminaArea(areaEditId);
     };
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
+
+    // popup dopo la modifica
+    document.getElementById("m-dopo-si").onclick=function(){
+      document.getElementById("m-dopomod").classList.remove("show");
+      if(window.__areaDaMappare) entraMappatura(window.__areaDaMappare);
+    };
+    document.getElementById("m-dopo-no").onclick=function(){
+      document.getElementById("m-dopomod").classList.remove("show");
+      toast("Mappa aggiornata");
+    };
+    // scheda posta
+    document.getElementById("mp-chiudi").onclick=function(){
+      document.getElementById("m-posta-info").classList.remove("show");
+      postaAperta=null;
+    };
+    document.getElementById("mp-modifica").onclick=apriNote;
+    document.getElementById("mp-vista").onclick=apriVistaPostaiolo;
+    // note
+    document.getElementById("m-note-salva").onclick=salvaNote;
+    document.getElementById("m-note-annulla").onclick=function(){ document.getElementById("m-note").classList.remove("show"); };
+    // vista postaiolo
+    document.getElementById("mv-chiudi").onclick=function(){ document.getElementById("m-vista").classList.remove("show"); };
 
     document.getElementById("btn-gps-toggle").onclick=function(){
       if(watchId!==null){ stopGPS(); this.textContent="Riattiva GPS"; }
