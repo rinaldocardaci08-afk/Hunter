@@ -565,12 +565,23 @@
             <svg class="ci big" style="color:#E0B878"><use href="#ic-fucile"/></svg>
             <span class="tx">Ha il porto d'armi</span>
           </button>
+          <button class="opz" data-perm="vede_aree">
+            <span class="box"></span>
+            <span class="ci big" style="font-size:17px">🗺️</span>
+            <span class="tx">Vede le aree di caccia <span style="color:var(--muted); font-size:11px">— i poligoni sulla mappa</span></span>
+          </button>
+          <button class="opz" data-perm="vede_poste">
+            <span class="box"></span>
+            <span class="ci big" style="font-size:17px">📍</span>
+            <span class="tx">Vede le poste <span style="color:var(--muted); font-size:11px">— può aprire un'area</span></span>
+          </button>
           <button class="opz" data-perm="puo_mappare">
             <span class="box"></span>
-            <span class="ci big" style="font-size:18px">🗺️</span>
-            <span class="tx">Può creare e modificare le mappe</span>
+            <span class="ci big" style="font-size:17px">✎</span>
+            <span class="tx">Crea e modifica le mappe <span style="color:var(--muted); font-size:11px">— sola lettura se spento</span></span>
           </button>
         </div>
+        <div class="hintbox" style="color:var(--muted)">I permessi salgono a scala: chi crea le mappe vede tutto.</div>
 
         <button class="btn primary" id="mb-salva" style="margin-top:18px">Aggiungi alla squadra</button>
         <button class="btn danger" id="mb-elimina" style="margin-top:9px; display:none">🗑 Rimuovi dalla squadra</button>
@@ -880,7 +891,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.16";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.17";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -959,7 +970,7 @@
     var rm;
     try{
       rm=await sb.from("hn_membri")
-        .select("id,nome,ruolo,squadra_id,puo_mappare")
+        .select("id,nome,ruolo,squadra_id,puo_mappare,vede_aree,vede_poste")
         .eq("user_id",u.id).eq("attivo",true).limit(1);
       if(rm.error) throw rm.error;
     }catch(e){
@@ -993,6 +1004,8 @@
 
     me={ user_id:u.id, email:u.email, membro_id:m.id, nome:m.nome, ruolo:m.ruolo,
          puo_mappare:(m.puo_mappare===true),
+         vede_aree:(m.vede_aree===true),
+         vede_poste:(m.vede_poste===true),
          squadra_id:m.squadra_id, squadra_nome:squadraNome };
     try{ localStorage.setItem(ME_KEY, JSON.stringify(me)); }catch(e4){}
 
@@ -1387,8 +1400,8 @@
   function renderAreePoligoni(){
     if(!areeLayer) return;
     areeLayer.clearLayers();
-    // riservato: solo admin/capocaccia/autorizzati vedono il territorio
-    if(!puoMappare()) return;
+    // i poligoni li vede chi è autorizzato a VEDERE le aree
+    if(!puoVedereAree()) return;
     // quando un'area è aperta, i poligoni si tolgono di mezzo
     if(areaApertaInMappa) return;
 
@@ -1444,7 +1457,7 @@
     // e solo se ho il permesso di vederle (admin / autorizzati).
     // Il cacciatore normale non vede nulla finché la battuta non gli assegna una posta.
     if(!areaApertaInMappa) return;
-    if(!puoMappare()) return;
+    if(!puoVederePoste()) return;
     var a=areaAttiva(); if(!a||!a.poste) return;
     a.poste.forEach(function(p,i){
       var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda)}).addTo(posteLayer);
@@ -1460,7 +1473,7 @@
   }
   /* inquadra TUTTE le aree: vista d'insieme del territorio mappato */
   function vediTerritorio(){
-    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    if(!puoVedereAree()){ toast("Non hai il permesso"); return; }
     if(areaApertaInMappa) chiudiAreaInMappa();
     var punti=[];
     aree.forEach(function(a){ (a.poste||[]).forEach(function(p){ punti.push([p.lat,p.lng]); }); });
@@ -1787,11 +1800,12 @@
   /* ================= RENDER AREE ================= */
   function renderAree(){
     var root=document.getElementById("aree-scroll");
-    var puo=puoMappare();
+    var puoScrivere=puoMappare();
+    var vedeAree=puoVedereAree();
+    var vedePoste=puoVederePoste();
 
-    // Il cacciatore normale NON vede le mappe: sono dati sensibili del territorio.
-    // Vedrà solo la sua posta, quando il capocaccia aprirà la battuta.
-    if(!puo){
+    // chi non è autorizzato nemmeno a VEDERE le aree: sezione chiusa
+    if(!vedeAree){
       root.innerHTML=
         '<div class="empty" style="padding-top:60px">'+
         '<div style="font-size:40px; margin-bottom:14px">🔒</div>'+
@@ -1802,8 +1816,15 @@
     }
 
     var h='<div class="sechead">Mappe di '+esc(me?me.squadra_nome:"")+'</div>';
+
+    // avviso a chi può solo guardare
+    if(!puoScrivere){
+      h+='<div class="card" style="background:#3a3122; font-size:12px; color:var(--muted); line-height:1.5; margin-bottom:12px">'+
+         '👁 Sola lettura: puoi consultare '+(vedePoste?"le mappe e le poste":"i terreni")+', ma non modificarli.</div>';
+    }
+
     if(!aree.length){
-      h+='<div class="empty">Nessuna mappa ancora.<br>Creane una per iniziare a segnare le poste.</div>';
+      h+='<div class="empty">Nessuna mappa ancora.'+(puoScrivere?'<br>Creane una per iniziare a segnare le poste.':'')+'</div>';
     }
 
     // raggruppo per comune
@@ -1817,16 +1838,17 @@
       if(aree.length>1) h+='<div class="sechead" style="margin-top:14px">'+esc(comune)+'</div>';
       gruppi[comune].forEach(function(a){
         var np=(a.poste||[]).length;
-        // SOLO il nome dell'area: le poste NON si mostrano qui
         h+='<div class="card" data-apri="'+a.id+'" style="cursor:pointer">';
         h+='<div class="arearow">';
         h+='<div class="ic">🌲</div><div class="meta"><div class="n">'+esc(a.nome)+'</div>';
-        h+='<div class="c">'+np+' post'+(np===1?"a":"e")+(a.comune?' · '+esc(a.comune):'')+'</div></div>';
+        // il numero di poste lo vede solo chi è autorizzato a vederle
+        h+='<div class="c">'+(vedePoste ? (np+' post'+(np===1?"a":"e")) : 'terreno mappato');
+        h+=(a.comune?' · '+esc(a.comune):'')+'</div></div>';
         h+='<div style="color:var(--muted); font-size:18px">›</div>';
         h+='</div></div>';
       });
     });
-    h+='<button class="btn primary" style="margin-top:14px" id="btn-newarea">+ Nuova mappa</button>';
+    if(puoScrivere) h+='<button class="btn primary" style="margin-top:14px" id="btn-newarea">+ Nuova mappa</button>';
     root.innerHTML=h;
 
     var nb=root.querySelector("#btn-newarea");
@@ -1840,7 +1862,6 @@
       document.getElementById("m-area").classList.add("show");
       setTimeout(function(){document.getElementById("m-area-nome").focus();},120);
     };
-    // toccando una mappa: popup con le azioni
     root.querySelectorAll("[data-apri]").forEach(function(el){
       el.onclick=function(){ apriPopupArea(el.dataset.apri); };
     });
@@ -1854,13 +1875,18 @@
     var np=(a.poste||[]).length;
     document.getElementById("ma-nome").textContent=a.nome;
     document.getElementById("ma-meta").textContent=
-      np+" post"+(np===1?"a":"e")+(a.comune?" · "+a.comune:"");
-    document.getElementById("ma-apri").style.display = np ? "block" : "none";
+      (puoVederePoste() ? (np+" post"+(np===1?"a":"e")) : "terreno mappato") +
+      (a.comune?" · "+a.comune:"");
+    // i pulsanti compaiono secondo il permesso
+    document.getElementById("ma-apri").style.display = (puoVederePoste() && np) ? "block" : "none";
+    document.getElementById("ma-mappatura").style.display = puoMappare() ? "block" : "none";
+    document.getElementById("ma-modifica").style.display = puoMappare() ? "block" : "none";
     document.getElementById("m-areapop").classList.add("show");
   }
 
   /* apre l'area in mappa: le poste diventano visibili */
   function apriAreaInMappa(){
+    if(!puoVederePoste()){ toast("Non sei autorizzato a vedere le poste"); return; }
     var a=areaAttiva(); if(!a) return;
     if(!(a.poste||[]).length){ toast("Questa mappa non ha ancora poste"); return; }
     areaApertaInMappa=true;
@@ -2194,7 +2220,7 @@
     if(!btn) return;
     btn.style.display = mappatura ? "flex" : "none";
     var terr=document.getElementById("btn-territorio");
-    if(terr) terr.style.display = (puoMappare() && !mappatura) ? "flex" : "none";
+    if(terr) terr.style.display = (puoVedereAree() && !mappatura) ? "flex" : "none";
     var center=document.getElementById("btn-center");
     if(center) center.style.flex = mappatura ? "0 0 54px" : (puoMappare() ? "1" : "1");
   }
@@ -2414,6 +2440,10 @@
 
     document.querySelector('#mb-permessi [data-perm="porto_armi"]')
       .classList.toggle("on", m ? m.porto_armi!==false : true);
+    document.querySelector('#mb-permessi [data-perm="vede_aree"]')
+      .classList.toggle("on", m ? m.vede_aree===true : false);
+    document.querySelector('#mb-permessi [data-perm="vede_poste"]')
+      .classList.toggle("on", m ? m.vede_poste===true : false);
     document.querySelector('#mb-permessi [data-perm="puo_mappare"]')
       .classList.toggle("on", m ? m.puo_mappare===true : false);
 
@@ -2447,8 +2477,14 @@
     var compiti=[];
     document.querySelectorAll("#mb-compiti .opz.on").forEach(function(b){ compiti.push(b.dataset.compito); });
     var porto = document.querySelector('#mb-permessi [data-perm="porto_armi"]').classList.contains("on");
+    var vAree = document.querySelector('#mb-permessi [data-perm="vede_aree"]').classList.contains("on");
+    var vPoste= document.querySelector('#mb-permessi [data-perm="vede_poste"]').classList.contains("on");
     var mappe = document.querySelector('#mb-permessi [data-perm="puo_mappare"]').classList.contains("on");
-    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti, porto_armi:porto, puo_mappare:mappe };
+    // i permessi salgono a scala: chi modifica vede tutto, chi vede le poste vede le aree
+    if(mappe){ vAree=true; vPoste=true; }
+    if(vPoste){ vAree=true; }
+    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti,
+             porto_armi:porto, vede_aree:vAree, vede_poste:vPoste, puo_mappare:mappe };
   }
 
   async function salvaMembro(){
@@ -2524,11 +2560,27 @@
   function puoPubblicare(){
     return me && (me.ruolo==="admin" || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
   }
-  // Permesso di CREARE e MODIFICARE le mappe (aree e poste).
-  // Di default: admin, capocaccia, vicecapocaccia. Gli altri solo se autorizzati col flag.
+
+  /* --- I TRE PERMESSI SULLE MAPPE, in scala --- */
+  var CAPI = ["admin","capocaccia","vicecapocaccia"];
+  function isCapo(){ return me && CAPI.indexOf(me.ruolo)>=0; }
+
+  // 1) vedere le AREE (i poligoni sulla mappa)
+  function puoVedereAree(){
+    if(!me) return false;
+    if(isCapo()) return true;
+    return me.vede_aree===true || me.vede_poste===true || me.puo_mappare===true;
+  }
+  // 2) vedere le POSTE dentro un'area
+  function puoVederePoste(){
+    if(!me) return false;
+    if(isCapo()) return true;
+    return me.vede_poste===true || me.puo_mappare===true;
+  }
+  // 3) CREARE e MODIFICARE le mappe (l'unico che dà la scrittura)
   function puoMappare(){
     if(!me) return false;
-    if(me.ruolo==="admin" || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia") return true;
+    if(isCapo()) return true;
     return me.puo_mappare===true;
   }
   function renderBacheca(){
@@ -2713,8 +2765,24 @@
       };
     });
     // compiti e permessi: scelta multipla
-    document.querySelectorAll("#mb-compiti .opz, #mb-permessi .opz").forEach(function(b){
+    document.querySelectorAll("#mb-compiti .opz").forEach(function(b){
       b.onclick=function(){ b.classList.toggle("on"); };
+    });
+    document.querySelectorAll("#mb-permessi .opz").forEach(function(b){
+      b.onclick=function(){
+        b.classList.toggle("on");
+        // cascata: se accendo "modifica", accendo anche le viste
+        var p=b.dataset.perm, on=b.classList.contains("on");
+        function set(nome,v){
+          var el=document.querySelector('#mb-permessi [data-perm="'+nome+'"]');
+          if(el) el.classList.toggle("on", v);
+        }
+        if(p==="puo_mappare" && on){ set("vede_aree",true); set("vede_poste",true); }
+        if(p==="vede_poste" && on){ set("vede_aree",true); }
+        // e al contrario: se spengo la vista aree, spengo tutto il resto
+        if(p==="vede_aree" && !on){ set("vede_poste",false); set("puo_mappare",false); }
+        if(p==="vede_poste" && !on){ set("puo_mappare",false); }
+      };
     });
 
     // popup dell'area
