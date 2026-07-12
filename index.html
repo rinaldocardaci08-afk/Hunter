@@ -61,6 +61,14 @@
   header .gps.weak .d{background:var(--amber);}
   header .gps.off .d{background:var(--red);}
 
+  /* barra ANTEPRIMA */
+  #anteprimabar{flex-shrink:0; display:none; align-items:center; gap:9px;
+    background:#1d3a5a; color:#e8f2fc; padding:8px 13px; font-size:12px;}
+  #anteprimabar.show{display:flex;}
+  #anteprimabar span{flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #anteprimabar button{background:rgba(255,255,255,.9); border:none; color:#1d3a5a;
+    border-radius:7px; padding:6px 11px; font-size:12px; font-weight:600; flex-shrink:0;}
+
   /* barra offline */
   #offlinebar{flex-shrink:0; display:none; background:#7a5a1d; color:#fbeed3;
     padding:7px 14px; font-size:12px; text-align:center;}
@@ -451,6 +459,12 @@
     <button class="menubtn" id="btn-menu">☰</button>
   </header>
 
+  <!-- barra ANTEPRIMA -->
+  <div id="anteprimabar">
+    <span>👁 Anteprima · <span id="ant-chi">—</span></span>
+    <button id="ant-esci">Torna admin</button>
+  </div>
+
   <!-- barra offline -->
   <div id="offlinebar">
     <span>📴 Senza rete · <span id="offline-quando">dati salvati</span></span>
@@ -817,6 +831,7 @@
     <button data-go="squadra">👥 &nbsp;Squadra</button>
     <button data-go="aree">📍 &nbsp;Aree e poste</button>
     <button data-go="info">ⓘ &nbsp;Guida</button>
+    <button id="menu-anteprima">👁 &nbsp;Vedi come...</button>
     <button id="menu-gps">🔋 &nbsp;Sospendi GPS</button>
     <button id="menu-ricarica">↻ &nbsp;Ricarica dati</button>
     <button id="menu-aggiorna">⬇️ &nbsp;Aggiorna app</button>
@@ -837,6 +852,15 @@
       <button class="btn line" id="m-ann-annulla">Annulla</button>
       <button class="btn primary" id="m-ann-salva">Pubblica</button>
     </div>
+  </div>
+</div>
+
+<!-- MODALE: scegli chi impersonare -->
+<div class="modal" id="m-anteprima">
+  <div class="sheet">
+    <h3>Vedi come...</h3>
+    <div id="m-ant-lista" style="max-height:60vh; overflow-y:auto"></div>
+    <button class="btn line" id="m-ant-chiudi" style="margin-top:12px">Annulla</button>
   </div>
 </div>
 
@@ -1025,13 +1049,122 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.22";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.23";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
   /* ================= STATO ================= */
-  var me = null;          // {user_id, nome, ruolo, squadra_id, squadra_nome}
+  var me = null;          // profilo attivo (può essere simulato in anteprima)
+  var meReale = null;     // il mio profilo vero (quando sono in anteprima)
+
+  /* ================= ANTEPRIMA: vedi l'app come un altro =================
+     Solo per admin. Sostituisce temporaneamente 'me' con un altro profilo,
+     così tutte le funzioni di permesso si comportano come se fossi lui. */
+  function inAnteprima(){ return meReale !== null; }
+
+  function entraAnteprima(profilo){
+    if(!meReale && !(me && me.is_admin)){ toast("Solo l'amministratore"); return; }
+    if(!meReale) meReale = me;      // salvo il mio vero profilo
+    me = profilo;
+    document.getElementById("anteprimabar").classList.add("show");
+    document.getElementById("ant-chi").textContent = profilo.nome + " · " + descrizioneRuolo(profilo);
+    applicaProfilo();
+    aggiornaBarraAzioni();
+    aggiornaPills();
+    areaApertaInMappa=false; mappatura=false;
+    if(posteLayer) posteLayer.clearLayers();
+    renderAreePoligoni();
+    showView("home");
+    toast("Anteprima: " + profilo.nome);
+  }
+
+  function esciAnteprima(){
+    if(!meReale) return;
+    me = meReale;
+    meReale = null;
+    document.getElementById("anteprimabar").classList.remove("show");
+    applicaProfilo();
+    aggiornaBarraAzioni();
+    aggiornaPills();
+    renderAreePoligoni();
+    showView("home");
+    toast("Torni te stesso");
+  }
+
+  function descrizioneRuolo(p){
+    var q=[];
+    if(p.is_admin) q.push("admin");
+    if(p.ruolo && p.ruolo!=="cacciatore") q.push(p.ruolo);
+    return q.length ? q.join(" · ") : "cacciatore";
+  }
+
+  /* apre il selettore: ruoli tipo + componenti veri */
+  function apriSelettoreAnteprima(){
+    var vero = meReale || me;
+    if(!vero.is_admin){ toast("Solo l'amministratore"); return; }
+
+    var h='<div style="font-size:11px; color:var(--muted); margin-bottom:12px; line-height:1.5">'+
+          'Guarda l\'app con gli occhi di un altro: serve a controllare che ognuno veda solo quello che deve.</div>';
+
+    h+='<div class="sechead" style="margin-top:0">Ruoli tipo</div>';
+    var tipi=[
+      {k:"cacciatore",  nome:"Cacciatore semplice", d:"nessun permesso: non deve vedere le mappe",
+       p:{nome:"Cacciatore (prova)", ruolo:"cacciatore", is_admin:false, vede_aree:false, vede_poste:false, puo_mappare:false}},
+      {k:"lettore",     nome:"Cacciatore autorizzato", d:"vede le aree e le poste, ma non modifica",
+       p:{nome:"Cacciatore autorizzato (prova)", ruolo:"cacciatore", is_admin:false, vede_aree:true, vede_poste:true, puo_mappare:false}},
+      {k:"vicebattuta", nome:"Vicecapobattuta", d:"carica di battuta, senza permessi sul territorio",
+       p:{nome:"Vicecapobattuta (prova)", ruolo:"vicecapobattuta", is_admin:false, vede_aree:false, vede_poste:false, puo_mappare:false}},
+      {k:"capo",        nome:"Capocaccia", d:"comanda la battuta e vede tutto il territorio",
+       p:{nome:"Capocaccia (prova)", ruolo:"capocaccia", is_admin:false, vede_aree:true, vede_poste:true, puo_mappare:true}}
+    ];
+    tipi.forEach(function(t){
+      h+='<button class="opz" data-tipo="'+t.k+'" style="margin-bottom:6px">';
+      h+='<span class="tx"><b style="color:var(--cream)">'+t.nome+'</b><br>';
+      h+='<span style="font-size:11px; color:var(--muted)">'+t.d+'</span></span>';
+      h+='<span style="color:var(--muted); font-size:16px">›</span></button>';
+    });
+
+    if(membri.length){
+      h+='<div class="sechead">Componenti veri</div>';
+      membri.filter(function(m){ return m.tipo!=="ospite"; }).forEach(function(m){
+        if(m.user_id===vero.user_id) return;   // non me stesso
+        h+='<button class="opz" data-mem="'+m.id+'" style="margin-bottom:6px">';
+        h+='<span class="tx"><b style="color:var(--cream)">'+esc(m.nome)+'</b><br>';
+        h+='<span style="font-size:11px; color:var(--muted)">'+esc(descrizioneMembro(m))+'</span></span>';
+        h+='<span style="color:var(--muted); font-size:16px">›</span></button>';
+      });
+    }
+
+    document.getElementById("m-ant-lista").innerHTML=h;
+    var root=document.getElementById("m-ant-lista");
+    root.querySelectorAll("[data-tipo]").forEach(function(b){
+      b.onclick=function(){
+        var t=tipi.find(function(x){return x.k===b.dataset.tipo;});
+        if(!t) return;
+        var p=Object.assign({}, vero, t.p);   // stessa squadra, permessi diversi
+        p.membro_id="anteprima";
+        document.getElementById("m-anteprima").classList.remove("show");
+        entraAnteprima(p);
+      };
+    });
+    root.querySelectorAll("[data-mem]").forEach(function(b){
+      b.onclick=function(){
+        var m=membri.find(function(x){return x.id===b.dataset.mem;});
+        if(!m) return;
+        var p={
+          user_id:m.user_id||"anteprima", email:m.nome, membro_id:m.id,
+          nome:m.nome, ruolo:m.ruolo, is_admin:(m.is_admin===true),
+          puo_mappare:(m.puo_mappare===true), vede_aree:(m.vede_aree===true),
+          vede_poste:(m.vede_poste===true),
+          squadra_id:vero.squadra_id, squadra_nome:vero.squadra_nome
+        };
+        document.getElementById("m-anteprima").classList.remove("show");
+        entraAnteprima(p);
+      };
+    });
+    document.getElementById("m-anteprima").classList.add("show");
+  }
   var aree = [];          // aree della squadra, con .poste[]
   var areaAttivaId = null;
   var pos = null;         // {lat,lng,acc}
@@ -1168,6 +1301,9 @@
     document.getElementById("i-account").textContent=me.nome+" ("+me.email+") · "+et;
   }
   async function doLogout(){
+    meReale=null;
+    var ab=document.getElementById("anteprimabar");
+    if(ab) ab.classList.remove("show");
     try{ await sb.auth.signOut(); }catch(e){}
     // pulisco i dati locali: un altro utente non deve vederli
     try{
@@ -3562,6 +3698,9 @@
 
   /* ================= MENU ================= */
   function apriMenu(){
+    var vero = meReale || me;
+    var ma=document.getElementById("menu-anteprima");
+    if(ma) ma.style.display = (vero && vero.is_admin) ? "flex" : "none";
     document.getElementById("menu-hd").textContent = (me ? (me.nome+" · "+me.ruolo) : "—") + "  ·  " + APP_VERSION;
     document.getElementById("menu-gps").textContent = (watchId!==null) ? "🔋  Sospendi GPS" : "🔋  Riattiva GPS";
     document.getElementById("menu").classList.add("show");
@@ -3589,6 +3728,9 @@
       chiudiMenu(); toast("Ricarico…"); await caricaAree(); toast("Dati aggiornati");
     };
     document.getElementById("menu-aggiorna").onclick=function(){ chiudiMenu(); aggiornaApp(); };
+    document.getElementById("menu-anteprima").onclick=function(){ chiudiMenu(); apriSelettoreAnteprima(); };
+    document.getElementById("ant-esci").onclick=esciAnteprima;
+    document.getElementById("m-ant-chiudi").onclick=function(){ document.getElementById("m-anteprima").classList.remove("show"); };
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
 
