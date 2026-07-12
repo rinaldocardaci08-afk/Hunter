@@ -845,6 +845,10 @@
       <div style="position:relative; width:100%; height:250px; border-radius:14px; overflow:hidden; margin-bottom:13px;">
         <div id="mv-map" style="position:absolute; inset:0; background:#3d4a2a;"></div>
         <canvas id="mv-schema" style="position:absolute; inset:0; width:100%; height:100%; background:#34401f; display:none;"></canvas>
+        <div id="mv-zoom" style="position:absolute; top:8px; right:8px; z-index:20; display:none; flex-direction:column; gap:5px;">
+          <button id="mvz-piu" style="width:34px;height:34px;border-radius:9px;background:rgba(44,36,24,.9);border:1px solid #4A3F2C;color:#F0E6D2;font-size:17px;padding:0;">+</button>
+          <button id="mvz-meno" style="width:34px;height:34px;border-radius:9px;background:rgba(44,36,24,.9);border:1px solid #4A3F2C;color:#F0E6D2;font-size:17px;padding:0;">−</button>
+        </div>
       </div>
 
       <div style="background:var(--dark2); border-radius:14px; padding:13px; display:flex; align-items:center; gap:13px; margin-bottom:12px;">
@@ -918,7 +922,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.20";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.21";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2036,10 +2040,30 @@
     document.getElementById("mp-note").textContent = note || "Nessuna nota. Toccane l'aggiunta per scriverne una.";
     document.getElementById("mp-note").style.color = note ? "var(--cream)" : "var(--muted)";
     document.getElementById("m-posta-info").classList.add("show");
-    setTimeout(function(){ disegnaMiniSchema("mp-schema", p, false); }, 80);
+    miniReset("mp-schema");
+    setTimeout(function(){
+      var cv=document.getElementById("mp-schema");
+      if(cv) cv.__posta=p;
+      disegnaMiniSchema("mp-schema", p, false);
+      initMiniTouch("mp-schema", p, false);
+    }, 90);
   }
 
   // disegna una posta con i suoi vicini. conNomi = mostra i nomi dei vicini
+  /* --- mini-schema NAVIGABILE (pan + zoom), usato nella scheda posta e nella vista postaiolo --- */
+  var miniView = {};   // stato per ogni canvas: {cx, cy, scale}
+  var miniGeo  = {};   // proiezione per ogni canvas
+
+  function miniReset(canvasId){ delete miniView[canvasId]; delete miniGeo[canvasId]; }
+
+  function miniZoom(canvasId, f){
+    var v=miniView[canvasId]; if(!v) return;
+    v.scale=Math.max(0.05, Math.min(30, v.scale*f));
+    var cv=document.getElementById(canvasId);
+    var p=cv ? cv.__posta : null;
+    if(p) disegnaMiniSchema(canvasId, p, canvasId==="mv-schema");
+  }
+
   function disegnaMiniSchema(canvasId, posta, grande){
     var cv=document.getElementById(canvasId);
     if(!cv) return;
@@ -2056,40 +2080,48 @@
     var vic=viciniDi(posta, poste, 2);
     var pts=[posta].concat(vic.map(function(v){return v.p;}));
     var all=pts.slice(); if(pos) all.push(pos);
-    if(all.length<2){ // una posta sola: la metto al centro
-      ctx.fillStyle="#C0392B"; ctx.beginPath(); ctx.arc(W/2,H/2,16,0,7); ctx.fill();
-      ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.stroke();
-      ctx.fillStyle="#fff"; ctx.font="700 14px sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
-      ctx.fillText(String(posta.numero||"?"), W/2, H/2);
-      return;
+
+    // proiezione (una volta per canvas)
+    if(!miniGeo[canvasId]){
+      var lat0=all.reduce(function(s,p){return s+p.lat;},0)/all.length;
+      var lng0=all.reduce(function(s,p){return s+p.lng;},0)/all.length;
+      miniGeo[canvasId]={ lat0:lat0, lng0:lng0, mLat:111320, mLng:111320*Math.cos(lat0*Math.PI/180) };
     }
-    var lat0=all.reduce(function(s,p){return s+p.lat;},0)/all.length;
-    var lng0=all.reduce(function(s,p){return s+p.lng;},0)/all.length;
-    var mLat=111320, mLng=111320*Math.cos(lat0*Math.PI/180);
-    function xy(p){ return {x:(p.lng-lng0)*mLng, y:-(p.lat-lat0)*mLat}; }
-    var A=all.map(xy);
-    var minX=Math.min.apply(null,A.map(function(q){return q.x;})), maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
-    var minY=Math.min.apply(null,A.map(function(q){return q.y;})), maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
-    var pad=grande?54:38, spanX=Math.max(maxX-minX,25), spanY=Math.max(maxY-minY,25);
-    var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
-    // limito lo zoom massimo così la posta non diventa gigante quando i vicini sono pochi
-    sc=Math.min(sc, grande?3.2:2.4);
-    // centro sulla POSTA (non sul baricentro): è lei la protagonista
-    var cP=xy(posta);
-    function px(p){ var q=xy(p); return {x:W/2+(q.x-cP.x)*sc, y:H/2+(q.y-cP.y)*sc}; }
+    var G=miniGeo[canvasId];
+    function toM(p){ return {x:(p.lng-G.lng0)*G.mLng, y:-(p.lat-G.lat0)*G.mLat}; }
 
-    // scala metrica
-    var passi=[10,25,50,100,250], passo=passi[0];
-    for(var pi=0; pi<passi.length; pi++){ if(passi[pi]*sc>=40){ passo=passi[pi]; break; } passo=passi[pi]; }
-    ctx.strokeStyle="rgba(240,230,210,.5)"; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(12, H-12); ctx.lineTo(12+passo*sc, H-12); ctx.stroke();
-    ctx.fillStyle="rgba(240,230,210,.7)"; ctx.font="10px sans-serif";
-    ctx.textAlign="left"; ctx.textBaseline="bottom";
-    ctx.fillText(passo+" m", 16+passo*sc, H-8);
+    // vista iniziale: centrata sulla posta, zoom che comprende i vicini
+    if(!miniView[canvasId]){
+      var A=all.map(toM);
+      var minX=Math.min.apply(null,A.map(function(q){return q.x;})), maxX=Math.max.apply(null,A.map(function(q){return q.x;}));
+      var minY=Math.min.apply(null,A.map(function(q){return q.y;})), maxY=Math.max.apply(null,A.map(function(q){return q.y;}));
+      var pad=grande?54:38;
+      var spanX=Math.max(maxX-minX,25), spanY=Math.max(maxY-minY,25);
+      var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
+      sc=Math.min(sc, grande?3.2:2.4);
+      var cP=toM(posta);
+      miniView[canvasId]={ cx:cP.x, cy:cP.y, scale:sc };
+    }
+    var V=miniView[canvasId];
+    function px(p){ var m=toM(p); return {x:W/2+(m.x-V.cx)*V.scale, y:H/2+(m.y-V.cy)*V.scale}; }
 
-    // vicini (col nome, come richiesto)
+    // griglia metrica
+    var passi=[10,25,50,100,250,500], passo=passi[0];
+    for(var pi=0; pi<passi.length; pi++){ if(passi[pi]*V.scale>=45){ passo=passi[pi]; break; } passo=passi[pi]; }
+    var stepPx=passo*V.scale;
+    if(stepPx>10){
+      ctx.strokeStyle="rgba(255,255,255,.05)"; ctx.lineWidth=1;
+      var x0=W/2-V.cx*V.scale, y0=H/2-V.cy*V.scale;
+      var gx=x0%stepPx; while(gx<0) gx+=stepPx;
+      for(; gx<W; gx+=stepPx){ ctx.beginPath(); ctx.moveTo(gx,0); ctx.lineTo(gx,H); ctx.stroke(); }
+      var gy=y0%stepPx; while(gy<0) gy+=stepPx;
+      for(; gy<H; gy+=stepPx){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
+    }
+
+    // vicini col nome
     vic.forEach(function(v){
       var c=px(v.p);
+      if(c.x<-30||c.x>W+30||c.y<-30||c.y>H+30) return;
       var r=v.grado===1?11:9;
       ctx.globalAlpha = v.grado===1?0.95:0.6;
       ctx.fillStyle="#B89968"; ctx.beginPath(); ctx.arc(c.x,c.y,r,0,7); ctx.fill();
@@ -2115,6 +2147,96 @@
       ctx.fillStyle="#378ADD"; ctx.beginPath(); ctx.arc(cu.x,cu.y,grande?9:7,0,7); ctx.fill();
       ctx.strokeStyle="#fff"; ctx.lineWidth=2.5; ctx.stroke();
     }
+    // scala metrica
+    ctx.strokeStyle="rgba(240,230,210,.55)"; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(12, H-12); ctx.lineTo(12+passo*V.scale, H-12); ctx.stroke();
+    ctx.fillStyle="rgba(240,230,210,.75)"; ctx.font="10px sans-serif";
+    ctx.textAlign="left"; ctx.textBaseline="bottom";
+    ctx.fillText(passo+" m", 16+passo*V.scale, H-8);
+  }
+
+  /* navigazione del mini-schema: trascina, pizzica, doppio tocco */
+  function initMiniTouch(canvasId, posta, grande){
+    var cv=document.getElementById(canvasId);
+    if(!cv || cv.__miniInit) return;
+    cv.__miniInit=true;
+    cv.style.touchAction="none";
+
+    var trascino=false, lastX=0, lastY=0;
+    var pinch=false, dist0=0, scala0=1, pinchX=0, pinchY=0;
+    var ultimoTap=0;
+
+    function P(t){ var r=cv.getBoundingClientRect(); return {x:t.clientX-r.left, y:t.clientY-r.top}; }
+    function V(){ return miniView[canvasId]; }
+    function ridisegna(){ disegnaMiniSchema(canvasId, cv.__posta || posta, grande); }
+
+    function zoom(f, fx, fy){
+      var v=V(); if(!v) return;
+      var W=cv.clientWidth, H=cv.clientHeight;
+      var nuovo=Math.max(0.05, Math.min(30, v.scale*f));
+      if(fx!=null){
+        var mx=v.cx+(fx-W/2)/v.scale, my=v.cy+(fy-H/2)/v.scale;
+        v.cx=mx-(fx-W/2)/nuovo; v.cy=my-(fy-H/2)/nuovo;
+      }
+      v.scale=nuovo;
+      ridisegna();
+    }
+
+    cv.addEventListener("touchstart", function(e){
+      if(e.touches.length===1){ trascino=true; var p=P(e.touches[0]); lastX=p.x; lastY=p.y; }
+      else if(e.touches.length===2){
+        trascino=false; pinch=true;
+        var a=P(e.touches[0]), b=P(e.touches[1]);
+        dist0=Math.hypot(b.x-a.x,b.y-a.y);
+        scala0=V()?V().scale:1;
+        pinchX=(a.x+b.x)/2; pinchY=(a.y+b.y)/2;
+      }
+      e.preventDefault(); e.stopPropagation();
+    }, {passive:false});
+
+    cv.addEventListener("touchmove", function(e){
+      var v=V(); if(!v) return;
+      if(pinch && e.touches.length===2){
+        var a=P(e.touches[0]), b=P(e.touches[1]);
+        var d=Math.hypot(b.x-a.x,b.y-a.y);
+        if(dist0>0) zoom((d/dist0)*(scala0/v.scale), pinchX, pinchY);
+      }else if(trascino && e.touches.length===1){
+        var p=P(e.touches[0]);
+        v.cx -= (p.x-lastX)/v.scale;
+        v.cy -= (p.y-lastY)/v.scale;
+        lastX=p.x; lastY=p.y;
+        ridisegna();
+      }
+      e.preventDefault(); e.stopPropagation();
+    }, {passive:false});
+
+    cv.addEventListener("touchend", function(e){
+      if(e.touches.length===0){
+        if(trascino && e.changedTouches.length===1){
+          var ora=Date.now();
+          if(ora-ultimoTap<300){ var p=P(e.changedTouches[0]); zoom(1.8, p.x, p.y); ultimoTap=0; }
+          else ultimoTap=ora;
+        }
+        trascino=false; pinch=false;
+      }
+    });
+
+    // mouse (per prova da PC)
+    var giu=false, mx0=0, my0=0;
+    cv.addEventListener("mousedown", function(e){ giu=true; var p=P(e); mx0=p.x; my0=p.y; });
+    cv.addEventListener("mousemove", function(e){
+      var v=V(); if(!giu||!v) return;
+      var p=P(e);
+      v.cx -= (p.x-mx0)/v.scale; v.cy -= (p.y-my0)/v.scale;
+      mx0=p.x; my0=p.y; ridisegna();
+    });
+    cv.addEventListener("mouseup", function(){ giu=false; });
+    cv.addEventListener("mouseleave", function(){ giu=false; });
+    cv.addEventListener("wheel", function(e){
+      var p=P(e);
+      zoom(e.deltaY<0?1.15:0.87, p.x, p.y);
+      e.preventDefault();
+    }, {passive:false});
   }
 
   function apriNote(){
@@ -2169,6 +2291,7 @@
       document.getElementById("mv-dist").textContent="GPS spento";
       document.getElementById("mv-arrow").style.transform="rotate(0deg)";
     }
+    miniReset("mv-schema");
     document.getElementById("m-vista").classList.add("show");
     mvSetMode(mvMode);
   }
@@ -2180,6 +2303,8 @@
     if(bx){ bx.style.background = m==="schema" ? "var(--brown)" : "transparent"; bx.style.color = m==="schema" ? "var(--cream)" : "var(--muted)"; }
     document.getElementById("mv-map").style.display = m==="sat" ? "block" : "none";
     document.getElementById("mv-schema").style.display = m==="schema" ? "block" : "none";
+    var z=document.getElementById("mv-zoom");
+    if(z) z.style.display = m==="schema" ? "flex" : "none";
     if(m==="sat") setTimeout(mvDisegnaSat, 120);
     else setTimeout(mvDisegnaSchema, 120);
   }
@@ -2225,7 +2350,10 @@
   /* SCHEMA: la posta al centro, zoomata sui vicini */
   function mvDisegnaSchema(){
     var p=postaAperta; if(!p) return;
+    var cv=document.getElementById("mv-schema");
+    if(cv) cv.__posta=p;
     disegnaMiniSchema("mv-schema", p, true);
+    initMiniTouch("mv-schema", p, true);
   }
 
   /* ================= MODALITÀ MAPPATURA ================= */
@@ -3006,6 +3134,8 @@
     // vista postaiolo
     document.getElementById("mv-chiudi").onclick=function(){ document.getElementById("m-vista").classList.remove("show"); };
     document.querySelectorAll(".vpill").forEach(function(b){ b.onclick=function(){ mvSetMode(b.dataset.vmode); }; });
+    document.getElementById("mvz-piu").onclick=function(){ miniZoom("mv-schema", 1.5); };
+    document.getElementById("mvz-meno").onclick=function(){ miniZoom("mv-schema", 0.67); };
 
     document.getElementById("btn-gps-toggle").onclick=function(){
       if(watchId!==null){ stopGPS(); this.textContent="Riattiva GPS"; }
