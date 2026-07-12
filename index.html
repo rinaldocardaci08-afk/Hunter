@@ -126,6 +126,55 @@
     padding:3px 6px; border-radius:5px; flex-shrink:0;}
   .memrow.ospite{background:#2f2818; border:1px dashed var(--dark3);}
 
+  /* ---------- CALENDARIO BATTUTE ---------- */
+  .calnav{display:flex; align-items:center; gap:8px; margin-bottom:12px;}
+  .calnav button{background:var(--dark2); border:1px solid var(--dark3); color:var(--cream);
+    border-radius:9px; padding:9px 13px; font-size:15px;}
+  .calnav .mese{flex:1; text-align:center;}
+  .calnav .mese .a{font-size:16px; font-weight:600; color:var(--cream);}
+  .calnav .mese .b{font-size:10px; color:var(--muted); margin-top:1px;}
+
+  .calhead{display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px;}
+  .calhead div{text-align:center; font-size:10px; color:#5a4f3a;}
+  .calhead div.utile{color:var(--gold); font-weight:700;}
+
+  .calgrid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
+  .cell{aspect-ratio:1; border-radius:9px; display:flex; flex-direction:column;
+    align-items:center; justify-content:center; font-size:13px;
+    background:#2f2818; color:#8a7350; opacity:.35;}
+  .cell.vuota{background:transparent; opacity:0;}
+  /* giorno di caccia, senza battuta */
+  .cell.caccia{background:var(--dark2); border:1px solid var(--dark3); color:var(--cream);
+    opacity:1; font-weight:600;}
+  /* battuta con adesioni aperte */
+  .cell.aperta{background:var(--brown); border:2px solid var(--gold); color:var(--cream); opacity:1;}
+  .cell.aperta .n{font-size:14px; font-weight:700;}
+  .cell.aperta .si{font-size:8px; color:#fbeed3; margin-top:1px;}
+  /* battuta chiusa / conclusa */
+  .cell.chiusa{background:#3a2a1f; border:1px solid #6b4a28; color:var(--muted); opacity:1;}
+  .cell.oggi{box-shadow:0 0 0 2px var(--blue);}
+
+  .callegenda{display:flex; gap:11px; flex-wrap:wrap; margin-top:12px; padding-top:10px;
+    border-top:1px solid var(--dark2);}
+  .callegenda span{font-size:9px; color:var(--muted);}
+  .callegenda i{display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:-1px;}
+
+  /* pagina del giorno */
+  .conta{display:flex; gap:7px; margin-bottom:13px;}
+  .conta .box{flex:1; border-radius:11px; padding:10px; text-align:center;}
+  .conta .box .n{font-size:20px; font-weight:700;}
+  .conta .box .t{font-size:9px; margin-top:2px;}
+
+  .aderente{display:flex; align-items:center; gap:9px; padding:9px 10px;
+    background:var(--dark2); border-radius:10px; margin-bottom:5px;}
+  .aderente .pallino{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .aderente .nm{flex:1; min-width:0; font-size:13px; color:var(--cream);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .aderente.no{background:#2f2818; border:1px dashed var(--dark3);}
+  .aderente.no .nm{color:var(--muted);}
+  .tagtr{font-size:9px; color:var(--gold); background:#4a3320; padding:3px 6px;
+    border-radius:5px; flex-shrink:0;}
+
   main{flex:1; position:relative; overflow:hidden;}
   .view{position:absolute; inset:0; display:none; flex-direction:column;}
   .view.active{display:flex;}
@@ -373,6 +422,13 @@
     <path d="M6.5 12.2l-1.2 4.5-2.6-.7 1.2-3.8z" fill="currentColor"/>
     <rect x="10.5" y="12.2" width="1.8" height="3" rx=".8" fill="currentColor"/>
   </symbol>
+  <symbol id="ic-orma" viewBox="0 0 24 24">
+    <ellipse cx="12" cy="15" rx="5" ry="6" fill="currentColor"/>
+    <ellipse cx="6" cy="7.5" rx="2.4" ry="3.2" fill="currentColor"/>
+    <ellipse cx="10.5" cy="5" rx="2.4" ry="3.2" fill="currentColor"/>
+    <ellipse cx="15" cy="5.5" rx="2.4" ry="3.2" fill="currentColor"/>
+    <ellipse cx="19" cy="8.5" rx="2.2" ry="2.9" fill="currentColor"/>
+  </symbol>
   <symbol id="ic-scudo" viewBox="0 0 24 24">
     <path d="M12 2l8 3.2v5.4c0 5-3.4 9.6-8 11.4-4.6-1.8-8-6.4-8-11.4V5.2z" fill="currentColor"/>
     <path d="M9 12l2.2 2.2L15.5 10" stroke="#2C2418" stroke-width="2.2" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
@@ -425,11 +481,10 @@
             <div class="nm">Bacheca</div>
             <div class="ds">Annunci e comunicazioni</div>
           </button>
-          <button class="tile soon" data-soon="Battuta">
-            <span class="badge">presto</span>
+          <button class="tile" data-go="battute">
             <div class="ic">🔥</div>
-            <div class="nm">Battuta</div>
-            <div class="ds">Adesioni, presenze, poste</div>
+            <div class="nm">Battute</div>
+            <div class="ds">Calendario e adesioni</div>
           </button>
           <button class="tile" data-go="squadra">
             <div class="ic">👥</div>
@@ -504,6 +559,24 @@
       <div class="scroll" id="bacheca-scroll"><div class="loading">Carico…</div></div>
     </section>
 
+    <!-- BATTUTE · calendario -->
+    <section class="view" id="v-battute">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl">Battute</div>
+      </div>
+      <div class="scroll" id="battute-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- GIORNATA · pagina piena -->
+    <section class="view" id="v-giornata">
+      <div class="backbar">
+        <button id="gi-indietro">‹ Battute</button>
+        <div class="ttl" id="gi-titolo">Giornata</div>
+      </div>
+      <div class="scroll" id="giornata-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
     <!-- SQUADRA -->
     <section class="view" id="v-squadra">
       <div class="backbar">
@@ -565,6 +638,11 @@
             <span class="box"></span>
             <svg class="ci big" style="color:#a86f22"><use href="#ic-voce"/></svg>
             <span class="tx">Accompagnatore battitore</span>
+          </button>
+          <button class="opz" data-compito="tracciatore">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#7B5EA7"><use href="#ic-orma"/></svg>
+            <span class="tx">Tracciatore</span>
           </button>
         </div>
 
@@ -735,6 +813,7 @@
     <div class="hd" id="menu-hd">—</div>
     <button data-go="home">🏠 &nbsp;Home</button>
     <button data-go="bacheca">📢 &nbsp;Bacheca</button>
+    <button data-go="battute">🔥 &nbsp;Battute</button>
     <button data-go="squadra">👥 &nbsp;Squadra</button>
     <button data-go="aree">📍 &nbsp;Aree e poste</button>
     <button data-go="info">ⓘ &nbsp;Guida</button>
@@ -757,6 +836,30 @@
     <div class="btnrow" style="margin-top:15px">
       <button class="btn line" id="m-ann-annulla">Annulla</button>
       <button class="btn primary" id="m-ann-salva">Pubblica</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: aree da segnalare -->
+<div class="modal" id="m-aree-seg">
+  <div class="sheet">
+    <h3>Aree per la tracciata</h3>
+    <div id="m-aree-lista" style="max-height:50vh; overflow-y:auto"></div>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-aree-annulla2">Annulla</button>
+      <button class="btn primary" id="m-aree-salva2">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: dividi i tracciatori -->
+<div class="modal" id="m-dividi">
+  <div class="sheet">
+    <h3>Dividi i tracciatori</h3>
+    <div id="m-div-lista" style="max-height:52vh; overflow-y:auto"></div>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-div-annulla">Annulla</button>
+      <button class="btn primary" id="m-div-salva">Salva</button>
     </div>
   </div>
 </div>
@@ -922,7 +1025,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.21";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.22";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1047,6 +1150,7 @@
     initMapOnce();
     aggiornaBarraAzioni();
     await caricaAree();
+    await caricaMembriSilenzioso();   // servono per le battute
     startGPS();
     aggiornaBadgeCoda();
     if(navigator.onLine) sincronizzaCoda(true);   // se c'è rete, svuoto la coda in silenzio
@@ -1991,6 +2095,7 @@
     }
     if(v==="bacheca") caricaBacheca();
     if(v==="squadra") caricaSquadra();
+    if(v==="battute") caricaBattute();
     window.scrollTo(0,0);
   }
 
@@ -2480,11 +2585,23 @@
     battitore:      { nome:"Battitore",                icona:"#ic-voce",     col:"#E0922B" },
     canaio:         { nome:"Canaio",                   icona:"#ic-cane",     col:"#5DAE6A" },
     acc_canaio:     { nome:"Accompagnatore canaio",    icona:"#ic-cane",     col:"#3d7a48" },
-    acc_battitore:  { nome:"Accompagnatore battitore", icona:"#ic-voce",     col:"#a86f22" }
+    acc_battitore:  { nome:"Accompagnatore battitore", icona:"#ic-voce",     col:"#a86f22" },
+    tracciatore:    { nome:"Tracciatore",              icona:"#ic-orma",     col:"#7B5EA7" }
   };
 
   function puoGestireSquadra(){
     return me && (me.is_admin===true || me.ruolo==="capocaccia");
+  }
+
+  /* carica i membri in memoria senza mostrare la sezione (servono alle battute) */
+  async function caricaMembriSilenzioso(){
+    try{
+      var r=await sb.from("hn_membri").select("*")
+        .eq("squadra_id",me.squadra_id).eq("attivo",true).order("nome");
+      if(!r.error){ membri=r.data||[]; try{ localStorage.setItem("hunter_cache_membri", JSON.stringify(membri)); }catch(e){} }
+    }catch(e){
+      try{ var c=JSON.parse(localStorage.getItem("hunter_cache_membri")); if(c) membri=c; }catch(e2){}
+    }
   }
 
   async function caricaSquadra(){
@@ -2833,6 +2950,472 @@
     toast("Componente rimosso");
   }
 
+  /* ================= BATTUTE · calendario ================= */
+  var STAGIONE = { da: {a:2026, m:8}, a: {a:2027, m:0} };   // set 2026 → gen 2027 (mesi 0-based)
+  var GIORNI_CACCIA = [4, 6, 0];   // giovedì=4, sabato=6, domenica=0
+  var MESI = ["gennaio","febbraio","marzo","aprile","maggio","giugno",
+              "luglio","agosto","settembre","ottobre","novembre","dicembre"];
+
+  var calAnno=2026, calMese=9;     // ottobre 2026 di default
+  var battute=[];                  // le battute della stagione
+  var adesioni=[];                 // adesioni della giornata aperta
+  var giornataAperta=null;         // la battuta che sto guardando
+
+  function isGiornoCaccia(d){ return GIORNI_CACCIA.indexOf(d.getDay())>=0; }
+  function iso(d){
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+  function daIso(s){ var p=String(s).split("-"); return new Date(+p[0], +p[1]-1, +p[2]); }
+  function fmtGiorno(d){
+    var gg=["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
+    return gg[d.getDay()]+" "+d.getDate()+" "+MESI[d.getMonth()];
+  }
+  function battutaDi(dataIso){ return battute.find(function(b){ return b.data===dataIso; }) || null; }
+
+  function puoGestireBattute(){
+    return me && (me.is_admin===true || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
+  }
+
+  async function caricaBattute(){
+    var root=document.getElementById("battute-scroll");
+    root.innerHTML='<div class="loading">Carico…</div>';
+    try{
+      var r=await sb.from("hn_battute").select("*").eq("squadra_id",me.squadra_id).order("data");
+      if(r.error) throw r.error;
+      battute=r.data||[];
+      try{ localStorage.setItem("hunter_cache_battute", JSON.stringify(battute)); }catch(e){}
+    }catch(e){
+      try{
+        var c=JSON.parse(localStorage.getItem("hunter_cache_battute"));
+        if(c){ battute=c; toast("Senza rete: uso i dati salvati"); }
+        else battute=[];
+      }catch(e2){ battute=[]; }
+    }
+    renderCalendario();
+  }
+
+  function renderCalendario(){
+    var root=document.getElementById("battute-scroll");
+    var primo=new Date(calAnno, calMese, 1);
+    var ultimo=new Date(calAnno, calMese+1, 0);
+    // lunedì = 0 nella griglia
+    var offset=(primo.getDay()+6)%7;
+    var oggi=iso(new Date());
+
+    var h='<div class="calnav">';
+    h+='<button id="cal-prev">‹</button>';
+    h+='<div class="mese"><div class="a">'+MESI[calMese].charAt(0).toUpperCase()+MESI[calMese].slice(1)+' '+calAnno+'</div>';
+    h+='<div class="b">stagione set 2026 — gen 2027</div></div>';
+    h+='<button id="cal-next">›</button></div>';
+
+    h+='<div class="calhead">';
+    ["L","M","M","G","V","S","D"].forEach(function(g,i){
+      var utile = (i===3 || i===5 || i===6);   // G, S, D
+      h+='<div class="'+(utile?"utile":"")+'">'+g+'</div>';
+    });
+    h+='</div><div class="calgrid">';
+
+    for(var i=0;i<offset;i++) h+='<div class="cell vuota"></div>';
+
+    for(var g=1; g<=ultimo.getDate(); g++){
+      var d=new Date(calAnno, calMese, g);
+      var k=iso(d);
+      var caccia=isGiornoCaccia(d);
+      var b=battutaDi(k);
+      var cls="cell";
+      var dentro="";
+
+      if(!caccia){
+        dentro=String(g);
+      }else if(b && b.stato==="aperta"){
+        cls+=" aperta";
+        dentro='<span class="n">'+g+'</span><span class="si">'+(b.n_si||0)+' sì</span>';
+      }else if(b){
+        cls+=" chiusa";
+        dentro='<span class="n">'+g+'</span>';
+      }else{
+        cls+=" caccia";
+        dentro=String(g);
+      }
+      if(k===oggi) cls+=" oggi";
+      h+='<div class="'+cls+'" '+(caccia?'data-giorno="'+k+'"':'')+'>'+dentro+'</div>';
+    }
+    h+='</div>';
+
+    h+='<div class="callegenda">';
+    h+='<span><i style="background:var(--brown); border:1px solid var(--gold)"></i> adesioni aperte</span>';
+    h+='<span><i style="background:#3a2a1f; border:1px solid #6b4a28"></i> battuta chiusa</span>';
+    h+='<span><i style="background:var(--dark2); border:1px solid var(--dark3)"></i> giorno di caccia</span>';
+    h+='<span style="color:#5a4f3a"><i style="background:#2f2818; opacity:.4"></i> non si caccia</span>';
+    h+='</div>';
+
+    if(!puoGestireBattute()){
+      var aperte=battute.filter(function(x){return x.stato==="aperta";});
+      h+='<div class="card" style="margin-top:16px; background:#3a3122; font-size:12px; color:var(--muted); line-height:1.5">'+
+         (aperte.length ? '👉 Tocca un giorno con le adesioni aperte per rispondere.'
+                        : 'Nessuna giornata aperta. Il capocaccia aprirà le adesioni.')+'</div>';
+    }
+
+    root.innerHTML=h;
+
+    root.querySelector("#cal-prev").onclick=function(){
+      calMese--; if(calMese<0){ calMese=11; calAnno--; }
+      if(calAnno<STAGIONE.da.a || (calAnno===STAGIONE.da.a && calMese<STAGIONE.da.m)){
+        calAnno=STAGIONE.da.a; calMese=STAGIONE.da.m; toast("Inizio stagione");
+      }
+      renderCalendario();
+    };
+    root.querySelector("#cal-next").onclick=function(){
+      calMese++; if(calMese>11){ calMese=0; calAnno++; }
+      if(calAnno>STAGIONE.a.a || (calAnno===STAGIONE.a.a && calMese>STAGIONE.a.m)){
+        calAnno=STAGIONE.a.a; calMese=STAGIONE.a.m; toast("Fine stagione");
+      }
+      renderCalendario();
+    };
+    root.querySelectorAll("[data-giorno]").forEach(function(el){
+      el.onclick=function(){ apriGiornata(el.dataset.giorno); };
+    });
+  }
+
+  /* ---------- pagina del giorno ---------- */
+  async function apriGiornata(dataIso){
+    var b=battutaDi(dataIso);
+    // il cacciatore normale entra solo se le adesioni sono aperte
+    if(!b && !puoGestireBattute()){ toast("Adesioni non ancora aperte"); return; }
+    giornataAperta = b || { data:dataIso, stato:"nuova", squadra_id:me.squadra_id };
+    document.getElementById("gi-titolo").textContent=fmtGiorno(daIso(dataIso));
+    showView("giornata");
+    await caricaAdesioni();
+  }
+
+  async function caricaAdesioni(){
+    var root=document.getElementById("giornata-scroll");
+    root.innerHTML='<div class="loading">Carico…</div>';
+    adesioni=[];
+    if(giornataAperta && giornataAperta.id){
+      try{
+        var r=await sb.from("hn_adesioni").select("*").eq("battuta_id",giornataAperta.id);
+        if(!r.error) adesioni=r.data||[];
+      }catch(e){}
+    }
+    renderGiornata();
+  }
+
+  function miaAdesione(){
+    return adesioni.find(function(a){ return a.membro_id===me.membro_id; }) || null;
+  }
+
+  function renderGiornata(){
+    var root=document.getElementById("giornata-scroll");
+    var b=giornataAperta;
+    var capo=puoGestireBattute();
+    var h="";
+
+    // --- giornata non ancora aperta (solo il capo la vede) ---
+    if(b.stato==="nuova"){
+      h+='<div class="empty" style="padding-top:30px">'+
+         '<div style="font-size:36px; margin-bottom:12px">📅</div>'+
+         '<div style="font-size:15px; color:var(--cream); margin-bottom:8px">Giornata non ancora aperta</div>'+
+         '<div style="line-height:1.6">Apri le adesioni: i cacciatori<br>potranno dire se ci sono.</div></div>';
+      h+='<button class="btn primary" id="gi-apri" style="margin-top:14px">Apri le adesioni</button>';
+      root.innerHTML=h;
+      var ap=root.querySelector("#gi-apri");
+      if(ap) ap.onclick=apriAdesioni;
+      return;
+    }
+
+    // --- stato ---
+    var si=adesioni.filter(function(a){return a.viene;}).length;
+    var tr=adesioni.filter(function(a){return a.viene && a.tracciatore;}).length;
+    var osp=adesioni.reduce(function(s,a){return s+(a.viene?(a.ospiti||0):0);},0);
+    var noRisp=Math.max(0, membri.filter(function(m){return m.tipo!=="ospite";}).length - adesioni.length);
+
+    var statoTxt = b.stato==="aperta" ? "● adesioni aperte" : "● adesioni chiuse";
+    var statoCol = b.stato==="aperta" ? "#7be0a8" : "var(--muted)";
+    h+='<div style="font-size:12px; color:'+statoCol+'; margin-bottom:12px">'+statoTxt+'</div>';
+
+    h+='<div class="conta">';
+    h+='<div class="box" style="background:#1d3a2a"><div class="n" style="color:#7be0a8">'+si+'</div><div class="t" style="color:#7bd3b0">hanno detto sì</div></div>';
+    h+='<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--gold)">'+tr+'</div><div class="t" style="color:var(--muted)">tracciatori</div></div>';
+    h+='<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--muted)">'+noRisp+'</div><div class="t" style="color:var(--muted)">non risposto</div></div>';
+    h+='</div>';
+    if(osp) h+='<div style="font-size:12px; color:#9fc8ed; margin-bottom:12px">+ '+osp+' ospit'+(osp===1?'e':'i')+'</div>';
+
+    // --- AREE SEGNALATE ---
+    var areeSeg = b.aree_segnalate || [];
+    if(areeSeg.length || capo){
+      h+='<div class="sechead">Aree segnalate per la tracciata</div>';
+      if(areeSeg.length){
+        h+='<div class="card" style="background:#4a3320; border:1px solid #6b4a28">';
+        areeSeg.forEach(function(aid, i){
+          var ar=aree.find(function(x){return x.id===aid;});
+          var nTr=adesioni.filter(function(a){return a.viene && a.tracciatore && a.area_tracciata===aid;}).length;
+          h+='<div style="display:flex; align-items:center; gap:8px; padding:6px 0;'+(i?'border-top:1px solid #6b4a28':'')+'">';
+          h+='<span style="font-size:13px">🌲</span>';
+          h+='<span style="flex:1; font-size:13px; color:var(--cream)">'+esc(ar?ar.nome:"area")+'</span>';
+          h+='<span style="font-size:11px; color:'+(nTr?'var(--gold)':'var(--muted)')+'">'+(nTr?nTr+' tracciator'+(nTr===1?'e':'i'):'nessuno')+'</span>';
+          h+='</div>';
+        });
+        h+='</div>';
+      }else{
+        h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna area segnalata.</div>';
+      }
+      if(capo) h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">🌲 Scegli le aree da segnalare</button>';
+    }
+
+    // --- LA MIA ADESIONE (per tutti) ---
+    if(b.stato==="aperta"){
+      var mia=miaAdesione();
+      h+='<div class="sechead">La tua adesione</div>';
+      h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold)">';
+      h+='<div style="font-size:11px; color:var(--muted); margin-bottom:7px">CI SEI?</div>';
+      h+='<div class="btnrow" style="margin-bottom:13px">';
+      h+='<button class="btn '+(mia&&mia.viene?'primary':'line')+'" data-ades="si">✓ Ci sono</button>';
+      h+='<button class="btn '+(mia&&!mia.viene?'primary':'line')+'" data-ades="no">Non vengo</button>';
+      h+='</div>';
+      if(mia && mia.viene){
+        h+='<div style="font-size:11px; color:var(--muted); margin-bottom:6px">OSPITI CHE PORTI</div>';
+        h+='<div class="btnrow" style="margin-bottom:13px">';
+        h+='<button class="btn line" data-osp="-">−</button>';
+        h+='<div style="flex:2; text-align:center; padding:13px; font-size:16px; color:var(--cream); font-weight:600">'+(mia.ospiti||0)+'</div>';
+        h+='<button class="btn line" data-osp="+">+</button>';
+        h+='</div>';
+        if(areeSeg.length){
+          h+='<div style="font-size:11px; color:var(--gold); margin-bottom:6px">FAI IL TRACCIATORE?</div>';
+          h+='<button class="opz '+(mia.tracciatore?'on':'')+'" id="gi-tracc" style="margin-bottom:0">';
+          h+='<span class="box"></span><span class="tx">Sì, vado a tracciare all\'alba</span></button>';
+          if(mia.tracciatore){
+            var ar2=aree.find(function(x){return x.id===mia.area_tracciata;});
+            h+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'+
+               (ar2 ? 'Assegnato a: <b style="color:var(--gold)">'+esc(ar2.nome)+'</b>'
+                    : 'Il capocaccia ti assegnerà a un\'area.')+'</div>';
+          }
+        }
+      }
+      h+='</div>';
+    }
+
+    // --- CHI VIENE ---
+    h+='<div class="sechead">Chi viene</div>';
+    if(!adesioni.length){
+      h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna risposta ancora.</div>';
+    }
+    adesioni.filter(function(a){return a.viene;}).forEach(function(a){
+      var m=membri.find(function(x){return x.id===a.membro_id;});
+      var ar=aree.find(function(x){return x.id===a.area_tracciata;});
+      h+='<div class="aderente">';
+      h+='<div class="pallino" style="background:#5DAE6A"></div>';
+      h+='<div class="nm">'+esc(m?m.nome:"—")+'</div>';
+      if(a.ospiti) h+='<span style="font-size:9px; color:#9fc8ed">+'+a.ospiti+' osp</span>';
+      if(a.tracciatore) h+='<span class="tagtr">tracciatore'+(ar?' · '+esc(ar.nome):'')+'</span>';
+      h+='</div>';
+    });
+    adesioni.filter(function(a){return !a.viene;}).forEach(function(a){
+      var m=membri.find(function(x){return x.id===a.membro_id;});
+      h+='<div class="aderente no"><div class="pallino" style="background:#4a3f2c"></div>';
+      h+='<div class="nm">'+esc(m?m.nome:"—")+' — non viene</div></div>';
+    });
+
+    // --- AZIONI DEL CAPO ---
+    if(capo && b.stato==="aperta"){
+      h+='<div class="btnrow" style="margin-top:16px">';
+      if(tr) h+='<button class="btn primary" id="gi-dividi">Dividi i tracciatori</button>';
+      h+='<button class="btn line" id="gi-chiudi">Chiudi le adesioni</button>';
+      h+='</div>';
+    }
+
+    root.innerHTML=h;
+    bindGiornata();
+  }
+
+  function bindGiornata(){
+    var root=document.getElementById("giornata-scroll");
+    root.querySelectorAll("[data-ades]").forEach(function(b){
+      b.onclick=function(){ salvaAdesione(b.dataset.ades==="si"); };
+    });
+    root.querySelectorAll("[data-osp]").forEach(function(b){
+      b.onclick=function(){ cambiaOspiti(b.dataset.osp==="+"?1:-1); };
+    });
+    var t=root.querySelector("#gi-tracc");
+    if(t) t.onclick=function(){ toggleTracciatore(); };
+    var a=root.querySelector("#gi-aree");
+    if(a) a.onclick=scegliAreeSegnalate;
+    var d=root.querySelector("#gi-dividi");
+    if(d) d.onclick=dividiTracciatori;
+    var c=root.querySelector("#gi-chiudi");
+    if(c) c.onclick=chiudiAdesioni;
+  }
+
+  /* ---------- azioni del capocaccia ---------- */
+  async function apriAdesioni(){
+    if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
+    try{
+      var r=await sb.from("hn_battute").insert({
+        squadra_id:me.squadra_id, data:giornataAperta.data,
+        stato:"aperta", aperta_da:me.user_id
+      }).select().single();
+      if(r.error) throw r.error;
+      giornataAperta=r.data;
+      battute.push(r.data);
+      await caricaAdesioni();
+      toast("Adesioni aperte");
+    }catch(e){ toast("Serve la rete per aprire la giornata"); }
+  }
+
+  async function chiudiAdesioni(){
+    if(!puoGestireBattute()) return;
+    if(!confirm("Chiudere le adesioni? Nessuno potrà più rispondere.")) return;
+    try{
+      var r=await sb.from("hn_battute").update({stato:"chiusa"}).eq("id",giornataAperta.id).select().single();
+      if(r.error) throw r.error;
+      giornataAperta=r.data;
+      var i=battute.findIndex(function(x){return x.id===r.data.id;});
+      if(i>=0) battute[i]=r.data;
+      renderGiornata();
+      toast("Adesioni chiuse");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  function scegliAreeSegnalate(){
+    if(!puoGestireBattute()) return;
+    if(!aree.length){ toast("Non ci sono mappe"); return; }
+    var sel=(giornataAperta.aree_segnalate||[]).slice();
+    var h='<div style="font-size:11px; color:var(--muted); margin-bottom:10px">Scegli le aree da segnalare ai tracciatori.</div>';
+    aree.forEach(function(a){
+      h+='<button class="opz '+(sel.indexOf(a.id)>=0?'on':'')+'" data-area="'+a.id+'">';
+      h+='<span class="box"></span><span class="tx">🌲 '+esc(a.nome)+(a.comune?' <span style="color:var(--muted); font-size:11px">· '+esc(a.comune)+'</span>':'')+'</span></button>';
+    });
+    document.getElementById("m-aree-lista").innerHTML=h;
+    document.getElementById("m-aree-lista").querySelectorAll("[data-area]").forEach(function(b){
+      b.onclick=function(){ b.classList.toggle("on"); };
+    });
+    document.getElementById("m-aree-seg").classList.add("show");
+  }
+
+  async function salvaAreeSegnalate(){
+    var sel=[];
+    document.querySelectorAll("#m-aree-lista .opz.on").forEach(function(b){ sel.push(b.dataset.area); });
+    try{
+      var r=await sb.from("hn_battute").update({aree_segnalate:sel}).eq("id",giornataAperta.id).select().single();
+      if(r.error) throw r.error;
+      giornataAperta=r.data;
+      var i=battute.findIndex(function(x){return x.id===r.data.id;});
+      if(i>=0) battute[i]=r.data;
+      document.getElementById("m-aree-seg").classList.remove("show");
+      renderGiornata();
+      toast(sel.length+" area"+(sel.length===1?"":"e")+" segnalate");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* divide i tracciatori tra le aree segnalate */
+  function dividiTracciatori(){
+    if(!puoGestireBattute()) return;
+    var areeSeg=giornataAperta.aree_segnalate||[];
+    if(!areeSeg.length){ toast("Segnala prima le aree"); return; }
+    var tracc=adesioni.filter(function(a){return a.viene && a.tracciatore;});
+    if(!tracc.length){ toast("Nessun tracciatore"); return; }
+
+    var h='<div style="font-size:11px; color:var(--muted); margin-bottom:12px">Assegna ogni tracciatore a un\'area.</div>';
+    tracc.forEach(function(a){
+      var m=membri.find(function(x){return x.id===a.membro_id;});
+      h+='<div style="margin-bottom:12px">';
+      h+='<div style="font-size:13px; color:var(--cream); font-weight:600; margin-bottom:6px">'+esc(m?m.nome:"—")+'</div>';
+      h+='<div class="chips" data-tr="'+a.id+'">';
+      h+='<button class="chip '+(!a.area_tracciata?'on':'')+'" data-ar="">—</button>';
+      areeSeg.forEach(function(aid){
+        var ar=aree.find(function(x){return x.id===aid;});
+        h+='<button class="chip '+(a.area_tracciata===aid?'on':'')+'" data-ar="'+aid+'">'+esc(ar?ar.nome:"?")+'</button>';
+      });
+      h+='</div></div>';
+    });
+    document.getElementById("m-div-lista").innerHTML=h;
+    document.querySelectorAll("#m-div-lista .chips").forEach(function(g){
+      g.querySelectorAll(".chip").forEach(function(b){
+        b.onclick=function(){
+          g.querySelectorAll(".chip").forEach(function(x){ x.classList.remove("on"); });
+          b.classList.add("on");
+        };
+      });
+    });
+    document.getElementById("m-dividi").classList.add("show");
+  }
+
+  async function salvaDivisione(){
+    var agg=[];
+    document.querySelectorAll("#m-div-lista .chips").forEach(function(g){
+      var on=g.querySelector(".chip.on");
+      agg.push({ id:g.dataset.tr, area:(on && on.dataset.ar) ? on.dataset.ar : null });
+    });
+    try{
+      for(var i=0;i<agg.length;i++){
+        var r=await sb.from("hn_adesioni").update({area_tracciata:agg[i].area}).eq("id",agg[i].id);
+        if(r.error) throw r.error;
+      }
+      document.getElementById("m-dividi").classList.remove("show");
+      await caricaAdesioni();
+      toast("Tracciatori divisi");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* ---------- azioni del cacciatore ---------- */
+  async function salvaAdesione(viene){
+    if(!giornataAperta || !giornataAperta.id) return;
+    if(giornataAperta.stato!=="aperta"){ toast("Adesioni chiuse"); return; }
+    var mia=miaAdesione();
+    try{
+      var r;
+      if(mia){
+        r=await sb.from("hn_adesioni").update({viene:viene}).eq("id",mia.id).select().single();
+      }else{
+        r=await sb.from("hn_adesioni").insert({
+          battuta_id:giornataAperta.id, membro_id:me.membro_id,
+          viene:viene, ospiti:0, tracciatore:false
+        }).select().single();
+      }
+      if(r.error) throw r.error;
+      await ricontaBattuta();
+      await caricaAdesioni();
+      toast(viene ? "Ci sei!" : "Segnato: non vieni");
+    }catch(e){ toast("Serve la rete per rispondere"); }
+  }
+
+  async function cambiaOspiti(delta){
+    var mia=miaAdesione(); if(!mia) return;
+    var n=Math.max(0, (mia.ospiti||0)+delta);
+    try{
+      var r=await sb.from("hn_adesioni").update({ospiti:n}).eq("id",mia.id);
+      if(r.error) throw r.error;
+      mia.ospiti=n;
+      renderGiornata();
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  async function toggleTracciatore(){
+    var mia=miaAdesione(); if(!mia) return;
+    var v=!mia.tracciatore;
+    try{
+      var r=await sb.from("hn_adesioni").update({tracciatore:v}).eq("id",mia.id);
+      if(r.error) throw r.error;
+      mia.tracciatore=v;
+      renderGiornata();
+      toast(v ? "Sei tracciatore" : "Non fai il tracciatore");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* aggiorna il conteggio dei sì sulla battuta (per il calendario) */
+  async function ricontaBattuta(){
+    if(!giornataAperta || !giornataAperta.id) return;
+    try{
+      var r=await sb.from("hn_adesioni").select("viene").eq("battuta_id",giornataAperta.id);
+      if(r.error) return;
+      var n=(r.data||[]).filter(function(a){return a.viene;}).length;
+      await sb.from("hn_battute").update({n_si:n}).eq("id",giornataAperta.id);
+      giornataAperta.n_si=n;
+      var i=battute.findIndex(function(x){return x.id===giornataAperta.id;});
+      if(i>=0) battute[i].n_si=n;
+    }catch(e){}
+  }
+
   /* ================= BACHECA ================= */
   var annunci=[];
   async function caricaBacheca(){
@@ -3052,6 +3635,13 @@
     };
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
     document.getElementById("coda-carica").onclick=function(){ sincronizzaCoda(false); };
+
+    // --- BATTUTE ---
+    document.getElementById("gi-indietro").onclick=function(){ giornataAperta=null; showView("battute"); };
+    document.getElementById("m-aree-salva2").onclick=salvaAreeSegnalate;
+    document.getElementById("m-aree-annulla2").onclick=function(){ document.getElementById("m-aree-seg").classList.remove("show"); };
+    document.getElementById("m-div-salva").onclick=salvaDivisione;
+    document.getElementById("m-div-annulla").onclick=function(){ document.getElementById("m-dividi").classList.remove("show"); };
 
     // --- SQUADRA ---
     document.getElementById("mb-indietro").onclick=function(){ membroEdit=null; showView("squadra"); };
