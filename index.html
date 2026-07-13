@@ -183,6 +183,29 @@
   .tagtr{font-size:9px; color:var(--gold); background:#4a3320; padding:3px 6px;
     border-radius:5px; flex-shrink:0;}
 
+  /* ---------- SCADENZE ---------- */
+  .semaforo{border-radius:15px; padding:16px; margin-bottom:14px;}
+  .semaforo .riga{display:flex; align-items:center; gap:12px;}
+  .semaforo .cerchio{width:46px; height:46px; border-radius:50%;
+    background:rgba(255,255,255,.12); display:flex; align-items:center;
+    justify-content:center; font-size:23px; flex-shrink:0;}
+  .semaforo .a{font-size:16px; font-weight:700; color:var(--cream);}
+  .semaforo .b{font-size:12px; margin-top:2px;}
+
+  .doc{border-radius:12px; padding:12px; margin-bottom:7px;}
+  .doc .riga{display:flex; align-items:center; gap:9px;}
+  .doc .pallino{width:9px; height:9px; border-radius:50%; flex-shrink:0;}
+  .doc .nm{flex:1; min-width:0;}
+  .doc .nm .a{font-size:13px; color:var(--cream); font-weight:600;}
+  .doc .nm .b{font-size:11px; margin-top:1px;}
+  .doc.vuoto{background:#2f2818; border:1px dashed var(--dark3);}
+
+  .fotobox{background:var(--dark2); border-radius:12px; padding:11px; margin-bottom:12px;}
+  .fotobox img{width:100%; border-radius:9px; display:block; max-height:280px; object-fit:contain;
+    background:#f0ede4;}
+  .fotovuota{height:140px; background:#3a3122; border:1px dashed var(--dark3); border-radius:9px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px;}
+
   /* ---------- CASSA ---------- */
   .cassatot{background:linear-gradient(135deg,#1d3a2a,#2d5a3f); border-radius:15px;
     padding:16px; margin-bottom:13px;}
@@ -574,8 +597,7 @@
             <div class="nm">Sergente Mario</div>
             <div class="ds">Giudice di giornata</div>
           </button>
-          <button class="tile soon" data-soon="Le mie scadenze">
-            <span class="badge">presto</span>
+          <button class="tile" data-go="scadenze">
             <div class="ic">📋</div>
             <div class="nm">Le mie scadenze</div>
             <div class="ds">Tasse e assicurazione</div>
@@ -606,6 +628,15 @@
         <div class="ttl">Bacheca</div>
       </div>
       <div class="scroll" id="bacheca-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- LE MIE SCADENZE -->
+    <section class="view" id="v-scadenze">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl" id="sc-titolo">Le mie scadenze</div>
+      </div>
+      <div class="scroll" id="scadenze-scroll"><div class="loading">Carico…</div></div>
     </section>
 
     <!-- SERGENTE MARIO -->
@@ -932,6 +963,7 @@
     <button data-go="bacheca">📢 &nbsp;Bacheca</button>
     <button data-go="battute">🔥 &nbsp;Battute</button>
     <button data-go="cassa">💰 &nbsp;Cassa</button>
+    <button data-go="scadenze">📋 &nbsp;Le mie scadenze</button>
     <button data-go="squadra">👥 &nbsp;Squadra</button>
     <button data-go="aree">📍 &nbsp;Aree e poste</button>
     <button data-go="info">ⓘ &nbsp;Guida</button>
@@ -973,6 +1005,46 @@
     <button class="btn primary" id="rt-porta" style="margin-bottom:8px">🚗 Portami qui</button>
     <button class="btn line" id="rt-mappa" style="margin-bottom:8px">🗺️ Vedi sulla mappa</button>
     <button class="btn danger" id="rt-elimina" style="display:none">🗑 Elimina</button>
+  </div>
+</div>
+
+<!-- MODALE: scheda di un documento -->
+<div class="modal" id="m-doc">
+  <div class="sheet">
+    <div style="display:flex; align-items:center; gap:11px; margin-bottom:13px;">
+      <div style="width:40px;height:40px;border-radius:50%;background:var(--dark3);display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;" id="dc-icona">📋</div>
+      <div style="flex:1; min-width:0;">
+        <div id="dc-nome" style="font-size:16px; font-weight:600; color:var(--cream);">Documento</div>
+        <div id="dc-stato" style="font-size:11px; color:var(--muted);">—</div>
+      </div>
+      <button id="dc-chiudi" style="background:none;border:none;color:var(--muted);font-size:20px;padding:4px 8px;">✕</button>
+    </div>
+
+    <div class="fotobox" id="dc-foto"></div>
+
+    <div id="dc-azioni">
+      <div class="btnrow" style="margin-bottom:13px">
+        <button class="btn line" id="dc-scatta">📷 Foto / scegli</button>
+        <button class="btn danger" id="dc-delfoto" style="flex:0 0 52px">🗑</button>
+      </div>
+      <input type="file" id="dc-file" accept="image/*" capture="environment" style="display:none">
+
+      <div id="dc-rilascio-box" style="display:none">
+        <label class="lbl" style="margin-top:0">Rilasciato il</label>
+        <input id="dc-rilascio" type="date" class="inp">
+      </div>
+
+      <label class="lbl">Scade il</label>
+      <input id="dc-scadenza" type="date" class="inp">
+      <div id="dc-auto" style="display:none; font-size:11px; color:var(--gold); margin-top:6px; line-height:1.5">
+        ⓘ Calcolata dal porto d'armi: la governativa scade sempre alla sua data-anniversario.
+      </div>
+
+      <label class="lbl">Importo pagato <span class="opt">(facoltativo)</span></label>
+      <input id="dc-importo" type="text" class="inp" inputmode="decimal" placeholder="55,00">
+
+      <button class="btn primary" id="dc-salva" style="margin-top:16px">Salva</button>
+    </div>
   </div>
 </div>
 
@@ -1194,7 +1266,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.28";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.29";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2412,6 +2484,7 @@
     if(v==="squadra") caricaSquadra();
     if(v==="battute") caricaBattute();
     if(v==="cassa") caricaCassa();
+    if(v==="scadenze"){ scadenzeDi=null; caricaScadenze(); }
     window.scrollTo(0,0);
   }
 
@@ -4886,6 +4959,411 @@
     }catch(e){ toast("Serve la rete"); }
   }
 
+  /* ================= LE MIE SCADENZE =================
+     Ogni cacciatore registra i suoi documenti e l'app gli tiene le scadenze.
+     REGOLA CHIAVE: la tassa GOVERNATIVA non dura un anno dal pagamento —
+     scade alla data-anniversario del PORTO D'ARMI. Se il porto è del 17 luglio,
+     la governativa scade il 17 luglio, sempre. */
+
+  var scadenze={};          // i documenti del membro che sto guardando
+  var scadenzeDi=null;      // di chi sto guardando le scadenze (null = le mie)
+  var docAperto=null;
+
+  var TASSE = {
+    governativa:  { nome:"Tassa governativa", icona:"🏛️", auto:true },
+    atc:          { nome:"Tassa ATC",         icona:"🎫", auto:false },
+    regionale:    { nome:"Tassa regionale",   icona:"🗺️", auto:false },
+    assicurazione:{ nome:"Assicurazione",     icona:"🛡️", auto:false }
+  };
+
+  function puoVedereScadenzeAltrui(){
+    return me && (me.is_admin===true || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
+  }
+
+  /* la governativa scade all'anniversario del porto d'armi */
+  function scadenzaGovernativa(portoRilascio){
+    if(!portoRilascio) return null;
+    var d=daIso(portoRilascio);
+    var oggi=new Date(); oggi.setHours(0,0,0,0);
+    // il prossimo anniversario (giorno e mese del porto)
+    var anno=oggi.getFullYear();
+    var ann=new Date(anno, d.getMonth(), d.getDate());
+    if(ann < oggi) ann=new Date(anno+1, d.getMonth(), d.getDate());
+    return iso(ann);
+  }
+
+  function giorniA(dataIso){
+    if(!dataIso) return null;
+    var d=daIso(dataIso); d.setHours(0,0,0,0);
+    var oggi=new Date(); oggi.setHours(0,0,0,0);
+    return Math.round((d-oggi)/86400000);
+  }
+  function statoScadenza(dataIso){
+    var g=giorniA(dataIso);
+    if(g===null) return {k:"vuoto", col:"#8a7350", txt:"non caricata"};
+    if(g<0)  return {k:"scaduta", col:"#C0392B", txt:"scaduta il "+fmtData2(dataIso)+" · "+Math.abs(g)+" giorni fa"};
+    if(g<=30) return {k:"scadenza", col:"#E0922B", txt:"scade il "+fmtData2(dataIso)+" · tra "+g+" giorni"};
+    return {k:"valida", col:"#5DAE6A", txt:"valida fino al "+fmtData2(dataIso)};
+  }
+
+  async function caricaScadenze(){
+    var root=document.getElementById("scadenze-scroll");
+    root.innerHTML='<div class="loading">Carico…</div>';
+    var chi = scadenzeDi ? scadenzeDi.id : me.membro_id;
+    try{
+      var r=await sb.from("hn_scadenze").select("*").eq("membro_id",chi);
+      if(r.error) throw r.error;
+      scadenze={};
+      (r.data||[]).forEach(function(s){ scadenze[s.tipo]=s; });
+    }catch(e){
+      toast("Serve la rete per i documenti");
+      scadenze={};
+    }
+    renderScadenze();
+  }
+
+  function renderScadenze(){
+    var root=document.getElementById("scadenze-scroll");
+    var mio = !scadenzeDi;
+    var nomeChi = scadenzeDi ? scadenzeDi.nome : "Le mie scadenze";
+    document.getElementById("sc-titolo").textContent = nomeChi;
+
+    var porto = scadenze.porto || null;
+    var h='';
+
+    // --- il semaforo generale ---
+    var stati=[];
+    Object.keys(TASSE).forEach(function(k){
+      var s=scadenze[k];
+      var data = (k==="governativa" && porto) ? scadenzaGovernativa(porto.rilascio) : (s?s.scadenza:null);
+      if(!s) stati.push("vuoto");
+      else stati.push(statoScadenza(data).k);
+    });
+    var nScad=stati.filter(function(x){return x==="scaduta";}).length;
+    var nProx=stati.filter(function(x){return x==="scadenza";}).length;
+    var nVuoti=stati.filter(function(x){return x==="vuoto";}).length;
+
+    var sem;
+    if(nScad) sem={bg:"linear-gradient(135deg,#4a2a20,#6b3a2a)", ic:"⚠️", a:"Non sei in regola",
+                   b:nScad+" scadut"+(nScad===1?"a":"e")+(nProx?" · "+nProx+" in scadenza":""), col:"#e0a0a0"};
+    else if(nProx) sem={bg:"linear-gradient(135deg,#4a3320,#6b4a28)", ic:"⏳", a:"Attenzione",
+                   b:nProx+" in scadenza", col:"#e0b878"};
+    else if(nVuoti===4) sem={bg:"linear-gradient(135deg,#3a3122,#4a3f2c)", ic:"📋", a:"Niente caricato",
+                   b:"carica i tuoi documenti", col:"#b89968"};
+    else sem={bg:"linear-gradient(135deg,#1d3a2a,#2d5a3f)", ic:"✓", a:"Sei in regola",
+              b:(nVuoti?nVuoti+" da caricare":"tutto a posto"), col:"#7bd3b0"};
+
+    h+='<div class="semaforo" style="background:'+sem.bg+'">';
+    h+='<div class="riga"><div class="cerchio">'+sem.ic+'</div>';
+    h+='<div><div class="a">'+sem.a+'</div><div class="b" style="color:'+sem.col+'">'+sem.b+'</div></div>';
+    h+='</div></div>';
+
+    // --- IL PORTO D'ARMI: la base ---
+    h+='<div class="card" style="border:1px solid var(--gold); margin-bottom:14px" data-doc="porto">';
+    h+='<div style="display:flex; align-items:center; gap:9px; margin-bottom:8px">';
+    h+='<span style="font-size:16px">🔫</span>';
+    h+='<span style="flex:1; font-size:13px; color:var(--gold); font-weight:600">Porto d\'armi</span>';
+    if(porto && porto.scadenza){
+      var sp=statoScadenza(porto.scadenza);
+      h+='<span style="font-size:11px; color:'+sp.col+'">'+(sp.k==="scaduta"?"scaduto":"valido")+'</span>';
+    }else{
+      h+='<span style="font-size:11px; color:var(--muted)">da inserire</span>';
+    }
+    h+='</div>';
+    if(porto && porto.rilascio){
+      h+='<div style="display:flex; gap:16px">';
+      h+='<div><div style="font-size:9px; color:var(--muted)">rilasciato il</div>';
+      h+='<div style="font-size:14px; color:var(--cream); font-weight:600">'+fmtData2(porto.rilascio)+'</div></div>';
+      if(porto.scadenza){
+        h+='<div><div style="font-size:9px; color:var(--muted)">scade il</div>';
+        h+='<div style="font-size:14px; color:var(--cream); font-weight:600">'+fmtData2(porto.scadenza)+'</div></div>';
+      }
+      h+='</div>';
+      var gv=scadenzaGovernativa(porto.rilascio);
+      h+='<div style="margin-top:9px; padding-top:9px; border-top:1px solid var(--dark3); font-size:10px; color:var(--muted); line-height:1.5">';
+      h+='ⓘ La <b style="color:var(--gold)">tassa governativa</b> scade sempre il <b style="color:var(--gold)">'+
+         fmtData2(gv).slice(0,5)+'</b> — non dura un anno dal pagamento, segue la data del porto d\'armi.</div>';
+    }else{
+      h+='<div style="font-size:12px; color:var(--muted); line-height:1.5">Inserisci la data di rilascio: serve a calcolare la scadenza della governativa.</div>';
+    }
+    h+='</div>';
+
+    // --- LE QUATTRO TASSE ---
+    h+='<div class="sechead">Le tasse dell\'anno</div>';
+    Object.keys(TASSE).forEach(function(k){
+      var t=TASSE[k];
+      var s=scadenze[k];
+      // la governativa prende la scadenza dal porto d'armi
+      var data = (k==="governativa" && porto) ? scadenzaGovernativa(porto.rilascio) : (s?s.scadenza:null);
+      var st = s ? statoScadenza(data) : {k:"vuoto", col:"#8a7350", txt:"non caricata"};
+      var bg = st.k==="scaduta" ? "#4a2a20" : (st.k==="scadenza" ? "#4a3320" : (st.k==="valida" ? "#1d3a2a" : "#2f2818"));
+
+      h+='<div class="doc '+(st.k==="vuoto"?"vuoto":"")+'" data-doc="'+k+'" style="background:'+bg+
+         (st.k!=="vuoto"?'; border-left:3px solid '+st.col:'')+'; cursor:pointer">';
+      h+='<div class="riga">';
+      h+='<div class="pallino" style="background:'+st.col+'"></div>';
+      h+='<div class="nm"><div class="a" style="color:'+(st.k==="vuoto"?"var(--muted)":"var(--cream)")+'">'+t.nome+'</div>';
+      h+='<div class="b" style="color:'+st.col+'">'+st.txt+'</div></div>';
+      if(s && s.foto_url) h+='<span style="font-size:14px">📷</span>';
+      else if(mio) h+='<span style="font-size:11px; color:var(--gold); background:#4a3320; padding:4px 8px; border-radius:6px">+ carica</span>';
+      h+='</div>';
+      if(st.k==="scaduta"){
+        h+='<div style="margin-top:9px; background:rgba(0,0,0,.25); border-radius:8px; padding:8px; font-size:11px; color:#e0a0a0; line-height:1.4">';
+        h+='Non puoi andare a caccia. Rinnova e carica la ricevuta.</div>';
+      }
+      h+='</div>';
+    });
+
+    if(!mio){
+      h+='<div class="card" style="margin-top:14px; font-size:11px; color:var(--muted); line-height:1.5">'+
+         'Stai guardando i documenti di '+esc(scadenzeDi.nome)+'.</div>';
+      h+='<button class="btn line" id="sc-back" style="margin-top:10px">‹ Torna alla squadra</button>';
+    }else if(puoVedereScadenzeAltrui()){
+      h+='<button class="btn line" id="sc-squadra" style="margin-top:16px">👥 Documenti della squadra</button>';
+    }
+
+    root.innerHTML=h;
+    root.querySelectorAll("[data-doc]").forEach(function(el){
+      el.onclick=function(){ apriDocumento(el.dataset.doc); };
+    });
+    var sb2=root.querySelector("#sc-squadra");
+    if(sb2) sb2.onclick=mostraScadenzeSquadra;
+    var bk=root.querySelector("#sc-back");
+    if(bk) bk.onclick=function(){ scadenzeDi=null; caricaScadenze(); };
+  }
+
+  /* --- la scheda di un documento --- */
+  function apriDocumento(tipo){
+    var mio = !scadenzeDi;
+    if(!mio && !puoVedereScadenzeAltrui()){ toast("Non hai il permesso"); return; }
+    docAperto=tipo;
+    var s=scadenze[tipo]||null;
+    var porto=scadenze.porto||null;
+    var isPorto = tipo==="porto";
+    var t = isPorto ? {nome:"Porto d'armi", icona:"🔫"} : TASSE[tipo];
+
+    document.getElementById("dc-nome").textContent=t.nome;
+    document.getElementById("dc-icona").textContent=t.icona;
+
+    // la governativa: scadenza calcolata, non modificabile
+    var auto = (tipo==="governativa");
+    var dataScad = auto ? (porto ? scadenzaGovernativa(porto.rilascio) : null) : (s?s.scadenza:null);
+
+    var st = s ? statoScadenza(dataScad) : {col:"#8a7350", txt:"non caricata"};
+    document.getElementById("dc-stato").textContent=st.txt;
+    document.getElementById("dc-stato").style.color=st.col;
+
+    // foto
+    var fb=document.getElementById("dc-foto");
+    if(s && s.foto_url){
+      fb.innerHTML='<img src="'+esc(s.foto_url)+'" alt="ricevuta">'+
+        '<div style="font-size:10px; color:var(--muted); text-align:center; margin-top:7px">'+
+        (s.foto_kb ? s.foto_kb+' KB' : '')+'</div>';
+    }else{
+      fb.innerHTML='<div class="fotovuota"><span style="font-size:32px; opacity:.5">🧾</span>'+
+        '<span style="font-size:11px; color:var(--muted)">nessuna foto</span></div>';
+    }
+
+    // date
+    document.getElementById("dc-rilascio-box").style.display = isPorto ? "block" : "none";
+    document.getElementById("dc-rilascio").value = (isPorto && s && s.rilascio) ? s.rilascio : "";
+    document.getElementById("dc-scadenza").value = dataScad || "";
+    document.getElementById("dc-scadenza").disabled = auto;
+    document.getElementById("dc-auto").style.display = auto ? "block" : "none";
+    document.getElementById("dc-importo").value = (s && s.importo) ? s.importo : "";
+
+    // i pulsanti solo se sono i MIEI documenti
+    var editabile = mio;
+    document.getElementById("dc-azioni").style.display = editabile ? "block" : "none";
+    document.getElementById("m-doc").classList.add("show");
+  }
+
+  /* --- COMPRESSIONE DELLA FOTO ---
+     Una ricevuta non serve a 12 megapixel: la riduco a ~1600px e la comprimo.
+     Da 4 MB si scende a 200-300 KB: sta in Supabase free e si carica anche con poco campo. */
+  function comprimiFoto(file, maxLato, qualita){
+    return new Promise(function(risolvi, rifiuta){
+      var lettore=new FileReader();
+      lettore.onload=function(e){
+        var img=new Image();
+        img.onload=function(){
+          var w=img.width, h=img.height;
+          var sc=Math.min(1, maxLato/Math.max(w,h));
+          var nw=Math.round(w*sc), nh=Math.round(h*sc);
+          var cv=document.createElement("canvas");
+          cv.width=nw; cv.height=nh;
+          var ctx=cv.getContext("2d");
+          ctx.fillStyle="#fff"; ctx.fillRect(0,0,nw,nh);
+          ctx.drawImage(img,0,0,nw,nh);
+          cv.toBlob(function(blob){
+            if(blob) risolvi(blob); else rifiuta(new Error("compressione fallita"));
+          }, "image/jpeg", qualita);
+        };
+        img.onerror=function(){ rifiuta(new Error("immagine non valida")); };
+        img.src=e.target.result;
+      };
+      lettore.onerror=function(){ rifiuta(new Error("lettura fallita")); };
+      lettore.readAsDataURL(file);
+    });
+  }
+
+  async function caricaFoto(file){
+    if(!docAperto || scadenzeDi){ return; }
+    if(!file){ return; }
+    toast("Comprimo la foto…");
+    var blob;
+    try{
+      blob = await comprimiFoto(file, 1600, 0.82);
+    }catch(e){ toast("Foto non valida"); return; }
+
+    var kb = Math.round(blob.size/1024);
+    if(kb > 900){
+      // se ancora pesante, comprimo di più
+      try{ blob = await comprimiFoto(file, 1200, 0.7); kb=Math.round(blob.size/1024); }catch(e){}
+    }
+
+    toast("Carico… ("+kb+" KB)");
+    var nomeFile = me.membro_id + "/" + docAperto + "_" + Date.now() + ".jpg";
+    try{
+      // cancello la vecchia foto (si sostituisce ogni anno, niente storico)
+      var vecchia = scadenze[docAperto] && scadenze[docAperto].foto_path;
+      if(vecchia){
+        try{ await sb.storage.from("documenti").remove([vecchia]); }catch(e){}
+      }
+
+      var up = await sb.storage.from("documenti").upload(nomeFile, blob, {contentType:"image/jpeg", upsert:true});
+      if(up.error) throw up.error;
+
+      var pub = sb.storage.from("documenti").getPublicUrl(nomeFile);
+      var url = pub.data ? pub.data.publicUrl : null;
+
+      await salvaDocumento({ foto_url:url, foto_path:nomeFile, foto_kb:kb });
+      toast("Foto caricata ("+kb+" KB)");
+    }catch(e){
+      toast("Errore nel caricamento: "+(e.message||e));
+    }
+  }
+
+  async function salvaDocumento(extra){
+    if(scadenzeDi){ toast("Non puoi modificare i documenti di un altro"); return; }
+    var tipo=docAperto;
+    var s=scadenze[tipo]||null;
+    var dati = Object.assign({
+      membro_id: me.membro_id,
+      squadra_id: me.squadra_id,
+      tipo: tipo
+    }, extra||{});
+
+    // dai campi del modale
+    if(!extra){
+      var ril=document.getElementById("dc-rilascio").value;
+      var sca=document.getElementById("dc-scadenza").value;
+      var imp=document.getElementById("dc-importo").value;
+      if(tipo==="porto") dati.rilascio = ril || null;
+      if(tipo!=="governativa") dati.scadenza = sca || null;
+      dati.importo = imp ? parseFloat(String(imp).replace(",",".")) : null;
+    }
+
+    try{
+      var r;
+      if(s && s.id){
+        r=await sb.from("hn_scadenze").update(dati).eq("id",s.id).select().single();
+      }else{
+        r=await sb.from("hn_scadenze").insert(dati).select().single();
+      }
+      if(r.error) throw r.error;
+      scadenze[tipo]=r.data;
+      renderScadenze();
+      if(!extra){
+        document.getElementById("m-doc").classList.remove("show");
+        toast("Salvato");
+      }else{
+        apriDocumento(tipo);   // riapro per mostrare la foto nuova
+      }
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+  async function eliminaFoto(){
+    if(!docAperto || scadenzeDi) return;
+    var s=scadenze[docAperto];
+    if(!s || !s.foto_url) return;
+    if(!confirm("Eliminare la foto?")) return;
+    try{
+      if(s.foto_path){
+        try{ await sb.storage.from("documenti").remove([s.foto_path]); }catch(e){}
+      }
+      var r=await sb.from("hn_scadenze").update({foto_url:null, foto_path:null, foto_kb:null}).eq("id",s.id).select().single();
+      if(r.error) throw r.error;
+      scadenze[docAperto]=r.data;
+      apriDocumento(docAperto);
+      toast("Foto eliminata");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* --- il capocaccia vede i semafori della squadra --- */
+  async function mostraScadenzeSquadra(){
+    if(!puoVedereScadenzeAltrui()){ toast("Non hai il permesso"); return; }
+    var root=document.getElementById("scadenze-scroll");
+    root.innerHTML='<div class="loading">Carico…</div>';
+    document.getElementById("sc-titolo").textContent="Documenti della squadra";
+
+    var tutte=[];
+    try{
+      var r=await sb.from("hn_scadenze").select("*").eq("squadra_id",me.squadra_id);
+      if(!r.error) tutte=r.data||[];
+    }catch(e){ toast("Serve la rete"); }
+
+    var soci=membri.filter(function(m){return m.tipo!=="ospite";});
+    var res=soci.map(function(m){
+      var suoi={};
+      tutte.filter(function(s){return s.membro_id===m.id;}).forEach(function(s){ suoi[s.tipo]=s; });
+      var porto=suoi.porto;
+      var peggiore="valida", dettaglio="tutto a posto";
+      var nVuoti=0;
+      Object.keys(TASSE).forEach(function(k){
+        var s=suoi[k];
+        if(!s){ nVuoti++; return; }
+        var data = (k==="governativa" && porto) ? scadenzaGovernativa(porto.rilascio) : s.scadenza;
+        var st=statoScadenza(data);
+        if(st.k==="scaduta" && peggiore!=="scaduta"){ peggiore="scaduta"; dettaglio=TASSE[k].nome.toLowerCase()+" scaduta"; }
+        else if(st.k==="scadenza" && peggiore==="valida"){ peggiore="scadenza"; dettaglio=TASSE[k].nome.toLowerCase()+" tra "+giorniA(data)+" gg"; }
+      });
+      if(nVuoti===4){ peggiore="vuoto"; dettaglio="niente caricato"; }
+      else if(nVuoti && peggiore==="valida"){ dettaglio=nVuoti+" da caricare"; }
+      return {m:m, stato:peggiore, dettaglio:dettaglio};
+    });
+
+    var nOk=res.filter(function(x){return x.stato==="valida";}).length;
+    var nProx=res.filter(function(x){return x.stato==="scadenza";}).length;
+    var nKo=res.filter(function(x){return x.stato==="scaduta";}).length;
+
+    var h='<div class="conta">';
+    h+='<div class="box" style="background:#1d3a2a"><div class="n" style="color:#7be0a8">'+nOk+'</div><div class="t" style="color:#7bd3b0">in regola</div></div>';
+    h+='<div class="box" style="background:#4a3320"><div class="n" style="color:#e0b878">'+nProx+'</div><div class="t" style="color:#e0b878">in scadenza</div></div>';
+    h+='<div class="box" style="background:#4a2a20"><div class="n" style="color:#e0a0a0">'+nKo+'</div><div class="t" style="color:#e0a0a0">non in regola</div></div>';
+    h+='</div>';
+
+    var colori={valida:"#5DAE6A", scadenza:"#E0922B", scaduta:"#C0392B", vuoto:"#8a7350"};
+    var sfondi={valida:"#1d3a2a", scadenza:"#4a3320", scaduta:"#4a2a20", vuoto:"var(--dark2)"};
+    res.forEach(function(x){
+      h+='<div class="qrow" data-chi="'+x.m.id+'" style="background:'+sfondi[x.stato]+'; cursor:pointer">';
+      h+='<div class="pallino" style="width:9px;height:9px;border-radius:50%;background:'+colori[x.stato]+';flex-shrink:0"></div>';
+      h+='<div class="nm">'+esc(x.m.nome)+'</div>';
+      h+='<div style="font-size:11px; color:'+colori[x.stato]+'">'+x.dettaglio+'</div>';
+      h+='<span style="color:var(--muted); font-size:15px">›</span></div>';
+    });
+    h+='<button class="btn line" id="sc-mie" style="margin-top:16px">‹ Le mie scadenze</button>';
+
+    root.innerHTML=h;
+    root.querySelectorAll("[data-chi]").forEach(function(el){
+      el.onclick=function(){
+        scadenzeDi=membri.find(function(m){return m.id===el.dataset.chi;});
+        caricaScadenze();
+      };
+    });
+    root.querySelector("#sc-mie").onclick=function(){ scadenzeDi=null; caricaScadenze(); };
+  }
+
   /* ================= BACHECA ================= */
   var annunci=[];
   async function caricaBacheca(){
@@ -5120,6 +5598,17 @@
     };
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
     document.getElementById("coda-carica").onclick=function(){ sincronizzaCoda(false); };
+
+    // --- SCADENZE ---
+    document.getElementById("dc-chiudi").onclick=function(){ document.getElementById("m-doc").classList.remove("show"); docAperto=null; };
+    document.getElementById("dc-salva").onclick=function(){ salvaDocumento(null); };
+    document.getElementById("dc-scatta").onclick=function(){ document.getElementById("dc-file").click(); };
+    document.getElementById("dc-delfoto").onclick=eliminaFoto;
+    document.getElementById("dc-file").onchange=function(e){
+      var f=e.target.files && e.target.files[0];
+      if(f) caricaFoto(f);
+      e.target.value="";
+    };
 
     // --- CASSA ---
     document.getElementById("cs-indietro").onclick=function(){
