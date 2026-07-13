@@ -733,6 +733,11 @@
             <svg class="ci big" style="color:#E0B878"><use href="#ic-scudo"/></svg>
             <span class="tx">Amministratore <span style="color:var(--muted); font-size:11px">— gestisce il sistema, indipendente dalla carica</span></span>
           </button>
+          <button class="opz" data-perm="is_cassiere">
+            <span class="box"></span>
+            <span class="ci big" style="font-size:17px">💰</span>
+            <span class="tx">Cassiere <span style="color:var(--muted); font-size:11px">— tiene la cassa e i documenti</span></span>
+          </button>
           <button class="opz on" data-perm="porto_armi">
             <span class="box"></span>
             <svg class="ci big" style="color:#E0B878"><use href="#ic-fucile"/></svg>
@@ -924,6 +929,18 @@
     <button class="btn primary" id="rt-porta" style="margin-bottom:8px">🚗 Portami qui</button>
     <button class="btn line" id="rt-mappa" style="margin-bottom:8px">🗺️ Vedi sulla mappa</button>
     <button class="btn danger" id="rt-elimina" style="display:none">🗑 Elimina</button>
+  </div>
+</div>
+
+<!-- MODALE: delega della raccolta -->
+<div class="modal" id="m-delega">
+  <div class="sheet">
+    <h3>Delega la raccolta</h3>
+    <div id="m-del-lista" style="max-height:50vh; overflow-y:auto"></div>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-del-annulla">Annulla</button>
+      <button class="btn primary" id="m-del-salva">Salva</button>
+    </div>
   </div>
 </div>
 
@@ -1133,7 +1150,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.25";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.26";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2908,6 +2925,7 @@
   function descrizioneMembro(m){
     var parti=[];
     if(m.is_admin) parti.push("Amministratore");
+    if(m.is_cassiere) parti.push("Cassiere");
     if(CARICHE[m.ruolo]) parti.push(CARICHE[m.ruolo].nome);
     var comp=(m.compiti||[]).map(function(c){ return COMPITI[c] ? COMPITI[c].nome.toLowerCase() : c; });
     if(comp.length) parti.push(comp.join(", "));
@@ -2930,6 +2948,7 @@
       var s='<div class="memrow '+(m.tipo==="ospite"?"ospite":"")+'" '+(puo?'data-mem="'+m.id+'" style="cursor:pointer"':'')+'>';
       s+=iconaMembro(m);
       s+='<div class="nm"><div class="a">'+esc(m.nome)+'</div><div class="b">'+esc(descrizioneMembro(m))+'</div></div>';
+      if(m.is_cassiere) s+='<span class="tag" style="background:#4a3320; color:#e0b878">cassiere</span>';
       if(m.puo_mappare) s+='<span class="tag">mappe</span>';
       if(!m.user_id && m.tipo!=="ospite") s+='<span class="tag" style="background:#4a3320; color:#e0b878">no accesso</span>';
       if(m.porto_armi) s+='<svg class="ci" style="color:#E0B878"><use href="#ic-fucile"/></svg>';
@@ -2991,6 +3010,8 @@
 
     document.querySelector('#mb-permessi [data-perm="is_admin"]')
       .classList.toggle("on", m ? m.is_admin===true : false);
+    document.querySelector('#mb-permessi [data-perm="is_cassiere"]')
+      .classList.toggle("on", m ? m.is_cassiere===true : false);
     document.querySelector('#mb-permessi [data-perm="porto_armi"]')
       .classList.toggle("on", m ? m.porto_armi!==false : true);
     document.querySelector('#mb-permessi [data-perm="vede_aree"]')
@@ -3053,6 +3074,7 @@
     var compiti=[];
     document.querySelectorAll("#mb-compiti .opz.on").forEach(function(b){ compiti.push(b.dataset.compito); });
     var admin = document.querySelector('#mb-permessi [data-perm="is_admin"]').classList.contains("on");
+    var cass  = document.querySelector('#mb-permessi [data-perm="is_cassiere"]').classList.contains("on");
     var porto = document.querySelector('#mb-permessi [data-perm="porto_armi"]').classList.contains("on");
     var vAree = document.querySelector('#mb-permessi [data-perm="vede_aree"]').classList.contains("on");
     var vPoste= document.querySelector('#mb-permessi [data-perm="vede_poste"]').classList.contains("on");
@@ -3061,7 +3083,7 @@
     if(admin){ vAree=true; vPoste=true; mappe=true; }
     if(mappe){ vAree=true; vPoste=true; }
     if(vPoste){ vAree=true; }
-    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti, is_admin:admin,
+    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti, is_admin:admin, is_cassiere:cass,
              porto_armi:porto, vede_aree:vAree, vede_poste:vPoste, puo_mappare:mappe };
   }
 
@@ -3489,6 +3511,31 @@
       h+='<div class="nm">'+esc(m?m.nome:"—")+' — non viene</div></div>';
     });
 
+    // --- DELEGA DELLA CASSA (solo il cassiere) ---
+    if(isCassiere() && b.id){
+      var del = b.delegato_id ? membri.find(function(x){return x.id===b.delegato_id;}) : null;
+      h+='<div class="sechead">Raccolta quote</div>';
+      if(del){
+        h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold)">';
+        h+='<div style="display:flex; align-items:center; gap:9px">';
+        h+='<span style="font-size:17px">💰</span>';
+        h+='<div style="flex:1"><div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(del.nome)+'</div>';
+        h+='<div style="font-size:11px; color:var(--gold)">delegato a raccogliere le quote di oggi</div></div>';
+        h+='</div></div>';
+      }else{
+        h+='<div class="card" style="font-size:12px; color:var(--muted)">Le raccogli tu (cassiere).</div>';
+      }
+      h+='<button class="btn line" id="gi-delega" style="margin-bottom:14px">💰 Delega la raccolta</button>';
+    }
+    // se sono il delegato, lo vedo
+    else if(b.delegato_id===me.membro_id){
+      h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:14px">';
+      h+='<div style="font-size:13px; color:var(--gold); font-weight:600; margin-bottom:4px">💰 Sei delegato alla raccolta</div>';
+      h+='<div style="font-size:11px; color:var(--muted); line-height:1.5">Puoi segnare chi versa la quota di oggi. La delega vale solo per questa giornata.</div>';
+      h+='<button class="btn primary" id="gi-incassa" style="margin-top:10px">Vai alla raccolta</button>';
+      h+='</div>';
+    }
+
     // --- AZIONI DEL CAPO ---
     if(capo && b.stato==="aperta"){
       h+='<div class="btnrow" style="margin-top:16px">';
@@ -3519,6 +3566,16 @@
     if(c) c.onclick=chiudiAdesioni;
     var rr=root.querySelector("#gi-ritrovo");
     if(rr) rr.onclick=scegliRitrovo;
+    var gd=root.querySelector("#gi-delega");
+    if(gd) gd.onclick=apriDelega;
+    var gin=root.querySelector("#gi-incassa");
+    if(gin) gin.onclick=function(){
+      giornoQuote=giornataAperta.data;
+      cassaSub="quote";
+      document.getElementById("cs-titolo").textContent="Quote di giornata";
+      showView("cassasub");
+      renderCassaSub();
+    };
     root.querySelectorAll("[data-vedirt]").forEach(function(el){
       el.onclick=function(){ apriRitrovo(el.dataset.vedirt); };
     });
@@ -3632,6 +3689,47 @@
       document.getElementById("m-dividi").classList.remove("show");
       await caricaAdesioni();
       toast("Tracciatori divisi");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* --- delega della raccolta quote (solo il cassiere) --- */
+  function apriDelega(){
+    if(!isCassiere()){ toast("Solo il cassiere"); return; }
+    var candidati=membri.filter(function(m){ return puoEssereDelegato(m) && m.tipo!=="ospite"; });
+    if(!candidati.length){ toast("Nessun capo o vice da delegare"); return; }
+    var sel=giornataAperta.delegato_id||null;
+    var h='<div style="font-size:11px; color:var(--muted); margin-bottom:12px; line-height:1.5">'+
+          'Chi raccoglie le quote di questa giornata.<br>La delega vale <b style="color:var(--gold)">solo per oggi</b>: '+
+          'debiti e crediti restano tuoi.</div>';
+    h+='<button class="chip '+(!sel?'on':'')+'" data-del="" style="width:100%; margin-bottom:8px; justify-content:center">Le raccolgo io</button>';
+    candidati.forEach(function(m){
+      h+='<button class="opz '+(sel===m.id?'on':'')+'" data-del="'+m.id+'" style="margin-bottom:6px">';
+      h+='<span class="box"></span><span class="tx">'+esc(m.nome)+
+         '<br><span style="font-size:11px; color:var(--muted)">'+esc(CARICHE[m.ruolo]?CARICHE[m.ruolo].nome:m.ruolo)+'</span></span></button>';
+    });
+    document.getElementById("m-del-lista").innerHTML=h;
+    var root=document.getElementById("m-del-lista");
+    root.querySelectorAll("[data-del]").forEach(function(b){
+      b.onclick=function(){
+        root.querySelectorAll("[data-del]").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+      };
+    });
+    document.getElementById("m-delega").classList.add("show");
+  }
+
+  async function salvaDelega(){
+    var on=document.querySelector("#m-del-lista .on");
+    var id=(on && on.dataset.del) ? on.dataset.del : null;
+    try{
+      var r=await sb.from("hn_battute").update({delegato_id:id}).eq("id",giornataAperta.id).select().single();
+      if(r.error) throw r.error;
+      giornataAperta=r.data;
+      var i=battute.findIndex(function(x){return x.id===r.data.id;});
+      if(i>=0) battute[i]=r.data;
+      document.getElementById("m-delega").classList.remove("show");
+      renderGiornata();
+      toast(id ? "Delega assegnata" : "Raccogli tu le quote");
     }catch(e){ toast("Serve la rete"); }
   }
 
@@ -3891,7 +3989,9 @@
       .reduce(function(s,m){ return s + (Number(m.importo)||0); }, 0);
   }
   function totEntrate(){ return movimenti.filter(function(m){return m.tipo==="entrata";}).reduce(function(s,m){return s+(Number(m.importo)||0);},0); }
-  function totUscite(){ return movimenti.filter(function(m){return m.tipo==="uscita";}).reduce(function(s,m){return s+(Number(m.importo)||0);},0); }
+  // solo le spese GIÀ PAGATE escono dalla cassa; le programmate no
+  function totUscite(){ return movimenti.filter(function(m){return m.tipo==="uscita" && !m.programmata;}).reduce(function(s,m){return s+(Number(m.importo)||0);},0); }
+  function totProgrammate(){ return movimenti.filter(function(m){return m.tipo==="uscita" && m.programmata;}).reduce(function(s,m){return s+(Number(m.importo)||0);},0); }
   function inCassa(){ return totEntrate() - totUscite(); }
 
   // quanto manca: quote associative non versate + quote giornata non versate + obiettivi
@@ -3944,12 +4044,19 @@
   }
 
   /* --- RENDER: due viste diverse --- */
+  // le giornate in cui sono delegato (e non sono cassiere)
+  function mieDeleghe(){
+    if(isCassiere()) return [];
+    return battute.filter(function(b){ return b.delegato_id===me.membro_id; });
+  }
+
   function renderCassa(){
     var root=document.getElementById("cassa-scroll");
+    var deleghe=mieDeleghe();
     document.getElementById("cassa-titolo").textContent =
-      puoGestireCassa() ? "Cassa della squadra" : "Il mio conto";
-    if(puoGestireCassa()) renderCassaResponsabile(root);
-    else renderCassaCacciatore(root);
+      isCassiere() ? "Cassa della squadra" : "Il mio conto";
+    if(isCassiere()){ renderCassaResponsabile(root); return; }
+    renderCassaCacciatore(root, deleghe);
   }
 
   function renderCassaResponsabile(root){
@@ -3964,7 +4071,13 @@
     h+='<div><div class="k" style="color:#7bd3b0">incassato</div><div class="v">'+eur(entrate)+'</div></div>';
     h+='<div><div class="k" style="color:#e0a0a0">uscite</div><div class="v">'+eur(uscite)+'</div></div>';
     h+='<div><div class="k" style="color:#e0b878">da incassare</div><div class="v" style="color:#e0b878">'+eur(manca)+'</div></div>';
-    h+='</div></div>';
+    h+='</div>';
+    var prog=totProgrammate();
+    if(prog){
+      h+='<div style="margin-top:9px; padding-top:9px; border-top:1px solid rgba(123,224,168,.2); font-size:11px; color:#e0b878">';
+      h+='⚠ '+eur(prog)+' di spese da affrontare</div>';
+    }
+    h+='</div>';
 
     // PANNELLI PER CAUSALE
     var ass=totPerCausale("associativa");
@@ -4004,8 +4117,9 @@
     h+='<div class="porta" data-sub="associative"><span class="ic">🎫</span><div class="tx">'+
        '<div class="a">Quote associative</div><div class="b">una tantum · chi ha versato</div></div>'+
        '<span style="color:var(--muted)">›</span></div>';
+    var nProg=movimenti.filter(function(m){return m.tipo==="uscita" && m.programmata;}).length;
     h+='<div class="porta" data-sub="spese"><span class="ic">💸</span><div class="tx">'+
-       '<div class="a">Spese</div><div class="b">sostenute e da affrontare</div></div>'+
+       '<div class="a">Spese</div><div class="b">'+uscite.length+' sostenute · '+nProg+' da affrontare</div></div>'+
        '<span style="color:var(--muted)">›</span></div>';
     h+='<div class="porta" data-sub="config"><span class="ic">⚙️</span><div class="tx">'+
        '<div class="a">Quote e impostazioni</div><div class="b">quota associativa '+eur(config.quota_associativa||0)+' · giornata '+eur(config.quota_giornata||0)+'</div></div>'+
@@ -4017,9 +4131,22 @@
     });
   }
 
-  function renderCassaCacciatore(root){
+  function renderCassaCacciatore(root, deleghe){
     var s=mioSaldo();
     var h='';
+
+    // se sono delegato a raccogliere, lo vedo in cima
+    if(deleghe && deleghe.length){
+      h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:14px">';
+      h+='<div style="font-size:13px; color:var(--gold); font-weight:600; margin-bottom:6px">💰 Sei delegato alla raccolta</div>';
+      deleghe.forEach(function(b){
+        h+='<div class="qrow" data-deleg="'+b.data+'" style="background:var(--dark2); cursor:pointer">';
+        h+='<div class="nm">'+fmtGiorno(daIso(b.data))+'</div>';
+        h+='<div class="stato" style="color:var(--gold)">raccogli ›</div></div>';
+      });
+      h+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">La delega vale solo per quelle giornate.</div>';
+      h+='</div>';
+    }
     var neg = s.saldo < 0;
     h+='<div style="background:'+(neg?"#4a2a20":"#1d3a2a")+'; border-radius:15px; padding:18px; text-align:center; margin-bottom:14px">';
     h+='<div style="font-size:11px; color:'+(neg?"#e0a0a0":"#7bd3b0")+'; margin-bottom:5px; letter-spacing:.5px">SALDO VERSO LA SQUADRA</div>';
@@ -4076,8 +4203,17 @@
     }
 
     h+='<div class="card" style="margin-top:14px; font-size:11px; color:var(--muted); line-height:1.5">'+
-       'Vedi solo il tuo conto. La cassa della squadra è del responsabile.</div>';
+       'Vedi solo il tuo conto. La cassa della squadra è del cassiere.</div>';
     root.innerHTML=h;
+    root.querySelectorAll("[data-deleg]").forEach(function(el){
+      el.onclick=function(){
+        giornoQuote=el.dataset.deleg;
+        cassaSub="quote";
+        document.getElementById("cs-titolo").textContent="Raccolta quote";
+        showView("cassasub");
+        renderCassaSub();
+      };
+    });
   }
 
   /* ---------- SOTTOSEZIONI DELLA CASSA ---------- */
@@ -4215,7 +4351,7 @@
   }
 
   async function segnaQuotaGiornata(battuta, membroId, quota){
-    if(!puoGestireCassa()){ toast("Solo il responsabile"); return; }
+    if(!puoIncassareGiornata(battuta)){ toast("Non sei delegato per questa giornata"); return; }
     var esistente=movimenti.find(function(m){ return m.causale==="giornata" && m.rif_id===battuta.id && m.membro_id===membroId; });
     try{
       if(esistente){
@@ -4494,12 +4630,47 @@
 
   /* --- SPESE --- */
   function renderSpese(root){
-    var uscite=movimenti.filter(function(m){return m.tipo==="uscita";});
+    var uscite=movimenti.filter(function(m){return m.tipo==="uscita" && !m.programmata;});
+    var prog=movimenti.filter(function(m){return m.tipo==="uscita" && m.programmata;});
+    var totProg=prog.reduce(function(s,m){return s+(Number(m.importo)||0);},0);
     var h='';
-    if(puoGestireCassa()) h+='<button class="btn primary" id="sp-new" style="margin-bottom:14px">+ Nuova spesa</button>';
-    h+='<div class="card" style="margin-bottom:14px"><div style="font-size:11px; color:var(--muted)">Totale uscite</div>';
-    h+='<div style="font-size:22px; font-weight:700; color:#e0a0a0">'+eur(totUscite())+'</div></div>';
+    if(puoGestireCassa()){
+      h+='<div class="btnrow" style="margin-bottom:14px">';
+      h+='<button class="btn primary" id="sp-new">+ Sostenuta</button>';
+      h+='<button class="btn line" id="sp-prog">+ Da affrontare</button>';
+      h+='</div>';
+    }
 
+    h+='<div class="pann" style="margin-bottom:14px">';
+    h+='<div class="p" style="border-left:3px solid #C0392B"><div class="t">Spese sostenute</div>';
+    h+='<div class="v" style="color:#e0a0a0">'+eur(totUscite())+'</div>';
+    h+='<div class="s" style="color:var(--muted)">'+uscite.length+' uscite</div></div>';
+    h+='<div class="p" style="border-left:3px solid #E0922B"><div class="t">Da affrontare</div>';
+    h+='<div class="v" style="color:var(--amber)">'+eur(totProg)+'</div>';
+    h+='<div class="s" style="color:var(--muted)">'+prog.length+' previste</div></div>';
+    h+='</div>';
+
+    // DA AFFRONTARE
+    h+='<div class="sechead">Spese da affrontare</div>';
+    if(!prog.length) h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna spesa programmata.</div>';
+    prog.forEach(function(m){
+      var scad = m.scadenza ? daIso(m.scadenza) : null;
+      var gg = scad ? Math.ceil((scad - new Date())/86400000) : null;
+      var col = (gg!=null && gg<0) ? "#C0392B" : ((gg!=null && gg<=15) ? "#E0922B" : "#8a7350");
+      h+='<div class="card" data-prog="'+m.id+'" style="cursor:pointer; border-left:3px solid '+col+'">';
+      h+='<div style="display:flex; justify-content:space-between; align-items:baseline">';
+      h+='<span style="font-size:14px; color:var(--cream); font-weight:600">'+esc(m.descrizione||"Spesa")+'</span>';
+      h+='<span style="font-size:15px; color:var(--amber); font-weight:700">'+eur(m.importo).replace("€ ","")+'</span></div>';
+      if(scad){
+        h+='<div style="font-size:11px; color:'+col+'; margin-top:4px">';
+        h+= gg<0 ? ('scaduta il '+fmtData2(m.scadenza)) : ('entro il '+fmtData2(m.scadenza)+' · tra '+gg+' giorni');
+        h+='</div>';
+      }
+      if(puoGestireCassa()) h+='<div style="font-size:11px; color:#7be0a8; margin-top:6px">✓ tocca per segnarla pagata</div>';
+      h+='</div>';
+    });
+
+    // SOSTENUTE
     h+='<div class="sechead">Spese sostenute</div>';
     if(!uscite.length) h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna spesa registrata.</div>';
     uscite.forEach(function(m){
@@ -4512,12 +4683,37 @@
          (m.data ? fmtData2(m.data) : "") + (chi ? ' · anticipata da '+esc(chi.nome) : '')+'</div>';
       h+='</div>';
     });
+
     root.innerHTML=h;
     var nb=root.querySelector("#sp-new");
-    if(nb) nb.onclick=nuovaSpesa;
+    if(nb) nb.onclick=function(){ nuovaSpesa(false); };
+    var np=root.querySelector("#sp-prog");
+    if(np) np.onclick=function(){ nuovaSpesa(true); };
     root.querySelectorAll("[data-spesa]").forEach(function(el){
       el.onclick=function(){ eliminaSpesa(el.dataset.spesa); };
     });
+    root.querySelectorAll("[data-prog]").forEach(function(el){
+      el.onclick=function(){ pagaSpesaProgrammata(el.dataset.prog); };
+    });
+  }
+
+  /* una spesa programmata, quando la paghi, DIVENTA sostenuta (una riga sola) */
+  async function pagaSpesaProgrammata(id){
+    if(!puoGestireCassa()){ toast("Solo il cassiere"); return; }
+    var m=movimenti.find(function(x){return x.id===id;});
+    if(!m) return;
+    var scelta=confirm('"'+(m.descrizione||"Spesa")+'" — '+eur(m.importo)+'\n\nOK = segnala come PAGATA\nAnnulla = non fare nulla');
+    if(!scelta) return;
+    try{
+      var r=await sb.from("hn_movimenti").update({
+        programmata:false, data:iso(new Date())
+      }).eq("id",id).select().single();
+      if(r.error) throw r.error;
+      var i=movimenti.findIndex(function(x){return x.id===id;});
+      if(i>=0) movimenti[i]=r.data;
+      renderSpese(document.getElementById("cassasub-scroll"));
+      toast("Spesa pagata: esce dalla cassa");
+    }catch(e){ toast("Serve la rete"); }
   }
 
   function fmtData2(d){
@@ -4525,23 +4721,39 @@
     return p.length===3 ? p[2]+"/"+p[1]+"/"+p[0] : d;
   }
 
-  async function nuovaSpesa(){
+  async function nuovaSpesa(programmata){
     if(!puoGestireCassa()) return;
-    var desc=prompt("Descrizione della spesa\\n(es. Veterinario per i cani)");
+    var desc=prompt((programmata?"Spesa DA AFFRONTARE":"Spesa SOSTENUTA")+"\\nDescrizione (es. Veterinario)");
     if(!desc) return;
     var imp=prompt("Importo (€)");
     if(!imp) return;
     var val=parseFloat(String(imp).replace(",","."));
     if(!val || val<=0){ toast("Importo non valido"); return; }
+    var scad=null;
+    if(programmata){
+      var s=prompt("Entro quando? (gg/mm/aaaa)\\nLascia vuoto se non c'è scadenza");
+      if(s){
+        var p=String(s).trim().split(/[\\/\\-\\.]/);
+        if(p.length===3){
+          var aa=p[2].length===2 ? "20"+p[2] : p[2];
+          scad=aa+"-"+String(p[1]).padStart(2,"0")+"-"+String(p[0]).padStart(2,"0");
+        }
+      }
+    }
     try{
-      var r=await sb.from("hn_movimenti").insert({
+      var dati={
         squadra_id:me.squadra_id, tipo:"uscita", causale:"spesa",
-        importo:val, descrizione:desc.trim(), data:iso(new Date()), registrato_da:me.user_id
-      }).select().single();
+        importo:val, descrizione:desc.trim(),
+        programmata:!!programmata,
+        data: programmata ? null : iso(new Date()),
+        scadenza: scad,
+        registrato_da:me.user_id
+      };
+      var r=await sb.from("hn_movimenti").insert(dati).select().single();
       if(r.error) throw r.error;
       movimenti.unshift(r.data);
       renderSpese(document.getElementById("cassasub-scroll"));
-      toast("Spesa registrata");
+      toast(programmata ? "Spesa programmata" : "Spesa registrata");
     }catch(e){ toast("Serve la rete"); }
   }
 
@@ -4780,6 +4992,8 @@
     document.getElementById("rt-mappa").onclick=vediRitrovoInMappa;
     document.getElementById("rt-elimina").onclick=eliminaRitrovo;
     document.getElementById("m-rt-salva").onclick=salvaRitrovoGiornata;
+    document.getElementById("m-del-salva").onclick=salvaDelega;
+    document.getElementById("m-del-annulla").onclick=function(){ document.getElementById("m-delega").classList.remove("show"); };
     document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
