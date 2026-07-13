@@ -569,8 +569,7 @@
             <div class="nm">Classifica</div>
             <div class="ds">Punteggi e storici</div>
           </button>
-          <button class="tile soon" data-soon="Sergente Mario">
-            <span class="badge">presto</span>
+          <button class="tile" data-go="sergente">
             <div class="ic">🎖️</div>
             <div class="nm">Sergente Mario</div>
             <div class="ds">Giudice di giornata</div>
@@ -607,6 +606,51 @@
         <div class="ttl">Bacheca</div>
       </div>
       <div class="scroll" id="bacheca-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- SERGENTE MARIO -->
+    <section class="view" id="v-sergente">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl">Sergente Mario</div>
+      </div>
+      <div class="scroll" style="text-align:center; padding-top:20px;">
+
+        <img src="sm-cinghiale.png" alt="Sergente Mario a cavallo del cinghiale"
+             style="width:78%; max-width:280px; margin:0 auto 18px; display:block;"
+             onerror="this.style.display='none'">
+
+        <div style="font-size:22px; font-weight:700; color:var(--gold); font-family:Georgia,serif; margin-bottom:6px;">
+          Sergente Mario
+        </div>
+        <div style="font-size:13px; color:var(--muted); margin-bottom:22px;">
+          Giudice di giornata
+        </div>
+
+        <div class="card" style="text-align:left; background:#4a3320; border:1px solid #6b4a28;">
+          <div style="font-size:13px; color:var(--cream); line-height:1.7;">
+            È lui che tiene il conto. A fine battuta assegna
+            <b style="color:var(--gold)">le uccisioni</b> e
+            <b style="color:var(--gold)">le padelle</b>, e da lì nasce la classifica.
+          </div>
+        </div>
+
+        <div class="card" style="text-align:left; margin-top:10px;">
+          <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:9px;">
+            La sua area — in arrivo
+          </div>
+          <div style="font-size:13px; color:var(--muted); line-height:1.7;">
+            🎯 &nbsp;Assegnare uccisioni e padelle<br>
+            🏆 &nbsp;Redigere la classifica<br>
+            📜 &nbsp;Il verbale della giornata<br>
+            📊 &nbsp;Gli storici: chi rende, dove
+          </div>
+        </div>
+
+        <div style="font-size:11px; color:#5a4f3a; margin-top:20px; font-style:italic;">
+          "La padella non mente."
+        </div>
+      </div>
     </section>
 
     <!-- CASSA -->
@@ -1150,7 +1194,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.26";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.28";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3949,8 +3993,27 @@
   var obiettivoAperto=null;
   var giornoQuote=null;
 
+  /* --- LA CASSA HA UN RESPONSABILE: il CASSIERE ---
+     Non tutti i capi la gestiscono. Il cassiere può delegare una singola
+     giornata a un capo/vice/vicecapobattuta: quella delega vale SOLO per
+     quel giorno, poi scade e tutto torna al cassiere. */
+  function isCassiere(){
+    return me && (me.is_cassiere===true || me.is_admin===true);
+  }
   function puoGestireCassa(){
-    return me && (me.is_admin===true || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
+    return isCassiere();
+  }
+  function puoEssereDelegato(m){
+    if(!m) return false;
+    return m.ruolo==="capocaccia" || m.ruolo==="vicecapocaccia" || m.ruolo==="vicecapobattuta";
+  }
+  function sonoDelegatoPer(battuta){
+    if(!battuta || !me) return false;
+    if(isCassiere()) return true;
+    return battuta.delegato_id === me.membro_id;
+  }
+  function puoIncassareGiornata(battuta){
+    return isCassiere() || sonoDelegatoPer(battuta);
   }
   function eur(n){
     n=Number(n)||0;
@@ -4052,11 +4115,19 @@
 
   function renderCassa(){
     var root=document.getElementById("cassa-scroll");
-    var deleghe=mieDeleghe();
-    document.getElementById("cassa-titolo").textContent =
-      isCassiere() ? "Cassa della squadra" : "Il mio conto";
-    if(isCassiere()){ renderCassaResponsabile(root); return; }
-    renderCassaCacciatore(root, deleghe);
+    try{
+      var deleghe=mieDeleghe();
+      document.getElementById("cassa-titolo").textContent =
+        isCassiere() ? "Cassa della squadra" : "Il mio conto";
+      if(isCassiere()) renderCassaResponsabile(root);
+      else renderCassaCacciatore(root, deleghe);
+    }catch(e){
+      // non lascio MAI la schermata appesa su "Carico…"
+      root.innerHTML='<div class="empty" style="padding-top:40px">'+
+        '<div style="font-size:36px; margin-bottom:12px">⚠️</div>'+
+        '<div style="color:var(--cream); margin-bottom:8px">Errore nella cassa</div>'+
+        '<div style="font-size:12px; line-height:1.6">'+esc(String(e.message||e))+'</div></div>';
+    }
   }
 
   function renderCassaResponsabile(root){
@@ -4118,8 +4189,9 @@
        '<div class="a">Quote associative</div><div class="b">una tantum · chi ha versato</div></div>'+
        '<span style="color:var(--muted)">›</span></div>';
     var nProg=movimenti.filter(function(m){return m.tipo==="uscita" && m.programmata;}).length;
+    var nSost=movimenti.filter(function(m){return m.tipo==="uscita" && !m.programmata;}).length;
     h+='<div class="porta" data-sub="spese"><span class="ic">💸</span><div class="tx">'+
-       '<div class="a">Spese</div><div class="b">'+uscite.length+' sostenute · '+nProg+' da affrontare</div></div>'+
+       '<div class="a">Spese</div><div class="b">'+nSost+' sostenute · '+nProg+' da affrontare</div></div>'+
        '<span style="color:var(--muted)">›</span></div>';
     h+='<div class="porta" data-sub="config"><span class="ic">⚙️</span><div class="tx">'+
        '<div class="a">Quote e impostazioni</div><div class="b">quota associativa '+eur(config.quota_associativa||0)+' · giornata '+eur(config.quota_giornata||0)+'</div></div>'+
@@ -4228,11 +4300,18 @@
 
   function renderCassaSub(){
     var root=document.getElementById("cassasub-scroll");
-    if(cassaSub==="quote") renderQuoteCalendario(root);
-    else if(cassaSub==="obiettivi") renderObiettivi(root);
-    else if(cassaSub==="associative") renderAssociative(root);
-    else if(cassaSub==="spese") renderSpese(root);
-    else if(cassaSub==="config") renderConfigCassa(root);
+    try{
+      if(cassaSub==="quote") renderQuoteCalendario(root);
+      else if(cassaSub==="obiettivi") renderObiettivi(root);
+      else if(cassaSub==="associative") renderAssociative(root);
+      else if(cassaSub==="spese") renderSpese(root);
+      else if(cassaSub==="config") renderConfigCassa(root);
+    }catch(e){
+      root.innerHTML='<div class="empty" style="padding-top:40px">'+
+        '<div style="font-size:36px; margin-bottom:12px">⚠️</div>'+
+        '<div style="color:var(--cream); margin-bottom:8px">Errore</div>'+
+        '<div style="font-size:12px; line-height:1.6">'+esc(String(e.message||e))+'</div></div>';
+    }
   }
 
   /* --- QUOTE DI GIORNATA: calendario --- */
