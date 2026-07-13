@@ -325,6 +325,45 @@
     background:rgba(44,36,24,.88); border:1px solid var(--dark3); color:var(--cream);
     font-size:18px; backdrop-filter:blur(4px); padding:0;}
 
+  /* ---------- CRUSCOTTO DI MAPPATURA ---------- */
+  #cruscotto{position:absolute; left:10px; right:10px; bottom:70px; z-index:640;
+    display:none; gap:1px; background:var(--dark3); border-radius:12px; overflow:hidden;
+    box-shadow:0 2px 10px rgba(0,0,0,.4);}
+  #cruscotto.show{display:flex;}
+  #cruscotto .c{flex:1; background:rgba(58,49,34,.96); padding:9px 4px; text-align:center;
+    backdrop-filter:blur(4px);}
+  #cruscotto .c.oro{background:rgba(74,51,32,.96);}
+  #cruscotto .c .v{font-size:17px; font-weight:700; color:var(--cream); line-height:1.1;}
+  #cruscotto .c.oro .v{color:var(--gold);}
+  #cruscotto .c .u{font-size:8.5px; color:var(--muted); margin-top:2px;}
+
+  /* avviso chiusura cerchio */
+  #cr-chiusura{position:absolute; left:10px; right:10px; bottom:120px; z-index:645;
+    display:none; padding:9px 12px; border-radius:9px; font-size:12px; font-weight:600;
+    color:#2C2418; text-align:center;}
+  #cr-chiusura.show{display:block;}
+
+  /* ---------- BARRA DI GUIDA (segui il percorso) ---------- */
+  #guidabar{position:absolute; left:10px; right:10px; top:56px; z-index:650;
+    display:none; align-items:center; gap:11px; padding:11px 12px; border-radius:14px;
+    background:#4a3560; backdrop-filter:blur(4px); box-shadow:0 2px 10px rgba(0,0,0,.4);}
+  #guidabar.show{display:flex;}
+  #guidabar .frecciabox{width:46px; height:46px; border-radius:50%; flex-shrink:0;
+    background:rgba(0,0,0,.25); display:flex; align-items:center; justify-content:center;}
+  #gu-freccia{font-size:26px; color:#c9b3e0; transition:transform .25s ease-out; line-height:1;}
+  #guidabar .gtx{flex:1; min-width:0;}
+  #guidabar .gtx .a{font-size:13px; font-weight:600; color:#fff;}
+  #guidabar .gtx .b{font-size:10.5px; color:rgba(255,255,255,.75); margin-top:1px;}
+  #guidabar .gtx .prog{height:4px; background:rgba(0,0,0,.3); border-radius:2px;
+    margin-top:6px; overflow:hidden;}
+  #guidabar .gtx .prog i{display:block; height:100%; background:#fff; opacity:.85; border-radius:2px;}
+  #guidabar .gtx .p{font-size:9px; color:rgba(255,255,255,.6); margin-top:3px;}
+  #guidabar .gdist{text-align:right; flex-shrink:0;}
+  #guidabar .gdist .v{font-size:17px; font-weight:700; color:#fff; line-height:1.1;}
+  #guidabar .gdist .l{font-size:9px; color:rgba(255,255,255,.65); margin-top:1px;}
+  #guidabar button{background:rgba(255,255,255,.2); border:none; color:#fff;
+    width:28px; height:28px; border-radius:8px; font-size:14px; flex-shrink:0; padding:0;}
+
   /* ---------- BANNER MAPPATURA ---------- */
   #mapbanner{position:absolute; left:10px; right:10px; top:56px; z-index:650;
     background:rgba(192,57,43,.95); border-radius:12px; padding:10px 12px;
@@ -907,6 +946,33 @@
         <button id="mapbanner-fine">Fine</button>
       </div>
 
+      <!-- avviso di chiusura del cerchio -->
+      <div id="cr-chiusura"></div>
+
+      <!-- BARRA DI GUIDA (tracciatore che segue il percorso) -->
+      <div id="guidabar">
+        <div class="frecciabox"><div id="gu-freccia">↑</div></div>
+        <div class="gtx">
+          <div class="a" id="gu-titolo">Sei sul percorso</div>
+          <div class="b" id="gu-testo">prosegui nella direzione della freccia</div>
+          <div class="prog"><i id="gu-barra" style="width:0%"></i></div>
+          <div class="p" id="gu-perc">0% del giro</div>
+        </div>
+        <div class="gdist">
+          <div class="v" id="gu-dist">—</div>
+          <div class="l" id="gu-dist-lb">alla fine</div>
+        </div>
+        <button id="gu-esci">✕</button>
+      </div>
+
+      <!-- CRUSCOTTO di mappatura -->
+      <div id="cruscotto">
+        <div class="c"><div class="v" id="cr-km">0</div><div class="u" id="cr-km-u">metri</div></div>
+        <div class="c"><div class="v" id="cr-tempo">0:00</div><div class="u">minuti</div></div>
+        <div class="c"><div class="v" id="cr-disl">↗ 0</div><div class="u">dislivello</div></div>
+        <div class="c oro"><div class="v" id="cr-poste">0</div><div class="u">poste</div></div>
+      </div>
+
       <div class="actionbar">
         <button class="bigbtn mark" id="btn-mark">⊕ Segna posta qui</button>
         <button class="bigbtn ghost" id="btn-territorio" title="Vedi tutte le aree">🌍</button>
@@ -1029,6 +1095,53 @@
   </div>
 </div>
 
+<!-- MODALE: riepilogo del percorso -->
+<div class="modal" id="m-percorso">
+  <div class="sheet">
+    <div id="pc-esito" style="border-radius:14px; padding:16px; margin-bottom:13px;
+         background:linear-gradient(135deg,#1d3a2a,#2d5a3f);">
+      <div style="display:flex; align-items:center; gap:12px;">
+        <div style="width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.15);
+             display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;" id="pc-icona">✓</div>
+        <div>
+          <div id="pc-titolo" style="font-size:16px; font-weight:700; color:var(--cream);">Cerchio chiuso</div>
+          <div id="pc-sub" style="font-size:12px; color:#7bd3b0; margin-top:2px;">Hai girato tutto il terreno</div>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:6px; margin-bottom:13px;">
+      <div style="flex:1; background:var(--dark2); border-radius:10px; padding:11px; text-align:center;">
+        <div id="pc-km" style="font-size:17px; font-weight:700; color:var(--cream);">0</div>
+        <div id="pc-km-u" style="font-size:9px; color:var(--muted);">km</div>
+      </div>
+      <div style="flex:1; background:var(--dark2); border-radius:10px; padding:11px; text-align:center;">
+        <div id="pc-tempo" style="font-size:17px; font-weight:700; color:var(--cream);">0:00</div>
+        <div style="font-size:9px; color:var(--muted);">minuti</div>
+      </div>
+      <div style="flex:1; background:var(--dark2); border-radius:10px; padding:11px; text-align:center;">
+        <div id="pc-disl" style="font-size:16px; font-weight:700; color:var(--cream);">↗ 0</div>
+        <div style="font-size:9px; color:var(--muted);">dislivello</div>
+      </div>
+      <div style="flex:1; background:#4a3320; border-radius:10px; padding:11px; text-align:center;">
+        <div id="pc-poste" style="font-size:17px; font-weight:700; color:var(--gold);">0</div>
+        <div style="font-size:9px; color:var(--muted);">poste</div>
+      </div>
+    </div>
+
+    <div style="background:#4a3320; border:1px solid #6b4a28; border-radius:11px; padding:12px;
+         font-size:12px; color:var(--cream); line-height:1.6; margin-bottom:14px;">
+      Il percorso resta salvato sull'area <b style="color:var(--gold)" id="pc-area">—</b>.<br>
+      Chi andrà a tracciare potrà seguirlo e sapere quanto ci metterà.
+    </div>
+
+    <div class="btnrow">
+      <button class="btn line" id="pc-scarta">Scarta</button>
+      <button class="btn primary" id="pc-salva" style="flex:2">Salva il percorso</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: scheda di un documento -->
 <div class="modal" id="m-doc">
   <div class="sheet">
@@ -1132,6 +1245,7 @@
     <h3 id="ma-nome">Mappa</h3>
     <p class="hint" id="ma-meta">—</p>
     <button class="btn primary" id="ma-apri" style="margin-bottom:8px">👁 Apri area · vedi le poste</button>
+    <button class="btn line" id="ma-percorso" style="margin-bottom:8px; background:#4a3560; border-color:#7B5EA7; color:#c9b3e0">🐾 Segui il percorso</button>
     <button class="btn line" id="ma-mappatura" style="margin-bottom:8px">⊕ Inserisci o sposta poste</button>
     <button class="btn line" id="ma-modifica" style="margin-bottom:8px">✎ Modifica nome e comune</button>
     <button class="btn line" id="ma-chiudi">Annulla</button>
@@ -1287,7 +1401,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.32";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.33";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1827,8 +1941,11 @@
     setGps("weak","GPS…");
     watchId=navigator.geolocation.watchPosition(function(p){
       var primoFix = !pos;
-      pos={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy||999};
+      pos={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy||999,
+           alt:(p.coords.altitude!=null ? p.coords.altitude : null)};
       salvaUltimaPos(pos);
+      aggiungiAlPercorso(pos);   // registro la traccia se sto mappando
+      aggiornaGuida();           // aggiorno la guida se sto seguendo un percorso
       setGps(pos.acc<=15?"ok":(pos.acc<=40?"weak":"off"), "±"+Math.round(pos.acc)+"m");
       updateUser(); updateNav();
       // al primo aggancio centro la mappa su di me
@@ -2383,7 +2500,12 @@
         h+='<div class="ic">🌲</div><div class="meta"><div class="n">'+esc(a.nome)+'</div>';
         // il numero di poste lo vede solo chi è autorizzato a vederle
         h+='<div class="c">'+(vedePoste ? (np+' post'+(np===1?"a":"e")) : 'terreno mappato');
-        h+=(a.comune?' · '+esc(a.comune):'')+'</div></div>';
+        h+=(a.comune?' · '+esc(a.comune):'');
+        if(a.percorso && a.percorso.punti){
+          var kmp=(a.percorso.distanza/1000).toFixed(1);
+          h+=' · <span style="color:#c9b3e0">🐾 '+kmp+' km</span>';
+        }
+        h+='</div></div>';
         h+='<div style="color:var(--muted); font-size:18px">›</div>';
         h+='</div></div>';
       });
@@ -2431,6 +2553,15 @@
     document.getElementById("ma-apri").style.display = (puoVederePoste() && np) ? "block" : "none";
     document.getElementById("ma-mappatura").style.display = puoMappare() ? "block" : "none";
     document.getElementById("ma-modifica").style.display = puoMappare() ? "block" : "none";
+    // il percorso: lo può seguire chi vede l'area
+    var hp = a.percorso && a.percorso.punti && a.percorso.punti.length > 4;
+    var bp = document.getElementById("ma-percorso");
+    bp.style.display = (hp && puoVedereAree()) ? "block" : "none";
+    if(hp){
+      var km = (a.percorso.distanza/1000).toFixed(2);
+      var mn = Math.round((a.percorso.durata||0)/60);
+      bp.innerHTML = "🐾 Segui il percorso · " + km + " km · ~" + mn + " min";
+    }
     document.getElementById("m-areapop").classList.add("show");
   }
 
@@ -2878,6 +3009,8 @@
     if(!a){ toast("Mappa non trovata"); return; }
     areaAttivaId=areaId;
     mappatura=true;
+    nuovoPercorso();             // comincio a registrare la traccia
+    smettiDiSeguire();           // se stavo seguendo un percorso, chiudo
     areaApertaInMappa=true;      // in mappatura le poste si vedono
     serveGPS("mappatura");       // qui il GPS serve davvero
     schemaReset(); schemaGeo=null;
@@ -2892,8 +3025,21 @@
     toast("Modalità mappatura: cammina e segna le poste");
   }
   function esciMappatura(){
+    // se ho registrato un percorso, chiedo se salvarlo
+    if(percorsoAttivo && percorso && percorso.punti.length >= 5){
+      apriRiepilogoPercorso();
+      return;   // il resto lo fa il modale
+    }
+    chiudiPercorso();
+    finiMappatura();
+  }
+
+  function finiMappatura(){
     mappatura=false;
+    percorsoAttivo=false;
     areaApertaInMappa=false;     // uscendo, le poste si nascondono
+    if(lineaPercorso && map){ map.removeLayer(lineaPercorso); lineaPercorso=null; }
+    aggiornaCruscotto();
     aggiornaPills();
     document.getElementById("mapbanner").classList.remove("show");
     document.getElementById("areatag").textContent="Mappa";
@@ -3623,6 +3769,22 @@
              (ar2 ? 'Assegnato a: <b style="color:var(--gold)">'+esc(ar2.nome)+'</b>'
                   : (areeSeg.length ? 'Il capocaccia ti assegnerà a un\'area.'
                                     : 'Il capocaccia deciderà le aree e ti assegnerà.'))+'</div>';
+          // se l'area ha un percorso registrato, glielo offro
+          if(ar2 && ar2.percorso && ar2.percorso.punti && ar2.percorso.punti.length>4){
+            var kmt=(ar2.percorso.distanza/1000).toFixed(2);
+            var mnt=Math.round((ar2.percorso.durata||0)/60);
+            var dst=Math.round(ar2.percorso.dislivello||0);
+            h+='<div style="margin-top:10px; background:#4a3560; border-radius:10px; padding:11px">';
+            h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin-bottom:7px">IL GIRO CHE TI ASPETTA</div>';
+            h+='<div style="display:flex; gap:14px; margin-bottom:9px">';
+            h+='<div><span style="font-size:17px; font-weight:700; color:#fff">'+kmt+'</span><span style="font-size:10px; color:#c9b3e0"> km</span></div>';
+            h+='<div><span style="font-size:17px; font-weight:700; color:#fff">~'+mnt+'</span><span style="font-size:10px; color:#c9b3e0"> min</span></div>';
+            h+='<div><span style="font-size:17px; font-weight:700; color:#fff">↗'+dst+'</span><span style="font-size:10px; color:#c9b3e0"> m</span></div>';
+            h+='</div>';
+            h+='<div style="font-size:9.5px; color:rgba(255,255,255,.55); line-height:1.4; margin-bottom:9px">Tempi a passo di mappatura. All\'alba, spedito, ci metterai meno.</div>';
+            h+='<button class="btn" id="gi-segui" style="background:#7B5EA7; color:#fff; width:100%">🐾 Segui il percorso</button>';
+            h+='</div>';
+          }
         }
       }
       h+='</div>';
@@ -3696,6 +3858,12 @@
     });
     var t=root.querySelector("#gi-tracc");
     if(t) t.onclick=function(){ toggleTracciatore(); };
+    var gs=root.querySelector("#gi-segui");
+    if(gs) gs.onclick=function(){
+      var mia2=miaAdesione();
+      var ar3=mia2 ? aree.find(function(x){return x.id===mia2.area_tracciata;}) : null;
+      if(ar3) iniziaASeguire(ar3);
+    };
     var a=root.querySelector("#gi-aree");
     if(a) a.onclick=scegliAreeSegnalate;
     var d=root.querySelector("#gi-dividi");
@@ -5385,6 +5553,276 @@
     root.querySelector("#sc-mie").onclick=function(){ scadenzeDi=null; caricaScadenze(); };
   }
 
+  /* ================= IL PERCORSO =================
+     Mentre mappi, l'app registra la traccia. Poi resta salvata sull'area:
+     chi va a tracciare all'alba sa quanto è lungo il giro, quanto ci metterà,
+     e se si perde l'app lo riporta sul percorso indicandogli anche il VERSO. */
+
+  var percorso = null;        // {punti:[{lat,lng,alt,t}], inizio, distanza, dislivello}
+  var percorsoAttivo = false;
+  var seguoPercorso = null;   // il percorso che sto seguendo (tracciatore)
+  var lineaPercorso = null;   // il disegno sulla mappa
+
+  function nuovoPercorso(){
+    percorso = { punti:[], inizio:Date.now(), distanza:0, dislivello:0, altPrec:null };
+    percorsoAttivo = true;
+  }
+  function chiudiPercorso(){
+    percorsoAttivo = false;
+  }
+
+  /* aggiunge un punto alla traccia (chiamato dal GPS) */
+  function aggiungiAlPercorso(p){
+    if(!percorsoAttivo || !percorso) return;
+    // scarto i punti troppo imprecisi o troppo vicini (rumore GPS)
+    if(p.acc > 35) return;
+    var ultimo = percorso.punti[percorso.punti.length-1];
+    if(ultimo){
+      var d = distM(ultimo, p);
+      if(d < 8) return;              // meno di 8 metri: è rumore, non movimento
+      percorso.distanza += d;
+      // dislivello: sommo solo le salite
+      if(p.alt != null && percorso.altPrec != null){
+        var dz = p.alt - percorso.altPrec;
+        if(dz > 1.5) percorso.dislivello += dz;
+      }
+    }
+    if(p.alt != null) percorso.altPrec = p.alt;
+    percorso.punti.push({lat:p.lat, lng:p.lng, alt:(p.alt!=null?Math.round(p.alt):null), t:Date.now()});
+    aggiornaCruscotto();
+    disegnaPercorso();
+  }
+
+  /* quanto manca a chiudere il cerchio */
+  function mancaAllaChiusura(){
+    if(!percorso || percorso.punti.length < 12) return null;   // troppo presto
+    var primo = percorso.punti[0];
+    var ora = percorso.punti[percorso.punti.length-1];
+    // se ho camminato poco, non ha senso parlare di chiusura
+    if(percorso.distanza < 300) return null;
+    return distM(ora, primo);
+  }
+  function cerchioChiuso(){
+    var d = mancaAllaChiusura();
+    return d !== null && d <= 35;
+  }
+
+  function durataPercorso(){
+    if(!percorso) return 0;
+    return Math.round((Date.now() - percorso.inizio)/1000);
+  }
+  function fmtDurata(sec){
+    var m = Math.floor(sec/60), s = sec%60;
+    return m + ":" + String(s).padStart(2,"0");
+  }
+
+  /* --- il cruscotto sopra la mappa --- */
+  function aggiornaCruscotto(){
+    var c = document.getElementById("cruscotto");
+    if(!c) return;
+    if(!percorsoAttivo || !percorso){ c.classList.remove("show"); return; }
+    c.classList.add("show");
+
+    var km = percorso.distanza/1000;
+    document.getElementById("cr-km").textContent = km<1 ? Math.round(percorso.distanza) : km.toFixed(2);
+    document.getElementById("cr-km-u").textContent = km<1 ? "metri" : "km";
+    document.getElementById("cr-tempo").textContent = fmtDurata(durataPercorso());
+    document.getElementById("cr-disl").textContent = "↗ " + Math.round(percorso.dislivello);
+    var a = areaAttiva();
+    document.getElementById("cr-poste").textContent = a ? (a.poste||[]).length : 0;
+
+    // avviso di chiusura
+    var av = document.getElementById("cr-chiusura");
+    var d = mancaAllaChiusura();
+    if(d === null){ av.classList.remove("show"); return; }
+    av.classList.add("show");
+    if(d <= 35){
+      av.style.background = "rgba(93,174,106,.95)";
+      av.textContent = "✓ Cerchio chiuso — puoi salvare il percorso";
+    }else if(d < 400){
+      av.style.background = "rgba(224,146,43,.95)";
+      av.textContent = "⟳ Ti mancano " + Math.round(d) + " m per chiudere il cerchio";
+    }else{
+      av.classList.remove("show");
+    }
+  }
+
+  /* --- disegna la traccia sulla mappa --- */
+  function disegnaPercorso(){
+    if(!map) return;
+    var punti = null, colore = "#E0B878";
+    if(percorsoAttivo && percorso && percorso.punti.length > 1){
+      punti = percorso.punti.map(function(p){ return [p.lat, p.lng]; });
+    }else if(seguoPercorso && seguoPercorso.punti && seguoPercorso.punti.length > 1){
+      punti = seguoPercorso.punti.map(function(p){ return [p.lat, p.lng]; });
+      colore = "#7B5EA7";
+    }
+    if(lineaPercorso){ map.removeLayer(lineaPercorso); lineaPercorso = null; }
+    if(!punti) return;
+    lineaPercorso = L.polyline(punti, {color:colore, weight:4, opacity:.85, lineCap:"round"}).addTo(map);
+  }
+
+  /* --- salva il percorso sull'area --- */
+  async function salvaPercorso(){
+    var a = areaAttiva();
+    if(!a || !percorso || percorso.punti.length < 5){ toast("Percorso troppo corto"); return; }
+    var dati = {
+      punti: percorso.punti,
+      distanza: Math.round(percorso.distanza),
+      durata: durataPercorso(),
+      dislivello: Math.round(percorso.dislivello),
+      chiuso: cerchioChiuso(),
+      da: me.nome,
+      quando: iso(new Date())
+    };
+    try{
+      var r = await sb.from("hn_aree").update({percorso: dati}).eq("id", a.id).select().single();
+      if(r.error) throw r.error;
+      var i = aree.findIndex(function(x){ return x.id === a.id; });
+      if(i >= 0){ aree[i].percorso = dati; }
+      salvaCacheAree();
+      chiudiPercorso();
+      document.getElementById("m-percorso").classList.remove("show");
+      aggiornaCruscotto();
+      renderAree();
+      toast("Percorso salvato su " + a.nome);
+    }catch(e){ toast("Serve la rete per salvare il percorso"); }
+  }
+
+  function apriRiepilogoPercorso(){
+    if(!percorso || percorso.punti.length < 5){ toast("Percorso troppo corto per salvarlo"); return; }
+    var chiuso = cerchioChiuso();
+    var box = document.getElementById("pc-esito");
+    if(chiuso){
+      box.style.background = "linear-gradient(135deg,#1d3a2a,#2d5a3f)";
+      document.getElementById("pc-icona").textContent = "✓";
+      document.getElementById("pc-titolo").textContent = "Cerchio chiuso";
+      document.getElementById("pc-sub").textContent = "Hai girato tutto il terreno";
+      document.getElementById("pc-sub").style.color = "#7bd3b0";
+    }else{
+      box.style.background = "linear-gradient(135deg,#4a3320,#6b4a28)";
+      document.getElementById("pc-icona").textContent = "⟳";
+      document.getElementById("pc-titolo").textContent = "Percorso aperto";
+      var d = mancaAllaChiusura();
+      document.getElementById("pc-sub").textContent = d ? ("mancano " + Math.round(d) + " m alla chiusura") : "il cerchio non è chiuso";
+      document.getElementById("pc-sub").style.color = "#e0b878";
+    }
+    var km = percorso.distanza/1000;
+    document.getElementById("pc-km").textContent = km<1 ? Math.round(percorso.distanza) : km.toFixed(2);
+    document.getElementById("pc-km-u").textContent = km<1 ? "metri" : "km";
+    document.getElementById("pc-tempo").textContent = fmtDurata(durataPercorso());
+    document.getElementById("pc-disl").textContent = "↗ " + Math.round(percorso.dislivello);
+    var a = areaAttiva();
+    document.getElementById("pc-poste").textContent = a ? (a.poste||[]).length : 0;
+    document.getElementById("pc-area").textContent = a ? a.nome : "—";
+    document.getElementById("m-percorso").classList.add("show");
+  }
+
+  /* ================= SEGUIRE UN PERCORSO (il tracciatore) =================
+     Se si perde, l'app lo riporta sulla traccia — e gli dice anche DA CHE PARTE
+     proseguire, perché rientrare sul tratto già fatto lo farebbe tornare indietro. */
+
+  /* il punto della traccia più vicino a me */
+  function puntoPiuVicino(punti, p){
+    var mi = -1, md = 1e12;
+    for(var i=0; i<punti.length; i++){
+      var d = distM(punti[i], p);
+      if(d < md){ md = d; mi = i; }
+    }
+    return { idx:mi, dist:md };
+  }
+
+  /* quanto ho già percorso, fino al punto i */
+  function distanzaFinoA(punti, i){
+    var s = 0;
+    for(var k=1; k<=i && k<punti.length; k++) s += distM(punti[k-1], punti[k]);
+    return s;
+  }
+  function distanzaTotale(punti){
+    return distanzaFinoA(punti, punti.length-1);
+  }
+
+  function iniziaASeguire(area){
+    if(!area || !area.percorso || !area.percorso.punti){ toast("Quest'area non ha un percorso"); return; }
+    seguoPercorso = area.percorso;
+    areaAttivaId = area.id;
+    areaApertaInMappa = true;
+    aggiornaPills();
+    serveGPS("percorso");
+    showView("mappa");
+    document.getElementById("guidabar").classList.add("show");
+    setTimeout(function(){
+      renderPoste();
+      disegnaPercorso();
+      if(lineaPercorso) map.fitBounds(lineaPercorso.getBounds().pad(0.2));
+      aggiornaGuida();
+    }, 250);
+    toast("Segui il percorso di " + (seguoPercorso.da || "chi ha mappato"));
+  }
+
+  function smettiDiSeguire(){
+    seguoPercorso = null;
+    document.getElementById("guidabar").classList.remove("show");
+    if(lineaPercorso){ map.removeLayer(lineaPercorso); lineaPercorso = null; }
+    toast("Guida chiusa");
+  }
+
+  /* la bussola del rientro: dove sono rispetto al percorso, e da che parte proseguire */
+  function aggiornaGuida(){
+    if(!seguoPercorso || !seguoPercorso.punti) return;
+    var g = document.getElementById("guidabar");
+    if(!g || !g.classList.contains("show")) return;
+
+    if(!pos){
+      document.getElementById("gu-testo").textContent = "Aspetto il GPS…";
+      document.getElementById("gu-dist").textContent = "—";
+      return;
+    }
+
+    var punti = seguoPercorso.punti;
+    var vic = puntoPiuVicino(punti, pos);
+    var sulPercorso = vic.dist <= 25;
+
+    // quanto manca alla fine del giro
+    var fatta = distanzaFinoA(punti, vic.idx);
+    var totale = seguoPercorso.distanza || distanzaTotale(punti);
+    var manca = Math.max(0, totale - fatta);
+
+    // il VERSO: punto il prossimo punto della traccia, non quello più vicino.
+    // Guardo avanti di qualche punto per non farmi ingannare dai tratti stretti.
+    var avanti = Math.min(punti.length-1, vic.idx + 3);
+    var target = punti[avanti];
+
+    var b = bearing(pos, sulPercorso ? target : punti[vic.idx]);
+    var rot = (heading !== null) ? (b - heading) : b;
+    document.getElementById("gu-freccia").style.transform = "rotate(" + rot + "deg)";
+
+    if(sulPercorso){
+      g.style.background = "#4a3560";
+      document.getElementById("gu-titolo").textContent = "Sei sul percorso";
+      document.getElementById("gu-testo").textContent = "prosegui nella direzione della freccia";
+      document.getElementById("gu-dist").textContent = manca < 1000
+        ? (Math.round(manca) + " m")
+        : ((manca/1000).toFixed(1) + " km");
+      document.getElementById("gu-dist-lb").textContent = "alla fine del giro";
+      document.getElementById("gu-freccia").style.color = "#c9b3e0";
+    }else{
+      g.style.background = "#7a2e1d";
+      document.getElementById("gu-titolo").textContent = "Sei fuori dal percorso";
+      document.getElementById("gu-testo").textContent = "la freccia ti riporta sulla traccia";
+      document.getElementById("gu-dist").textContent = Math.round(vic.dist) + " m";
+      document.getElementById("gu-dist-lb").textContent = "dal percorso";
+      document.getElementById("gu-freccia").style.color = "#fbeae3";
+    }
+
+    // barra di avanzamento
+    var perc = totale ? Math.min(100, Math.round(fatta/totale*100)) : 0;
+    var bar = document.getElementById("gu-barra");
+    if(bar) bar.style.width = perc + "%";
+    var pl = document.getElementById("gu-perc");
+    if(pl) pl.textContent = perc + "% del giro";
+  }
+
   /* ================= BACHECA ================= */
   var annunci=[];
   async function caricaBacheca(){
@@ -5618,6 +6056,19 @@
       if(areaEditId) eliminaArea(areaEditId);
     };
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
+    // --- PERCORSO ---
+    document.getElementById("pc-salva").onclick=async function(){
+      await salvaPercorso();
+      finiMappatura();
+    };
+    document.getElementById("pc-scarta").onclick=function(){
+      if(!confirm("Scartare il percorso registrato?")) return;
+      document.getElementById("m-percorso").classList.remove("show");
+      chiudiPercorso();
+      finiMappatura();
+      toast("Percorso scartato");
+    };
+    document.getElementById("gu-esci").onclick=smettiDiSeguire;
     document.getElementById("coda-carica").onclick=function(){ sincronizzaCoda(false); };
 
     // --- SCADENZE ---
@@ -5692,6 +6143,11 @@
 
     // popup dell'area
     document.getElementById("ma-apri").onclick=apriAreaInMappa;
+    document.getElementById("ma-percorso").onclick=function(){
+      document.getElementById("m-areapop").classList.remove("show");
+      var a=areaAttiva();
+      if(a) iniziaASeguire(a);
+    };
     document.getElementById("ma-mappatura").onclick=function(){
       document.getElementById("m-areapop").classList.remove("show");
       if(areaAttivaId) entraMappatura(areaAttivaId);
