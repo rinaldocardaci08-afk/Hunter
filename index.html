@@ -855,6 +855,35 @@
   </div>
 </div>
 
+<!-- MODALE: scheda del punto di ritrovo -->
+<div class="modal" id="m-ritrovo">
+  <div class="sheet">
+    <div style="display:flex; align-items:center; gap:11px; margin-bottom:13px;">
+      <div style="width:40px;height:40px;border-radius:50%;background:#2C6FB0;display:flex;align-items:center;justify-content:center;font-size:19px;flex-shrink:0;">📌</div>
+      <div style="flex:1; min-width:0;">
+        <div id="rt-nome" style="font-size:17px; font-weight:600; color:var(--cream);">Ritrovo</div>
+        <div id="rt-meta" style="font-size:11px; color:var(--muted);">—</div>
+      </div>
+      <button id="rt-chiudi" style="background:none;border:none;color:var(--muted);font-size:20px;padding:4px 8px;">✕</button>
+    </div>
+    <button class="btn primary" id="rt-porta" style="margin-bottom:8px">🚗 Portami qui</button>
+    <button class="btn line" id="rt-mappa" style="margin-bottom:8px">🗺️ Vedi sulla mappa</button>
+    <button class="btn danger" id="rt-elimina" style="display:none">🗑 Elimina</button>
+  </div>
+</div>
+
+<!-- MODALE: scegli il ritrovo della giornata -->
+<div class="modal" id="m-scegli-rt">
+  <div class="sheet">
+    <h3>Punto di ritrovo</h3>
+    <div id="m-rt-lista" style="max-height:50vh; overflow-y:auto"></div>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="m-rt-annulla">Annulla</button>
+      <button class="btn primary" id="m-rt-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: scegli chi impersonare -->
 <div class="modal" id="m-anteprima">
   <div class="sheet">
@@ -1049,7 +1078,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.23";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.24";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1252,7 +1281,6 @@
         initMapOnce();
         aggiornaBarraAzioni();
         await caricaAree();      // userà la cache
-        startGPS();
         return;
       }
       showLogin("Serve la rete per il primo accesso");
@@ -1284,7 +1312,7 @@
     aggiornaBarraAzioni();
     await caricaAree();
     await caricaMembriSilenzioso();   // servono per le battute
-    startGPS();
+    await caricaRitrovi();
     aggiornaBadgeCoda();
     if(navigator.onLine) sincronizzaCoda(true);   // se c'è rete, svuoto la coda in silenzio
   }
@@ -1563,6 +1591,22 @@
     el.className="gps "+cls;
     document.getElementById("gpstxt").textContent=txt;
   }
+  /* --- IL GPS SI ACCENDE SOLO QUANDO SERVE ---
+     Serve in: mappa, mappatura, e il giorno della battuta (presenza al ritrovo).
+     Non serve in: bacheca, squadra, calendario, adesioni. Così non consuma. */
+  var gpsRichiesto = false;   // true = qualcuno lo ha chiesto (non spegnerlo)
+  var gpsManuale = false;     // true = l'utente lo ha acceso a mano dal menu
+
+  function serveGPS(motivo){
+    gpsRichiesto = true;
+    startGPS();
+  }
+  function nonServeGPS(){
+    if(gpsManuale) return;    // se l'ha acceso lui, resta acceso
+    gpsRichiesto = false;
+    stopGPS();
+  }
+
   function startGPS(){
     if(!navigator.geolocation){ setGps("off","no GPS"); return; }
     if(watchId!==null) return;
@@ -2131,7 +2175,17 @@
       });
     });
     if(puoScrivere) h+='<button class="btn primary" style="margin-top:14px" id="btn-newarea">+ Nuova mappa</button>';
+
+    // PUNTI DI RITROVO
+    h+=renderRitrovi();
+
     root.innerHTML=h;
+
+    var nr=root.querySelector("#btn-newritrovo");
+    if(nr) nr.onclick=creaRitrovo;
+    root.querySelectorAll("[data-ritrovo]").forEach(function(el){
+      el.onclick=function(){ apriRitrovo(el.dataset.ritrovo); };
+    });
 
     var nb=root.querySelector("#btn-newarea");
     if(nb) nb.onclick=function(){
@@ -2211,6 +2265,10 @@
   function showView(v){
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
+    // il GPS si accende solo dove serve
+    if(v==="mappa") serveGPS("mappa");
+    else if(v!=="giornata") nonServeGPS();
+
     if(v==="mappa"){
       setTimeout(function(){
         if(!map) return;
@@ -2605,6 +2663,7 @@
     areaAttivaId=areaId;
     mappatura=true;
     areaApertaInMappa=true;      // in mappatura le poste si vedono
+    serveGPS("mappatura");       // qui il GPS serve davvero
     schemaReset(); schemaGeo=null;
     aggiornaPills();
     document.getElementById("mapbanner-area").textContent=a.nome+(a.comune?" · "+a.comune:"");
@@ -3277,6 +3336,22 @@
     h+='</div>';
     if(osp) h+='<div style="font-size:12px; color:#9fc8ed; margin-bottom:12px">+ '+osp+' ospit'+(osp===1?'e':'i')+'</div>';
 
+    // --- PUNTO DI RITROVO ---
+    var rit = b.ritrovo_id ? ritrovoDi(b.ritrovo_id) : null;
+    h+='<div class="sechead">Punto di ritrovo</div>';
+    if(rit){
+      h+='<div class="card" data-vedirt="'+rit.id+'" style="background:#1d3a5a; border:1px solid #2a4d6e; cursor:pointer">';
+      h+='<div style="display:flex; align-items:center; gap:10px">';
+      h+='<span style="font-size:19px">📌</span>';
+      h+='<div style="flex:1"><div style="font-size:14px; color:var(--cream); font-weight:600">'+esc(rit.nome)+'</div>';
+      var dd = pos ? fmtDist(distM(pos, rit))+" da te" : "tocca per navigare";
+      h+='<div style="font-size:11px; color:#9fc8ed">'+dd+'</div></div>';
+      h+='<span style="color:#9fc8ed; font-size:16px">›</span></div></div>';
+    }else{
+      h+='<div class="card" style="font-size:12px; color:var(--muted)">Non ancora deciso.</div>';
+    }
+    if(capo) h+='<button class="btn line" id="gi-ritrovo" style="margin-bottom:14px">📌 Scegli il punto di ritrovo</button>';
+
     // --- AREE SEGNALATE ---
     var areeSeg = b.aree_segnalate || [];
     if(areeSeg.length || capo){
@@ -3380,6 +3455,11 @@
     if(d) d.onclick=dividiTracciatori;
     var c=root.querySelector("#gi-chiudi");
     if(c) c.onclick=chiudiAdesioni;
+    var rr=root.querySelector("#gi-ritrovo");
+    if(rr) rr.onclick=scegliRitrovo;
+    root.querySelectorAll("[data-vedirt]").forEach(function(el){
+      el.onclick=function(){ apriRitrovo(el.dataset.vedirt); };
+    });
   }
 
   /* ---------- azioni del capocaccia ---------- */
@@ -3552,6 +3632,154 @@
     }catch(e){}
   }
 
+  /* ================= PUNTI DI RITROVO =================
+     Elenco indipendente: un punto può servire a più giornate e più aree. */
+  var ritrovi=[];
+
+  async function caricaRitrovi(){
+    try{
+      var r=await sb.from("hn_ritrovi").select("*").eq("squadra_id",me.squadra_id).order("nome");
+      if(!r.error){
+        ritrovi=r.data||[];
+        try{ localStorage.setItem("hunter_cache_ritrovi", JSON.stringify(ritrovi)); }catch(e){}
+      }
+    }catch(e){
+      try{ var c=JSON.parse(localStorage.getItem("hunter_cache_ritrovi")); if(c) ritrovi=c; }catch(e2){}
+    }
+  }
+
+  function ritrovoDi(id){ return ritrovi.find(function(r){ return r.id===id; }) || null; }
+
+  /* --- elenco e gestione (nella sezione Mappe) --- */
+  function renderRitrovi(){
+    var h='<div class="sechead" style="margin-top:20px">Punti di ritrovo</div>';
+    if(!ritrovi.length){
+      h+='<div class="card" style="font-size:12px; color:var(--muted); line-height:1.5">'+
+         'Nessun punto di ritrovo. Servono al capocaccia per dire alla squadra dove trovarsi.</div>';
+    }
+    ritrovi.forEach(function(r){
+      h+='<div class="card" data-ritrovo="'+r.id+'" style="cursor:pointer">';
+      h+='<div class="arearow">';
+      h+='<div class="ic" style="background:#1d3a5a">📌</div>';
+      h+='<div class="meta"><div class="n">'+esc(r.nome)+'</div>';
+      h+='<div class="c">'+(r.note?esc(r.note):"punto di ritrovo")+'</div></div>';
+      h+='<div style="color:var(--muted); font-size:18px">›</div>';
+      h+='</div></div>';
+    });
+    if(puoMappare()){
+      h+='<button class="btn line" id="btn-newritrovo" style="margin-top:6px">📌 Nuovo punto di ritrovo (qui)</button>';
+    }
+    return h;
+  }
+
+  async function creaRitrovo(){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    serveGPS("ritrovo");
+    if(!pos){ toast("Aspetta il segnale GPS, poi riprova"); return; }
+    var nome=prompt("Nome del punto di ritrovo\\n(es. Piazzale Fontana)");
+    if(!nome) return;
+    nome=nome.trim();
+    if(!nome) return;
+    try{
+      var r=await sb.from("hn_ritrovi").insert({
+        squadra_id:me.squadra_id, nome:nome,
+        lat:pos.lat, lng:pos.lng, accuratezza:Math.round(pos.acc),
+        creato_da:me.user_id
+      }).select().single();
+      if(r.error) throw r.error;
+      ritrovi.push(r.data);
+      renderAree();
+      toast("Ritrovo salvato: "+nome);
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+  function apriRitrovo(id){
+    var r=ritrovoDi(id); if(!r) return;
+    var d = pos ? distM(pos, r) : null;
+    document.getElementById("rt-nome").textContent=r.nome;
+    document.getElementById("rt-meta").textContent =
+      (d!=null ? fmtDist(d)+" da te" : "distanza sconosciuta (GPS spento)") +
+      " · ±" + (r.accuratezza||0) + "m";
+    document.getElementById("rt-elimina").style.display = puoMappare() ? "block" : "none";
+    window.__ritrovoAperto = r;
+    document.getElementById("m-ritrovo").classList.add("show");
+  }
+
+  /* apre la navigazione del telefono verso il punto */
+  function portamiAlRitrovo(){
+    var r=window.__ritrovoAperto;
+    if(!r) return;
+    var url="https://www.google.com/maps/dir/?api=1&destination="+r.lat+","+r.lng+"&travelmode=driving";
+    window.open(url, "_blank");
+  }
+
+  function vediRitrovoInMappa(){
+    var r=window.__ritrovoAperto;
+    if(!r || !map) return;
+    document.getElementById("m-ritrovo").classList.remove("show");
+    showView("mappa");
+    setTimeout(function(){
+      map.setView([r.lat, r.lng], 17);
+      if(window.__ritrovoMarker) map.removeLayer(window.__ritrovoMarker);
+      window.__ritrovoMarker = L.marker([r.lat,r.lng],{icon:L.divIcon({className:"",iconSize:[34,34],iconAnchor:[17,17],
+        html:'<div style="width:34px;height:34px;border-radius:50%;background:#2C6FB0;border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.5)">📌</div>'+
+             '<div style="position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#2C2418;color:#F0E6D2;font:11px sans-serif;padding:2px 7px;border-radius:5px;">'+esc(r.nome)+'</div>'}),
+        zIndexOffset:1200}).addTo(map);
+      toast("Ritrovo: "+r.nome);
+    }, 250);
+  }
+
+  async function eliminaRitrovo(){
+    var r=window.__ritrovoAperto;
+    if(!r || !puoMappare()) return;
+    if(!confirm('Eliminare il punto "'+r.nome+'"?')) return;
+    try{
+      var res=await sb.from("hn_ritrovi").delete().eq("id",r.id);
+      if(res.error) throw res.error;
+      ritrovi=ritrovi.filter(function(x){return x.id!==r.id;});
+      document.getElementById("m-ritrovo").classList.remove("show");
+      renderAree();
+      toast("Ritrovo eliminato");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* --- scelta del ritrovo per una giornata (capocaccia) --- */
+  function scegliRitrovo(){
+    if(!puoGestireBattute()) return;
+    if(!ritrovi.length){ toast("Non ci sono punti di ritrovo. Creane uno da Mappe."); return; }
+    var sel=giornataAperta.ritrovo_id || null;
+    var h='<div style="font-size:11px; color:var(--muted); margin-bottom:10px">Dove si trova la squadra quella mattina.</div>';
+    h+='<button class="chip '+(!sel?'on':'')+'" data-rt="" style="width:100%; margin-bottom:6px; justify-content:center">Nessuno</button>';
+    ritrovi.forEach(function(r){
+      h+='<button class="opz '+(sel===r.id?'on':'')+'" data-rt="'+r.id+'" style="margin-bottom:6px">';
+      h+='<span class="box"></span><span class="tx">📌 '+esc(r.nome)+'</span></button>';
+    });
+    document.getElementById("m-rt-lista").innerHTML=h;
+    var root=document.getElementById("m-rt-lista");
+    root.querySelectorAll("[data-rt]").forEach(function(b){
+      b.onclick=function(){
+        root.querySelectorAll("[data-rt]").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+      };
+    });
+    document.getElementById("m-scegli-rt").classList.add("show");
+  }
+
+  async function salvaRitrovoGiornata(){
+    var on=document.querySelector("#m-rt-lista .on");
+    var id=(on && on.dataset.rt) ? on.dataset.rt : null;
+    try{
+      var r=await sb.from("hn_battute").update({ritrovo_id:id}).eq("id",giornataAperta.id).select().single();
+      if(r.error) throw r.error;
+      giornataAperta=r.data;
+      var i=battute.findIndex(function(x){return x.id===r.data.id;});
+      if(i>=0) battute[i]=r.data;
+      document.getElementById("m-scegli-rt").classList.remove("show");
+      renderGiornata();
+      toast(id ? "Ritrovo impostato" : "Ritrovo rimosso");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
   /* ================= BACHECA ================= */
   var annunci=[];
   async function caricaBacheca(){
@@ -3720,8 +3948,8 @@
       b.onclick=function(){ chiudiMenu(); showView(b.dataset.go); };
     });
     document.getElementById("menu-gps").onclick=function(){
-      if(watchId!==null){ stopGPS(); toast("GPS sospeso"); }
-      else { startGPS(); toast("GPS riattivato"); }
+      if(watchId!==null){ gpsManuale=false; stopGPS(); toast("GPS sospeso"); }
+      else { gpsManuale=true; startGPS(); toast("GPS riattivato"); }
       chiudiMenu();
     };
     document.getElementById("menu-ricarica").onclick=async function(){
@@ -3731,6 +3959,13 @@
     document.getElementById("menu-anteprima").onclick=function(){ chiudiMenu(); apriSelettoreAnteprima(); };
     document.getElementById("ant-esci").onclick=esciAnteprima;
     document.getElementById("m-ant-chiudi").onclick=function(){ document.getElementById("m-anteprima").classList.remove("show"); };
+    // --- RITROVI ---
+    document.getElementById("rt-chiudi").onclick=function(){ document.getElementById("m-ritrovo").classList.remove("show"); };
+    document.getElementById("rt-porta").onclick=portamiAlRitrovo;
+    document.getElementById("rt-mappa").onclick=vediRitrovoInMappa;
+    document.getElementById("rt-elimina").onclick=eliminaRitrovo;
+    document.getElementById("m-rt-salva").onclick=salvaRitrovoGiornata;
+    document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
 
@@ -3870,8 +4105,8 @@
     document.getElementById("mvz-meno").onclick=function(){ miniZoom("mv-schema", 0.67); };
 
     document.getElementById("btn-gps-toggle").onclick=function(){
-      if(watchId!==null){ stopGPS(); this.textContent="Riattiva GPS"; }
-      else { startGPS(); this.textContent="Sospendi GPS (risparmio batteria)"; }
+      if(watchId!==null){ gpsManuale=false; stopGPS(); this.textContent="Riattiva GPS"; }
+      else { gpsManuale=true; startGPS(); this.textContent="Sospendi GPS (risparmio batteria)"; }
     };
     window.addEventListener("resize",function(){ if(mode==="schema") drawSchema(); });
 
