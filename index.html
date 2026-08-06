@@ -1183,8 +1183,14 @@
          font-size:12px; color:var(--cream); line-height:1.6; margin-bottom:14px;">
       Il percorso resta salvato sull'area <b style="color:var(--gold)" id="pc-area">—</b>.<br>
       Chi andrà a tracciare potrà seguirlo e sapere quanto ci metterà.
+      <div id="pc-recupero" style="display:none; margin-top:9px; padding-top:9px; border-top:1px solid #6b4a28; color:#F2C230">
+        Questa traccia era rimasta aperta: l'app l'aveva salvata sul telefono.
+      </div>
     </div>
 
+    <button class="btn" id="pc-riprendi" style="background:#7B5EA7; color:#fff; width:100%; margin-bottom:10px; display:none">
+      → Riprendi a mappare
+    </button>
     <div class="btnrow">
       <button class="btn line" id="pc-scarta">Scarta</button>
       <button class="btn primary" id="pc-salva" style="flex:2">Salva il percorso</button>
@@ -1451,7 +1457,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.34";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.35";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1693,6 +1699,7 @@
     }catch(e){}
     aggiornaBadgeCoda();
     if(navigator.onLine) sincronizzaCoda(true);   // se c'è rete, svuoto la coda in silenzio
+    setTimeout(recuperaPercorsoInterrotto, 800);  // e recupero la traccia rimasta aperta
   }
 
   function applicaProfilo(){
@@ -1803,13 +1810,31 @@
     if(!areaAttivaId && aree.length) areaAttivaId=aree[0].id;
     if(areaAttivaId && !aree.find(function(a){return a.id===areaAttivaId;})) areaAttivaId=aree.length?aree[0].id:null;
 
-    // le poste ancora in coda (non caricate) devono restare visibili
+    // le mappe e le poste ancora in coda devono restare visibili
+    innestaAreeInCoda();
     innestaPosteInCoda();
 
     salvaCacheAree();   // salvo la copia per l'offline
     renderAree();
     refreshMapArea();
     aggiornaBadgeCoda();
+  }
+
+  /* rimette nella lista le mappe create sul telefono e non ancora salite */
+  function innestaAreeInCoda(){
+    var c=leggiCodaAree();
+    c.forEach(function(v){
+      if(v.tipo!=="new") return;
+      if(aree.find(function(x){return x.id===v.id;})) return;
+      aree.push({ id:v.id, squadra_id:v.squadra_id, nome:v.nome, comune:v.comune,
+                  creata_da:v.creata_da, in_coda:true, poste:[] });
+    });
+    // le rinomine fatte offline le riapplico sulla copia appena scaricata
+    c.forEach(function(v){
+      if(v.tipo!=="mod") return;
+      var a=aree.find(function(x){return x.id===v.id;});
+      if(a){ a.nome=v.nome; a.comune=v.comune; }
+    });
   }
 
   /* rimette nella vista le poste che sono ancora in coda (non salite su Supabase) */
@@ -1844,8 +1869,34 @@
       }
       if(r.error) throw r.error;
     }catch(e){
+      // SENZA RETE: la mappa NON si perde, nasce sul telefono e sale dopo.
       btn.disabled=false; btn.textContent=testoOrig;
-      toast("Serve la rete per salvare la mappa");
+      document.getElementById("m-area").classList.remove("show");
+      if(areaEditId){
+        // sto solo rinominando una mappa che esiste gia'
+        var av=aree.find(function(x){return x.id===areaEditId;});
+        if(av){ av.nome=nome; av.comune=comune||null; }
+        aggiungiCodaArea({tipo:"mod", id:areaEditId, nome:nome, comune:comune||null});
+        var eraId=areaEditId; areaEditId=null;
+        salvaCacheAree(); renderAree(); refreshMapArea();
+        toast("Rinominata sul telefono · la caricher\u00f2 appena c'\u00e8 rete");
+        areaAttivaId=eraId;
+        document.getElementById("m-dopo-nome").textContent=nome;
+        document.getElementById("m-dopomod").classList.add("show");
+        window.__areaDaMappare=eraId;
+        return;
+      }
+      var tempId="coda_area_"+Date.now()+"_"+Math.random().toString(36).slice(2,7);
+      var nuova={ id:tempId, squadra_id:me.squadra_id, nome:nome, comune:comune||null,
+                  creata_da:me.user_id, creata_il:new Date().toISOString(),
+                  in_coda:true, poste:[] };
+      aggiungiCodaArea({tipo:"new", id:tempId, squadra_id:me.squadra_id,
+                        nome:nome, comune:comune||null, creata_da:me.user_id});
+      aree.push(nuova);
+      areaAttivaId=tempId; areaEditId=null;
+      salvaCacheAree(); renderAree();
+      toast("Mappa creata sul telefono: \"" + nome + "\" \u00b7 la caricher\u00f2 appena c'\u00e8 rete");
+      entraMappatura(tempId);
       return;
     }
     btn.disabled=false; btn.textContent=testoOrig;
@@ -1874,7 +1925,9 @@
     var nome=document.getElementById("m-posta-nome").value.trim()||("Posta "+((a.poste?a.poste.length:0)+1));
     var tipo=document.getElementById("m-posta-tipo").value;
     var note=document.getElementById("m-posta-note").value.trim();
-    var numero=(a.poste?a.poste.length:0)+1;
+    // il numero e' il piu' alto gia' usato + 1: cosi' non si duplica
+    // dopo una cancellazione ne' se due mappano la stessa area insieme
+    var numero=prossimoNumeroPosta(a);
 
     var dati={
       area_id:a.id, nome:nome, numero:numero,
@@ -1887,6 +1940,8 @@
     var salvata=null, inCoda=false;
     try{
       if(!navigator.onLine) throw new Error("offline");
+      // la mappa e' nata sul telefono e non e' ancora salita: inutile provare
+      if(String(a.id).indexOf("coda_area_")===0) throw new Error("area in coda");
       var r=await sb.from("hn_poste").insert(dati).select().single();
       if(r.error) throw r.error;
       salvata=r.data;
@@ -1909,8 +1964,11 @@
     schemaReset(); schemaGeo=null;
     renderAree(); refreshMapArea();
 
-    toast(inCoda ? ("Salvata sul telefono: "+nome+" · la caricherò appena c'è rete")
-                 : ("Posta salvata: "+nome));
+    if(!inCoda) toast("Posta salvata: "+nome);
+    else if(!navigator.onLine || String(a.id).indexOf("coda_area_")===0)
+      toast("Salvata sul telefono: "+nome+" · la caricherò appena c'è rete");
+    else
+      toast("Salvata sul telefono: "+nome+" · il database non l'ha accettata, riproverò");
   }
   async function eliminaPosta(areaId, postaId){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
@@ -1981,6 +2039,10 @@
   }
   function nonServeGPS(){
     if(gpsManuale) return;    // se l'ha acceso lui, resta acceso
+    // REGOLA NUOVA: se sto registrando una traccia o ne sto seguendo una,
+    // il GPS NON si spegne mai, nemmeno se esco dalla sezione mappa.
+    // Prima bastava toccare "Bacheca" per bucare la traccia.
+    if(mappatura || percorsoAttivo || seguoPercorso) return;
     gpsRichiesto = false;
     stopGPS();
   }
@@ -2114,7 +2176,17 @@
 
     aree.forEach(function(a){
       var poste=(a.poste||[]);
-      if(!poste.length) return;
+      if(!poste.length){
+        // nessuna posta: se ho la traccia, disegno quella. Almeno la mappa esiste.
+        var tp=(a.percorso && a.percorso.punti) ? a.percorso.punti : null;
+        if(tp && tp.length>1){
+          var ll=tp.map(function(q){ return [q.lat,q.lng]; });
+          var lp=L.polyline(ll,{color:"#7B5EA7", weight:3, opacity:.8, dashArray:"5,5"}).addTo(areeLayer);
+          lp.on("click", function(){ apriPopupArea(a.id); });
+          aggiungiEtichettaArea(a, tp[0].lat, tp[0].lng);
+        }
+        return;
+      }
 
       var col = "#E0B878";
       var latlngs;
@@ -2183,8 +2255,14 @@
     if(!puoVedereAree()){ toast("Non hai il permesso"); return; }
     if(areaApertaInMappa) chiudiAreaInMappa();
     var punti=[];
-    aree.forEach(function(a){ (a.poste||[]).forEach(function(p){ punti.push([p.lat,p.lng]); }); });
-    if(!punti.length){ toast("Nessuna area mappata"); return; }
+    aree.forEach(function(a){
+      (a.poste||[]).forEach(function(p){ punti.push([p.lat,p.lng]); });
+      if(a.percorso && a.percorso.punti) a.percorso.punti.forEach(function(q){ punti.push([q.lat,q.lng]); });
+    });
+    if(!punti.length){
+      toast(aree.length ? "Le mappe non hanno ancora poste né tracce" : "Nessuna area mappata");
+      return;
+    }
     renderAreePoligoni();
     map.fitBounds(L.latLngBounds(punti).pad(0.25));
     toast(aree.length+" area"+(aree.length===1?"":"e")+" mappate · tocca per aprirle");
@@ -2226,7 +2304,8 @@
     document.getElementById("areatag").textContent = (areaApertaInMappa && a) ? ("✕ "+a.nome) : "Mappa";
     renderAreePoligoni();
     renderPoste();
-    if(areaApertaInMappa) fitArea();
+    // in mappatura NON riquadro: mi tengo centrato su chi cammina
+    if(areaApertaInMappa && !mappatura) fitArea();
     clearNav();
   }
 
@@ -3053,13 +3132,18 @@
   }
 
   /* ================= MODALITÀ MAPPATURA ================= */
-  function entraMappatura(areaId){
+  function entraMappatura(areaId, riprendi){
     if(!puoMappare()){ toast("Non hai il permesso di modificare le mappe"); return; }
     var a=aree.find(function(x){return x.id===areaId;});
     if(!a){ toast("Mappa non trovata"); return; }
     areaAttivaId=areaId;
     mappatura=true;
-    nuovoPercorso();             // comincio a registrare la traccia
+    tieniSchermoAcceso();        // il display non si spegne mentre cammini
+    if(riprendi && percorso){
+      percorsoAttivo=true; salvaPercorsoCorso(percorso, areaId);
+      setTimeout(function(){ aggiornaCruscotto(); disegnaPercorso(); },200);
+    }
+    else nuovoPercorso();        // comincio a registrare la traccia
     smettiDiSeguire();           // se stavo seguendo un percorso, chiudo
     areaApertaInMappa=true;      // in mappatura le poste si vedono
     serveGPS("mappatura");       // qui il GPS serve davvero
@@ -3071,7 +3155,12 @@
     aggiornaBarraAzioni();
     showView("mappa");
     refreshMapArea();
-    setTimeout(centerOnUser,300);
+    setTimeout(function(){
+      // centraggio silenzioso: se il GPS non ha ancora agganciato non urlo,
+      // ci penserà startGPS al primo fix
+      if(pos && map) map.setView([pos.lat,pos.lng],17);
+      else { var up=ultimaPosNota(); if(up && map) map.setView([up.lat,up.lng],16); }
+    },300);
     toast("Modalità mappatura: cammina e segna le poste");
   }
   function esciMappatura(){
@@ -3087,6 +3176,8 @@
   function finiMappatura(){
     mappatura=false;
     percorsoAttivo=false;
+    rilasciaSchermo();
+    dimenticaPercorsoCorso();
     areaApertaInMappa=false;     // uscendo, le poste si nascondono
     if(lineaPercorso && map){ map.removeLayer(lineaPercorso); lineaPercorso=null; }
     aggiornaCruscotto();
@@ -3115,7 +3206,45 @@
      Restano sul telefono finché non torna il campo, poi salgono su Supabase.
      Regola: non si perde MAI una posta segnata sul campo. */
   var CODA_KEY = "hunter_coda_poste";
+  var CODA_AREE_KEY = "hunter_coda_aree";        // mappe create/rinominate senza rete
+  var CODA_PERC_KEY = "hunter_coda_percorsi";    // tracce registrate senza rete
+  var PERC_CORSO_KEY = "hunter_percorso_corso";  // la traccia che sto registrando ADESSO
   var sincronizzando = false;
+
+  /* --- il numero della prossima posta: il piu' alto usato + 1 --- */
+  function prossimoNumeroPosta(a){
+    var max=0;
+    (a && a.poste ? a.poste : []).forEach(function(p){
+      var n=parseInt(p.numero,10); if(!isNaN(n) && n>max) max=n;
+    });
+    return max+1;
+  }
+
+  /* --- coda delle MAPPE --- */
+  function leggiCodaAree(){
+    try{ var d=JSON.parse(localStorage.getItem(CODA_AREE_KEY)); return Array.isArray(d)?d:[]; }
+    catch(e){ return []; }
+  }
+  function scriviCodaAree(c){
+    try{ localStorage.setItem(CODA_AREE_KEY, JSON.stringify(c)); }catch(e){}
+    aggiornaBadgeCoda();
+  }
+  function aggiungiCodaArea(v){ var c=leggiCodaAree(); c.push(v); scriviCodaAree(c); }
+
+  /* --- coda dei PERCORSI --- */
+  function leggiCodaPercorsi(){
+    try{ var d=JSON.parse(localStorage.getItem(CODA_PERC_KEY)); return Array.isArray(d)?d:[]; }
+    catch(e){ return []; }
+  }
+  function scriviCodaPercorsi(c){
+    try{ localStorage.setItem(CODA_PERC_KEY, JSON.stringify(c)); }catch(e){}
+    aggiornaBadgeCoda();
+  }
+  function aggiungiCodaPercorso(areaId, dati){
+    var c=leggiCodaPercorsi().filter(function(x){ return x.area_id!==areaId; }); // uno per area
+    c.push({area_id:areaId, dati:dati});
+    scriviCodaPercorsi(c);
+  }
 
   function leggiCoda(){
     try{ var d=JSON.parse(localStorage.getItem(CODA_KEY)); return Array.isArray(d)?d:[]; }
@@ -3131,49 +3260,109 @@
     scriviCoda(c);
   }
   function aggiornaBadgeCoda(){
-    var n=leggiCoda().length;
+    var np=leggiCoda().length, na=leggiCodaAree().length, nt=leggiCodaPercorsi().length;
+    var n=np+na+nt;
     var b=document.getElementById("codabadge");
     if(!b) return;
     b.classList.toggle("show", n>0);
     document.getElementById("coda-n").textContent = n;
+    var voci=[];
+    if(na) voci.push(na===1?"1 mappa":(na+" mappe"));
+    if(np) voci.push(np===1?"1 posta":(np+" poste"));
+    if(nt) voci.push(nt===1?"1 percorso":(nt+" percorsi"));
     document.getElementById("coda-txt").textContent =
-      n===1 ? "1 posta da caricare" : (n+" poste da caricare");
+      voci.length ? (voci.join(" \u00b7 ")+" da caricare") : "";
   }
 
-  /* prova a caricare le poste in coda su Supabase */
+  /* Carica su Supabase tutto quello che e' rimasto sul telefono.
+     ORDINE OBBLIGATO: prima le mappe (che generano l'id vero),
+     poi le poste e i percorsi, che a quell'id si agganciano. */
   async function sincronizzaCoda(silenzioso){
     if(sincronizzando) return;
-    var c=leggiCoda();
-    if(!c.length) return;
+    var cA=leggiCodaAree(), cP=leggiCoda(), cT=leggiCodaPercorsi();
+    if(!cA.length && !cP.length && !cT.length) return;
     if(!navigator.onLine){ if(!silenzioso) toast("Serve la rete per caricare"); return; }
 
     sincronizzando=true;
-    if(!silenzioso) toast("Carico "+c.length+" post"+(c.length===1?"a":"e")+"…");
+    if(!silenzioso) toast("Carico quello che ho sul telefono\u2026");
 
-    var rimaste=[], caricate=0;
-    for(var i=0;i<c.length;i++){
-      var p=c[i];
+    var nuoviId={};   // id provvisorio -> id vero
+    var falliti=0, caricati=0;
+
+    /* 1) LE MAPPE */
+    var restaA=[];
+    for(var i=0;i<cA.length;i++){
+      var v=cA[i];
       try{
+        if(v.tipo==="new"){
+          var ra=await sb.from("hn_aree").insert({
+            squadra_id:v.squadra_id, nome:v.nome, comune:v.comune||null, creata_da:v.creata_da
+          }).select().single();
+          if(ra.error) throw ra.error;
+          nuoviId[v.id]=ra.data.id;
+        }else{
+          var idv = nuoviId[v.id] || v.id;
+          if(String(idv).indexOf("coda_area_")===0) throw new Error("mappa non ancora caricata");
+          var rm=await sb.from("hn_aree").update({nome:v.nome, comune:v.comune||null}).eq("id",idv);
+          if(rm.error) throw rm.error;
+        }
+        caricati++;
+      }catch(e){ restaA.push(v); falliti++; }
+    }
+    scriviCodaAree(restaA);
+
+    /* rimappo gli id provvisori su poste e percorsi in attesa */
+    if(Object.keys(nuoviId).length){
+      cP.forEach(function(x){ if(nuoviId[x.area_id]) x.area_id=nuoviId[x.area_id]; });
+      cT.forEach(function(x){ if(nuoviId[x.area_id]) x.area_id=nuoviId[x.area_id]; });
+      scriviCoda(cP); scriviCodaPercorsi(cT);
+      // e anche sulla traccia che sto registrando in questo momento
+      var corso=leggiPercorsoCorso();
+      if(corso && nuoviId[corso.areaId]){
+        corso.areaId=nuoviId[corso.areaId];
+        salvaPercorsoCorso(corso.percorso, corso.areaId);
+        if(areaAttivaId && nuoviId[areaAttivaId]) areaAttivaId=nuoviId[areaAttivaId];
+      }
+    }
+
+    /* 2) LE POSTE */
+    var restaP=[];
+    for(var j=0;j<cP.length;j++){
+      var p=cP[j];
+      try{
+        if(String(p.area_id).indexOf("coda_area_")===0) throw new Error("mappa non ancora caricata");
         var r=await sb.from("hn_poste").insert({
           area_id:p.area_id, nome:p.nome, numero:p.numero,
           lat:p.lat, lng:p.lng, accuratezza:p.accuratezza,
           tipo:p.tipo, note:p.note||null, creata_da:p.creata_da
         }).select().single();
         if(r.error) throw r.error;
-        caricate++;
-      }catch(e){
-        rimaste.push(p);   // fallita: resta in coda, riproveremo
-      }
+        caricati++;
+      }catch(e){ restaP.push(p); falliti++; }
     }
-    scriviCoda(rimaste);
+    scriviCoda(restaP);
+
+    /* 3) I PERCORSI */
+    var restaT=[];
+    for(var k=0;k<cT.length;k++){
+      var t=cT[k];
+      try{
+        if(String(t.area_id).indexOf("coda_area_")===0) throw new Error("mappa non ancora caricata");
+        var rt=await sb.from("hn_aree").update({percorso:t.dati}).eq("id",t.area_id);
+        if(rt.error) throw rt.error;
+        caricati++;
+      }catch(e){ restaT.push(t); falliti++; }
+    }
+    scriviCodaPercorsi(restaT);
+
     sincronizzando=false;
 
-    if(caricate){
-      await caricaAree();   // ricarico dal database: ora le poste sono vere
-      toast(caricate+" post"+(caricate===1?"a caricata":"e caricate"));
+    if(caricati){
+      await caricaAree();   // ricarico dal database: ora e' tutto vero
+      toast(caricati===1 ? "1 elemento caricato" : (caricati+" elementi caricati"));
     }
-    if(rimaste.length && !silenzioso){
-      toast(rimaste.length+" non caricate: riprova più tardi");
+    if(falliti && !silenzioso){
+      toast(falliti+" non caricat"+(falliti===1?"o":"i")+": restano al sicuro sul telefono");
     }
   }
 
@@ -5616,9 +5805,46 @@
   function nuovoPercorso(){
     percorso = { punti:[], inizio:Date.now(), distanza:0, dislivello:0, altPrec:null };
     percorsoAttivo = true;
+    salvaPercorsoCorso(percorso, areaAttivaId);
   }
   function chiudiPercorso(){
     percorsoAttivo = false;
+    dimenticaPercorsoCorso();
+  }
+
+  /* ===== LA TRACCIA IN CORSO VIVE SUL TELEFONO, NON SOLO IN MEMORIA =====
+     Se il display va in pausa, se il telefono chiede il codice, se iOS chiude
+     l'app per fare spazio: alla riapertura la traccia e' ancora qui. */
+  function salvaPercorsoCorso(perc, areaId){
+    try{
+      localStorage.setItem(PERC_CORSO_KEY, JSON.stringify({
+        areaId: areaId || areaAttivaId, percorso: perc, quando: Date.now()
+      }));
+    }catch(e){ /* memoria piena: non blocco la mappatura */ }
+  }
+  function leggiPercorsoCorso(){
+    try{
+      var d=JSON.parse(localStorage.getItem(PERC_CORSO_KEY));
+      if(d && d.percorso && d.percorso.punti) return d;
+    }catch(e){}
+    return null;
+  }
+  function dimenticaPercorsoCorso(){
+    try{ localStorage.removeItem(PERC_CORSO_KEY); }catch(e){}
+  }
+
+  /* ===== SCHERMO SEMPRE ACCESO MENTRE SI MAPPA ===== */
+  var wakeLock=null;
+  async function tieniSchermoAcceso(){
+    try{
+      if(navigator.wakeLock && !wakeLock){
+        wakeLock=await navigator.wakeLock.request("screen");
+        wakeLock.addEventListener("release", function(){ wakeLock=null; });
+      }
+    }catch(e){ /* non supportato: pazienza, la traccia e' comunque salva */ }
+  }
+  function rilasciaSchermo(){
+    try{ if(wakeLock){ wakeLock.release(); wakeLock=null; } }catch(e){}
   }
 
   /* aggiunge un punto alla traccia (chiamato dal GPS) */
@@ -5639,6 +5865,7 @@
     }
     if(p.alt != null) percorso.altPrec = p.alt;
     percorso.punti.push({lat:p.lat, lng:p.lng, alt:(p.alt!=null?Math.round(p.alt):null), t:Date.now()});
+    salvaPercorsoCorso(percorso, areaAttivaId);   // ogni passo finisce sul telefono
     aggiornaCruscotto();
     disegnaPercorso();
   }
@@ -5666,8 +5893,21 @@
     return m + ":" + String(s).padStart(2,"0");
   }
 
+  /* il cronometro scorre ogni secondo, anche se sto fermo e il GPS tace */
+  var tickCruscotto=null;
+  function avviaTickCruscotto(){
+    if(tickCruscotto) return;
+    tickCruscotto=setInterval(function(){
+      if(percorsoAttivo && percorso){
+        var el=document.getElementById("cr-tempo");
+        if(el) el.textContent=fmtDurata(durataPercorso());
+      }else{ clearInterval(tickCruscotto); tickCruscotto=null; }
+    },1000);
+  }
+
   /* --- il cruscotto sopra la mappa --- */
   function aggiornaCruscotto(){
+    if(percorsoAttivo) avviaTickCruscotto();
     var c = document.getElementById("cruscotto");
     if(!c) return;
     if(!percorsoAttivo || !percorso){ c.classList.remove("show"); return; }
@@ -5695,6 +5935,19 @@
     }else{
       av.classList.remove("show");
     }
+  }
+
+  /* Se l'app era stata chiusa mentre si mappava (display in pausa, codice,
+     memoria liberata da iOS), qui la traccia torna a galla. */
+  function recuperaPercorsoInterrotto(){
+    var d=leggiPercorsoCorso();
+    if(!d || !d.percorso || !d.percorso.punti || d.percorso.punti.length < 5) return;
+    var a=aree.find(function(x){ return x.id===d.areaId; });
+    if(!a){ dimenticaPercorsoCorso(); return; }
+    percorso = d.percorso;
+    percorsoAttivo = false;          // ferma finche' non decide lui
+    areaAttivaId = d.areaId;
+    apriRiepilogoPercorso(true);     // riepilogo con il bottone "Riprendi"
   }
 
   /* --- disegna la traccia sulla mappa --- */
@@ -5725,22 +5978,36 @@
       da: me.nome,
       quando: iso(new Date())
     };
+    // il percorso entra SUBITO nella copia locale: da qui non si perde piu'
+    var i = aree.findIndex(function(x){ return x.id === a.id; });
+    if(i >= 0){ aree[i].percorso = dati; }
+    salvaCacheAree();
+
+    var suSupabase=false;
     try{
+      if(!navigator.onLine) throw new Error("offline");
+      if(String(a.id).indexOf("coda_area_")===0) throw new Error("mappa non ancora caricata");
       var r = await sb.from("hn_aree").update({percorso: dati}).eq("id", a.id).select().single();
       if(r.error) throw r.error;
-      var i = aree.findIndex(function(x){ return x.id === a.id; });
-      if(i >= 0){ aree[i].percorso = dati; }
-      salvaCacheAree();
-      chiudiPercorso();
-      document.getElementById("m-percorso").classList.remove("show");
-      aggiornaCruscotto();
-      renderAree();
-      toast("Percorso salvato su " + a.nome);
-    }catch(e){ toast("Serve la rete per salvare il percorso"); }
+      suSupabase=true;
+    }catch(e){
+      aggiungiCodaPercorso(a.id, dati);   // resta in coda, sale appena c'e' rete
+    }
+
+    chiudiPercorso();
+    document.getElementById("m-percorso").classList.remove("show");
+    aggiornaCruscotto();
+    renderAree();
+    toast(suSupabase ? ("Percorso salvato su " + a.nome)
+                     : ("Percorso salvato sul telefono \u00b7 lo caricher\u00f2 appena c'\u00e8 rete"));
   }
 
-  function apriRiepilogoPercorso(){
+  function apriRiepilogoPercorso(recupero){
     if(!percorso || percorso.punti.length < 5){ toast("Percorso troppo corto per salvarlo"); return; }
+    var br=document.getElementById("pc-riprendi");
+    if(br) br.style.display = recupero ? "block" : "none";
+    var ti=document.getElementById("pc-recupero");
+    if(ti) ti.style.display = recupero ? "block" : "none";
     var chiuso = cerchioChiuso();
     var box = document.getElementById("pc-esito");
     if(chiuso){
@@ -6010,6 +6277,23 @@
     location.replace(base + "?agg=" + Date.now());
   }
 
+  /* Quando l'app va in secondo piano metto tutto al sicuro; quando torna,
+     riprendo lo schermo acceso se sto ancora mappando. */
+  function sorvegliaRientro(){
+    document.addEventListener("visibilitychange", function(){
+      if(document.hidden){
+        if(percorsoAttivo && percorso) salvaPercorsoCorso(percorso, areaAttivaId);
+      }else{
+        if(mappatura) tieniSchermoAcceso();
+        if(navigator.onLine) sincronizzaCoda(true);
+      }
+    });
+    window.addEventListener("pagehide", function(){
+      if(percorsoAttivo && percorso) salvaPercorsoCorso(percorso, areaAttivaId);
+    });
+    window.addEventListener("online", function(){ sincronizzaCoda(true); });
+  }
+
   /* registro il service worker: fa aprire l'app anche senza rete */
   function registraSW(){
     if(!("serviceWorker" in navigator)) return;
@@ -6108,11 +6392,23 @@
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
     // --- PERCORSO ---
     document.getElementById("pc-salva").onclick=async function(){
+      var b=document.getElementById("pc-salva");
+      b.disabled=true; b.textContent="Salvo\u2026";
       await salvaPercorso();
-      finiMappatura();
+      b.disabled=false; b.textContent="Salva il percorso";
+      // chiudo la mappatura SOLO se il percorso e' davvero al sicuro
+      if(!document.getElementById("m-percorso").classList.contains("show")) finiMappatura();
+    };
+    document.getElementById("pc-riprendi").onclick=function(){
+      document.getElementById("m-percorso").classList.remove("show");
+      var a=areaAttiva();
+      if(!a){ toast("Mappa non trovata"); return; }
+      percorsoAttivo=true;
+      entraMappatura(a.id, true);   // true = tieni la traccia che ho gia'
+      toast("Riprendo da dove avevi lasciato");
     };
     document.getElementById("pc-scarta").onclick=function(){
-      if(!confirm("Scartare il percorso registrato?")) return;
+      if(!confirm("Scartare il percorso registrato?\n\nLe poste che hai segnato restano.")) return;
       document.getElementById("m-percorso").classList.remove("show");
       chiudiPercorso();
       finiMappatura();
@@ -6265,6 +6561,7 @@
     bind();
     initCompass();
     registraSW();
+    sorvegliaRientro();
     var s=await sb.auth.getSession();
     if(s.data && s.data.session){ await afterLogin(); }
     else showLogin();
