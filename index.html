@@ -84,6 +84,19 @@
   #codabadge button{margin-left:auto; background:rgba(255,255,255,.9); border:none;
     color:#1d3a5a; border-radius:7px; padding:6px 11px; font-size:12px; font-weight:600; flex-shrink:0;}
 
+  /* ---------- AVVISO NUOVA VERSIONE ---------- */
+  #aggbanner{position:fixed; left:11px; right:11px; bottom:78px; z-index:99999;
+    display:none; background:#1d3a5a; border:1px solid #3d6e9e; border-radius:13px;
+    padding:12px 13px; box-shadow:0 6px 22px rgba(0,0,0,.55);}
+  #aggbanner.show{display:block;}
+  #aggbanner .tx{color:#e8f2fc; font-size:13px; line-height:1.5; margin-bottom:10px;}
+  #aggbanner .tx b{color:#F2C230;}
+  #aggbanner .row{display:flex; gap:9px;}
+  #aggbanner button{flex:1; border:none; border-radius:9px; padding:10px 0;
+    font-size:13px; font-weight:600;}
+  #aggbanner #agg-dopo{background:transparent; border:1px solid #5b86ad; color:#cfe2f5;}
+  #aggbanner #agg-ora{flex:1.6; background:#e8f2fc; color:#1d3a5a;}
+
   /* ---------- SQUADRA ---------- */
   .ci{width:17px; height:17px; flex-shrink:0; vertical-align:-3px; overflow:visible;}
   /* il fucile è largo e basso (4:1): non va schiacciato in un quadrato */
@@ -641,6 +654,15 @@
   </div>
 
   <!-- badge coda: poste da caricare -->
+  <div id="aggbanner">
+    <div class="tx">È uscita una versione nuova dell'app (<b id="agg-ver">—</b>).<br>
+      Aggiorna per averla: ci vuole un istante.</div>
+    <div class="row">
+      <button id="agg-dopo">Più tardi</button>
+      <button id="agg-ora">Aggiorna ora</button>
+    </div>
+  </div>
+
   <div id="codabadge">
     <span class="n" id="coda-n">0</span>
     <span id="coda-txt">poste da caricare</span>
@@ -1457,7 +1479,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.35";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.36";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6285,13 +6307,62 @@
         if(percorsoAttivo && percorso) salvaPercorsoCorso(percorso, areaAttivaId);
       }else{
         if(mappatura) tieniSchermoAcceso();
-        if(navigator.onLine) sincronizzaCoda(true);
+        if(navigator.onLine){ sincronizzaCoda(true); controllaVersione(); }
       }
     });
     window.addEventListener("pagehide", function(){
       if(percorsoAttivo && percorso) salvaPercorsoCorso(percorso, areaAttivaId);
     });
     window.addEventListener("online", function(){ sincronizzaCoda(true); });
+  }
+
+  /* ================= AVVISO "C'\u00c8 UNA VERSIONE NUOVA" =================
+     Hunter \u00e8 un file solo, quindi il confronto \u00e8 diretto: scarico index.html
+     dal server, leggo il suo APP_VERSION e lo confronto con quello che sto
+     eseguendo. Nessun file di versione da mantenere a mano. */
+  var aggRimandatoFino = 0;
+
+  function mostraAvvisoAgg(v){
+    var b=document.getElementById("aggbanner");
+    if(!b || b.classList.contains("show")) return;
+    document.getElementById("agg-ver").textContent = v;
+    b.classList.add("show");
+  }
+  function nascondiAvvisoAgg(){
+    var b=document.getElementById("aggbanner");
+    if(b) b.classList.remove("show");
+  }
+
+  async function controllaVersione(){
+    // MAI mentre si lavora sul campo: un ricaricamento a met\u00e0 mappatura non serve a nessuno
+    if(mappatura || percorsoAttivo || seguoPercorso) return;
+    if(!navigator.onLine) return;
+    if(Date.now() < aggRimandatoFino) return;
+    var b=document.getElementById("aggbanner");
+    if(b && b.classList.contains("show")) return;
+    try{
+      var base=location.href.split("?")[0].split("#")[0];
+      var r=await fetch(base+"?chk="+Date.now(), {cache:"no-store"});
+      if(!r.ok) return;
+      var t=await r.text();
+      var m=t.match(/APP_VERSION\s*=\s*"([^"]+)"/);
+      if(!m) return;                       // non ho letto una pagina valida: sto zitto
+      if(m[1] !== APP_VERSION) mostraAvvisoAgg(m[1]);
+    }catch(e){ /* rete ballerina: \u00e8 un avviso accessorio, non deve mai disturbare */ }
+  }
+
+  function avviaControlloVersione(){
+    setTimeout(controllaVersione, 60000);        // primo controllo dopo un minuto
+    setInterval(controllaVersione, 4*60*1000);   // poi ogni quattro minuti
+    document.getElementById("agg-dopo").onclick=function(){
+      nascondiAvvisoAgg();
+      aggRimandatoFino = Date.now() + 30*60*1000;   // non rompo per mezz'ora
+      toast("Va bene: te lo ricordo pi\u00f9 tardi");
+    };
+    document.getElementById("agg-ora").onclick=function(){
+      nascondiAvvisoAgg();
+      aggiornaApp();
+    };
   }
 
   /* registro il service worker: fa aprire l'app anche senza rete */
@@ -6562,6 +6633,7 @@
     initCompass();
     registraSW();
     sorvegliaRientro();
+    avviaControlloVersione();
     var s=await sb.auth.getSession();
     if(s.data && s.data.session){ await afterLogin(); }
     else showLogin();
