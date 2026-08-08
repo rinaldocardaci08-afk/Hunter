@@ -1794,7 +1794,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.48";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.49";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2262,7 +2262,10 @@
   }
   async function salvaPosta(){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
-    var a=areaAttiva(); if(!a||!pos) return;
+    var a=areaAttiva();
+    var punto = puntoPostaRemota || pos;   // il tocco vince sulla mia posizione
+    if(!a || !punto) return;
+    var daRemoto = !!puntoPostaRemota;
     var nome=document.getElementById("m-posta-nome").value.trim()||("Posta "+((a.poste?a.poste.length:0)+1));
     var tipo=document.getElementById("m-posta-tipo").value;
     var note=document.getElementById("m-posta-note").value.trim();
@@ -2272,9 +2275,12 @@
 
     var dati={
       area_id:a.id, nome:nome, numero:numero,
-      lat:pos.lat, lng:pos.lng, accuratezza:Math.round(pos.acc),
-      tipo:tipo, note:note||null, creata_da:me.user_id
+      lat:punto.lat, lng:punto.lng,
+      accuratezza: daRemoto ? null : Math.round(punto.acc),
+      tipo:tipo, note:note||null, creata_da:me.user_id,
+      da_verificare: daRemoto
     };
+    puntoPostaRemota = null;
 
     var btn=document.getElementById("m-posta-salva"); btn.disabled=true; btn.textContent="Salvo…";
 
@@ -2478,6 +2484,7 @@
     map.on("click", function(e){
       if(disegnoTraccia){ aggiungiPuntoTraccia(e.latlng.lat, e.latlng.lng); return; }
       if(segnRemota){ toccatoPuntoRemoto(e.latlng.lat, e.latlng.lng); return; }
+      if(mappatura && puoMappare()){ openPostaDaMappa(e.latlng.lat, e.latlng.lng); return; }
       if(!pickRitrovo) return;
       segnaPuntoRitrovo(e.latlng.lat, e.latlng.lng);
     });
@@ -3136,18 +3143,48 @@
     window.scrollTo(0,0);
   }
 
+  /* dove va la posta che sto per salvare: la mia posizione GPS, oppure
+     il punto che ho toccato sulla mappa (posta messa da lontano) */
+  var puntoPostaRemota = null;
+
   function openNuovaPosta(){
-    if(!mappatura){ toast("Entra in modalità mappatura da Aree e poste"); return; }
+    if(!mappatura){ toast("Entra in modalit\u00e0 mappatura da Aree e poste"); return; }
     if(!puoMappare()){ toast("Non hai il permesso di modificare le mappe"); return; }
     var a=areaAttiva();
     if(!a){ toast("Nessuna mappa attiva"); showView("aree"); return; }
     if(!pos){ toast("Aspetta il segnale GPS"); return; }
-    document.getElementById("m-posta-area").textContent="In: "+a.nome;
+    puntoPostaRemota = null;
+    apriModalePosta(a, {lat:pos.lat, lng:pos.lng, acc:pos.acc}, false);
+  }
+
+  /* in mappatura, toccando la mappa dove NON sono: posta messa da lontano */
+  function openPostaDaMappa(lat, lng){
+    var a=areaAttiva();
+    if(!a) return;
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    var lontano = pos ? Math.round(distM(pos, {lat:lat, lng:lng})) : null;
+    if(lontano !== null && lontano < 25){
+      // sono praticamente li': la metto normale, senza tante storie
+      puntoPostaRemota = null;
+      apriModalePosta(a, {lat:pos.lat, lng:pos.lng, acc:pos.acc}, false);
+      return;
+    }
+    var testo = "Stai mettendo una posta in un punto dove NON sei.\n\n"
+      + (lontano !== null ? ("\u00c8 a circa " + (lontano >= 1000 ? (lontano/1000).toFixed(1)+" km" : lontano+" m") + " da te.\n\n") : "")
+      + "Dal satellite un punto sembra buono e poi \u00e8 un dirupo: la segno come DA VERIFICARE finch\u00e9 qualcuno non ci passa davvero.\n\nVuoi metterla qui?";
+    if(!confirm(testo)) return;
+    puntoPostaRemota = {lat:lat, lng:lng};
+    apriModalePosta(a, {lat:lat, lng:lng, acc:null}, true);
+  }
+
+  function apriModalePosta(a, punto, daRemoto){
+    document.getElementById("m-posta-area").textContent="In: "+a.nome+(daRemoto ? " \u00b7 da verificare" : "");
     document.getElementById("m-posta-nome").value="Posta "+(((a.poste||[]).length)+1);
     document.getElementById("m-posta-tipo").value="fissa";
     document.getElementById("m-posta-note").value="";
-    document.getElementById("m-posta-coord").textContent=pos.lat.toFixed(5)+", "+pos.lng.toFixed(5);
-    document.getElementById("m-posta-acc").textContent="± "+Math.round(pos.acc)+" m";
+    document.getElementById("m-posta-coord").textContent=punto.lat.toFixed(5)+", "+punto.lng.toFixed(5);
+    document.getElementById("m-posta-acc").textContent = daRemoto
+      ? "messa dal satellite" : ("\u00b1 "+Math.round(punto.acc)+" m");
     document.getElementById("m-posta").classList.add("show");
   }
 
@@ -4496,9 +4533,11 @@
     }
 
     // --- LE TRACCIATE DELLA GIORNATA (le vede il capo) ---
-    if(capo && tracciate.length){
-      h+='<div class="sechead">Tracciate</div>';
-      tracciate.forEach(function(tc){
+    // il capo le vede tutte; ognuno vede almeno la propria, per aggiungerci quello che ha visto
+    var tcDaMostrare = capo ? tracciate : tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
+    if(tcDaMostrare.length){
+      h+='<div class="sechead">'+(capo ? "Tracciate" : "La tua tracciata")+'</div>';
+      tcDaMostrare.forEach(function(tc){
         var t = tracce.find(function(x){ return x.id===tc.traccia_id; });
         var ar = aree.find(function(x){ return x.id===tc.area_id; });
         var nseg = segnalazioni.filter(function(x){ return x.tracciata_id===tc.id; });
@@ -4521,6 +4560,9 @@
           h+='</div>';
         }
         h+='</div>';
+        if(tc.membro_id===me.membro_id){
+          h+='<button class="btn line" data-segnadopo="'+tc.id+'|'+(tc.area_id||"")+'" style="margin-top:8px; font-size:11.5px; padding:8px">\ud83d\udc17 Segna cosa hai visto</button>';
+        }
         if(tc.note){
           h+='<div style="margin-top:7px; padding-top:7px; border-top:1px solid var(--dark3); font-size:12px; color:var(--cream); line-height:1.5; white-space:pre-wrap">'+esc(tc.note)+'</div>';
         }
@@ -4606,6 +4648,13 @@
         if(!t) return;
         if(tracciataAperta){ seguiTraccia(t); return; }   // gia' aperta: solo la guida
         apriTracciata(t, t.area_id);
+      };
+    });
+    root.querySelectorAll("[data-segnadopo]").forEach(function(b){
+      b.onclick=function(){
+        var p=b.dataset.segnadopo.split("|");
+        var tc=tracciate.find(function(x){ return x.id===p[0]; });
+        if(tc) iniziaSegnRemota(tc, p[1]||tc.area_id);
       };
     });
     root.querySelectorAll("[data-gidich]").forEach(function(b){
@@ -5581,7 +5630,13 @@
 
   function chiediSegnalazione(tipo){
     if(!tracciataAperta){ toast("Apri prima la tracciata"); return; }
-    if(!pos){ toast("Aspetta il segnale GPS"); return; }
+    if(!pos){
+      // niente GPS: invece di bloccarlo, gli faccio segnare il punto col dito
+      if(confirm("Non ho il segnale GPS.\n\nVuoi segnare il punto toccandolo sulla mappa?")){
+        iniziaSegnRemota(tracciataAperta, tracciataAperta.area_id);
+      }
+      return;
+    }
     segnTipoInCorso = tipo;
     document.getElementById("m-capi-tit").textContent =
       (tipo === "entrata") ? "Visti ENTRARE: quanti?" : "Visti USCIRE: quanti?";
