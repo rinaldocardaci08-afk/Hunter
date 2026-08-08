@@ -1696,6 +1696,19 @@
   </div>
 </div>
 
+<!-- MODALE: dove l'hai visto passare -->
+<div class="modal" id="m-dove">
+  <div class="sheet">
+    <h3 id="m-dove-tit">Dove &egrave; passato?</h3>
+    <p class="hint">Se l'hai visto lontano da dove sei, indicalo sulla mappa: il punto conta pi&ugrave; della tua posizione.</p>
+    <button class="btn primary" id="m-dove-qui" style="margin-bottom:8px">&#128205; Qui dove sono</button>
+    <button class="btn line" id="m-dove-mappa">&#128506;&#65039; Lo indico sulla mappa</button>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="m-dove-annulla">Annulla</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: quanti capi hai visto -->
 <div class="modal" id="m-capi">
   <div class="sheet">
@@ -1794,7 +1807,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.49";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.50";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4176,6 +4189,111 @@
     var gg=["domenica","lunedì","martedì","mercoledì","giovedì","venerdì","sabato"];
     return gg[d.getDay()]+" "+d.getDate()+" "+MESI[d.getMonth()];
   }
+  /* LA VISTA SETTIMANALE: poche righe, i numeri grossi, niente griglia.
+     Serve al capocaccia la mattina, non a chi guarda il mese. */
+  var settOffset = 0;   // 0 = questa settimana
+  var GIORNI_SETT = ["lun","mar","mer","gio","ven","sab","dom"];
+
+  function lunediDi(d){
+    var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    x.setDate(x.getDate() - ((x.getDay()+6)%7));
+    return x;
+  }
+
+  function renderSettimana(){
+    var root=document.getElementById("battute-scroll");
+    var lun = lunediDi(new Date());
+    lun.setDate(lun.getDate() + settOffset*7);
+    var dom = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+6);
+    var oggi = iso(new Date());
+    var capo = puoGestireBattute();
+
+    var h='<div style="display:flex; gap:6px; margin-bottom:12px">';
+    h+='<button class="chip" data-vcal="mese" style="flex:1; justify-content:center">Mese</button>';
+    h+='<button class="chip on" data-vcal="settimana" style="flex:1; justify-content:center">Settimana</button>';
+    h+='</div>';
+
+    h+='<div class="calnav">';
+    h+='<button id="sett-prev">‹</button>';
+    h+='<div class="mese"><div class="a">'+lun.getDate()+' '+MESI[lun.getMonth()].slice(0,3)
+      +' — '+dom.getDate()+' '+MESI[dom.getMonth()].slice(0,3)+'</div>';
+    h+='<div class="b">'+(settOffset===0?"questa settimana":(settOffset<0?"settimana passata":"prossime"))+'</div></div>';
+    h+='<button id="sett-next">›</button></div>';
+
+    var trovati = 0;
+    for(var i=0;i<7;i++){
+      var d = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+i);
+      var k = iso(d);
+      if(!isGiornoCaccia(d)) continue;
+      trovati++;
+      var b = battutaDi(k);
+      var n = numeriGiornata(b);
+      var oggiQ = (k===oggi);
+      h+='<div class="card" data-giorno="'+k+'" style="margin-bottom:8px; cursor:pointer;'
+        + (oggiQ ? ' border:1px solid var(--gold);' : '')+'">';
+      h+='<div style="display:flex; align-items:center; gap:11px">';
+      h+='<div style="text-align:center; flex-shrink:0; width:44px">';
+      h+='<div style="font-size:20px; font-weight:700; color:'+(b?"var(--gold)":"var(--muted)")+'">'+d.getDate()+'</div>';
+      h+='<div style="font-size:9.5px; color:var(--muted); text-transform:uppercase">'+GIORNI_SETT[(d.getDay()+6)%7]+'</div>';
+      h+='</div>';
+      h+='<div style="flex:1; min-width:0">';
+      if(!b){
+        h+='<div style="font-size:13px; color:var(--muted)">Giornata non aperta</div>';
+        h+='<div style="font-size:11px; color:var(--muted)">'+(capo?"tocca per aprire le adesioni":"il capocaccia non l\'ha ancora aperta")+'</div>';
+      }else{
+        var st = (b.stato==="conclusa") ? "giornata conclusa"
+               : (b.stato==="aperta" ? "adesioni aperte" : "adesioni chiuse");
+        h+='<div style="font-size:13px; color:var(--cream); font-weight:600">'+st+'</div>';
+        if(capo){
+          h+='<div style="display:flex; gap:12px; margin-top:5px; flex-wrap:wrap">';
+          if(n.conclusa){
+            h+='<div style="font-size:11px; color:var(--gold)">presenti: <b>'+contaPresentiDi(b)+'</b></div>';
+          }else{
+            h+='<div style="font-size:11px; color:#7be0a8">hanno detto s\u00ec: <b>'+n.persone+'</b></div>';
+          }
+          h+='<div style="font-size:11px; color:#c9b3e0">tracciatori: <b>'+contaTracciatoriDi(b)+'</b></div>';
+          h+='<div style="font-size:11px; color:var(--muted)">mappe: <b>'+n.aree+'</b></div>';
+          h+='</div>';
+        }
+      }
+      h+='</div>';
+      h+='<span style="font-size:15px; color:var(--muted); flex-shrink:0">\u203a</span>';
+      h+='</div></div>';
+    }
+    if(!trovati){
+      h+='<div class="card" style="font-size:12px; color:var(--muted)">In questa settimana non si caccia.</div>';
+    }
+    if(capo){
+      h+='<div class="card" style="margin-top:10px; font-size:11px; color:var(--muted); line-height:1.5">'
+        + 'Prima della battuta il numero dice quanti <b>hanno detto s\u00ec</b>. Dopo la conclusione dice quanti <b>c\u2019erano davvero</b>.</div>';
+    }
+
+    root.innerHTML=h;
+    root.querySelectorAll("[data-vcal]").forEach(function(b2){
+      b2.onclick=function(){ vistaCal=b2.dataset.vcal; renderCalendario(); };
+    });
+    root.querySelector("#sett-prev").onclick=function(){ settOffset--; renderSettimana(); };
+    root.querySelector("#sett-next").onclick=function(){ settOffset++; renderSettimana(); };
+    root.querySelectorAll("[data-giorno]").forEach(function(c){
+      c.onclick=function(){ apriGiornata(c.dataset.giorno); };
+    });
+  }
+
+  /* questi due numeri servono solo alla vista settimanale: li conto dai dati
+     gia' in memoria se sono della giornata aperta, altrimenti dal contatore */
+  function contaPresentiDi(b){
+    if(giornataAperta && giornataAperta.id===b.id){
+      return adesioni.filter(function(a){ return a.presente; }).length;
+    }
+    return b.n_si || 0;
+  }
+  function contaTracciatoriDi(b){
+    if(giornataAperta && giornataAperta.id===b.id){
+      return adesioni.filter(function(a){ return a.viene && a.tracciatore; }).length;
+    }
+    return (b.aree_segnalate||[]).length ? "?" : 0;
+  }
+
   function battutaDi(dataIso){ return battute.find(function(b){ return b.data===dataIso; }) || null; }
 
   function puoGestireBattute(){
@@ -4200,7 +4318,24 @@
     renderCalendario();
   }
 
+  var vistaCal = "mese";   // mese | settimana
+
+  /* i numeri veloci di una giornata, per il capocaccia:
+     PRIMA della battuta dicono quanti hanno detto si',
+     DOPO la conclusione dicono quanti c'erano davvero. Sono due cose diverse
+     e vanno scritte diverse, altrimenti quel numero mente. */
+  function numeriGiornata(b){
+    if(!b) return null;
+    var conclusa = (b.stato === "conclusa");
+    return {
+      conclusa: conclusa,
+      persone: conclusa ? null : (b.n_si || 0),
+      aree: (b.aree_segnalate || []).length
+    };
+  }
+
   function renderCalendario(){
+    if(vistaCal === "settimana"){ renderSettimana(); return; }
     var root=document.getElementById("battute-scroll");
     var primo=new Date(calAnno, calMese, 1);
     var ultimo=new Date(calAnno, calMese+1, 0);
@@ -4208,7 +4343,11 @@
     var offset=(primo.getDay()+6)%7;
     var oggi=iso(new Date());
 
-    var h='<div class="calnav">';
+    var h='<div style="display:flex; gap:6px; margin-bottom:12px">';
+    h+='<button class="chip on" data-vcal="mese" style="flex:1; justify-content:center">Mese</button>';
+    h+='<button class="chip" data-vcal="settimana" style="flex:1; justify-content:center">Settimana</button>';
+    h+='</div>';
+    h+='<div class="calnav">';
     h+='<button id="cal-prev">‹</button>';
     h+='<div class="mese"><div class="a">'+MESI[calMese].charAt(0).toUpperCase()+MESI[calMese].slice(1)+' '+calAnno+'</div>';
     h+='<div class="b">stagione set 2026 — gen 2027</div></div>';
@@ -4264,6 +4403,9 @@
 
     root.innerHTML=h;
 
+    root.querySelectorAll("[data-vcal]").forEach(function(b){
+      b.onclick=function(){ vistaCal=b.dataset.vcal; renderCalendario(); };
+    });
     root.querySelector("#cal-prev").onclick=function(){
       calMese--; if(calMese<0){ calMese=11; calAnno--; }
       if(calAnno<STAGIONE.da.a || (calAnno===STAGIONE.da.a && calMese<STAGIONE.da.m)){
@@ -4424,9 +4566,17 @@
       if(mia && mia.viene){
         h+='<div style="font-size:11px; color:var(--muted); margin-bottom:6px">OSPITI CHE PORTI</div>';
         h+='<div class="btnrow" style="margin-bottom:13px">';
+        h+='<select id="gi-ospiti" style="width:100%; background:var(--dark2); border:1px solid var(--dark3); color:var(--cream); border-radius:11px; padding:13px">';
+        for(var no=0; no<=6; no++){
+          h+='<option value="'+no+'"'+((mia.ospiti||0)===no?' selected':'')+'>'
+            + (no===0 ? 'Nessun ospite' : (no+' ospit'+(no===1?'e':'i')))+'</option>';
+        }
+        h+='</select>';
+        h+='<div style="display:none">';
         h+='<button class="btn line" data-osp="-">−</button>';
         h+='<div style="flex:2; text-align:center; padding:13px; font-size:16px; color:var(--cream); font-weight:600">'+(mia.ospiti||0)+'</div>';
         h+='<button class="btn line" data-osp="+">+</button>';
+        h+='</div>';
         h+='</div>';
         // la spunta TRACCIATORE c'è SEMPRE: il capo conta prima i volenterosi,
         // poi decide quante aree segnalare
@@ -4618,6 +4768,8 @@
     root.querySelectorAll("[data-ades]").forEach(function(b){
       b.onclick=function(){ salvaAdesione(b.dataset.ades==="si"); };
     });
+    var selOsp=root.querySelector("#gi-ospiti");
+    if(selOsp) selOsp.onchange=function(){ cambiaOspitiA(parseInt(selOsp.value,10)); };
     root.querySelectorAll("[data-osp]").forEach(function(b){
       b.onclick=function(){ cambiaOspiti(b.dataset.osp==="+"?1:-1); };
     });
@@ -4852,6 +5004,19 @@
       await caricaAdesioni();
       toast(viene ? "Ci sei!" : "Segnato: non vieni");
     }catch(e){ toast("Serve la rete per rispondere"); }
+  }
+
+  /* la tendina manda il numero preciso, non un piu' o un meno */
+  async function cambiaOspitiA(n){
+    var mia=miaAdesione(); if(!mia) return;
+    n = Math.max(0, parseInt(n,10) || 0);
+    if(n === (mia.ospiti||0)) return;
+    try{
+      var r=await sb.from("hn_adesioni").update({ospiti:n}).eq("id",mia.id);
+      if(r.error) throw r.error;
+      mia.ospiti=n;
+      renderGiornata();
+    }catch(e){ toast("Serve la rete"); }
   }
 
   async function cambiaOspiti(delta){
@@ -5628,15 +5793,34 @@
   /* --- SEGNALAZIONI --- */
   var segnTipoInCorso = null;
 
+  /* PRIMA "dove", POI "quanti": il cinghiale lo vedi dall'altra parte del
+     vallone, non sotto i piedi. Dare per scontato che sia passato dove sono
+     io e' l'errore che rende la segnalazione inutile al capocaccia. */
   function chiediSegnalazione(tipo){
     if(!tracciataAperta){ toast("Apri prima la tracciata"); return; }
-    if(!pos){
-      // niente GPS: invece di bloccarlo, gli faccio segnare il punto col dito
-      if(confirm("Non ho il segnale GPS.\n\nVuoi segnare il punto toccandolo sulla mappa?")){
-        iniziaSegnRemota(tracciataAperta, tracciataAperta.area_id);
-      }
-      return;
-    }
+    segnTipoInCorso = tipo;
+    document.getElementById("m-dove-tit").textContent =
+      (tipo === "entrata") ? "Dove l'hai visto ENTRARE?" : "Dove l'hai visto USCIRE?";
+    var bq = document.getElementById("m-dove-qui");
+    bq.disabled = !pos;
+    bq.textContent = pos ? "\ud83d\udccd Qui dove sono" : "\ud83d\udccd Qui dove sono (manca il GPS)";
+    document.getElementById("m-dove").classList.add("show");
+  }
+
+  function segnaloQuiDoveSono(){
+    document.getElementById("m-dove").classList.remove("show");
+    if(!pos){ toast("Aspetta il segnale GPS"); return; }
+    chiediCapi(segnTipoInCorso, false);
+  }
+
+  function segnaloSullaMappa(){
+    document.getElementById("m-dove").classList.remove("show");
+    if(!tracciataAperta) return;
+    iniziaSegnRemota(tracciataAperta, tracciataAperta.area_id, segnTipoInCorso);
+  }
+
+  /* la finestra dei capi, una sola per tutte e due le strade */
+  function chiediCapi(tipo, daMappa){
     segnTipoInCorso = tipo;
     document.getElementById("m-capi-tit").textContent =
       (tipo === "entrata") ? "Visti ENTRARE: quanti?" : "Visti USCIRE: quanti?";
@@ -5647,8 +5831,9 @@
     document.getElementById("m-capi-scelte").innerHTML = h;
     document.getElementById("m-capi-scelte").querySelectorAll("[data-capi]").forEach(function(bt){
       bt.onclick = function(){
-        var v = bt.dataset.capi;
-        salvaSegnalazione(segnTipoInCorso, v === "6+" ? 6 : parseInt(v,10));
+        var q = bt.dataset.capi === "6+" ? 6 : parseInt(bt.dataset.capi,10);
+        if(daMappa) salvaSegnRemota(segnTipoInCorso, q);
+        else salvaSegnalazione(segnTipoInCorso, q);
       };
     });
     document.getElementById("m-capi").classList.add("show");
@@ -5801,9 +5986,10 @@
   /* --- SEGNARE A MEMORIA, TOCCANDO LA MAPPA --- */
   var segnRemota = null;    // {tracciataId, areaId, punto}
 
-  function iniziaSegnRemota(tracciata, areaId){
+  function iniziaSegnRemota(tracciata, areaId, tipoGiaScelto){
     if(!tracciata) return;
-    segnRemota = {tracciataId:tracciata.id, areaId:areaId, punto:null};
+    segnRemota = {tracciataId:tracciata.id, areaId:areaId, punto:null,
+                  tipo:(tipoGiaScelto || null)};
     areaAttivaId = areaId || tracciata.area_id;
     areaApertaInMappa = true;
     aggiornaPills();
@@ -5828,27 +6014,15 @@
   function toccatoPuntoRemoto(lat, lng){
     if(!segnRemota) return;
     segnRemota.punto = {lat:lat, lng:lng};
+    // se ho gia' premuto entrata o uscita salto la domanda e chiedo solo quanti
+    if(segnRemota.tipo){ chiediCapi(segnRemota.tipo, true); return; }
     document.getElementById("m-tiposegn").classList.add("show");
   }
 
   function scegliTipoRemoto(tipo){
     document.getElementById("m-tiposegn").classList.remove("show");
     if(!segnRemota || !segnRemota.punto) return;
-    segnTipoInCorso = tipo;
-    document.getElementById("m-capi-tit").textContent =
-      (tipo === "entrata") ? "Visti ENTRARE: quanti?" : "Visti USCIRE: quanti?";
-    var h = "";
-    ["1","2","3","4","5","6+"].forEach(function(v){
-      h += '<button class="chip" data-capi="'+v+'" style="flex:1; min-width:60px; justify-content:center">'+v+'</button>';
-    });
-    document.getElementById("m-capi-scelte").innerHTML = h;
-    document.getElementById("m-capi-scelte").querySelectorAll("[data-capi]").forEach(function(bt){
-      bt.onclick = function(){
-        var v = bt.dataset.capi;
-        salvaSegnRemota(segnTipoInCorso, v === "6+" ? 6 : parseInt(v,10));
-      };
-    });
-    document.getElementById("m-capi").classList.add("show");
+    chiediCapi(tipo, true);
   }
 
   async function salvaSegnRemota(tipo, capi){
@@ -5867,6 +6041,7 @@
       if(r.error) throw r.error;
       segnalazioni.push(r.data);
       segnRemota.punto = null;
+      segnRemota.tipo = null;   // il prossimo punto puo' essere di altro tipo
       var n = segnalazioni.filter(function(x){ return x.tracciata_id === segnRemota.tracciataId; }).length;
       document.getElementById("sr-sub").textContent =
         n + (n===1 ? " segnalazione" : " segnalazioni") + " \u00b7 tocca ancora o premi Fine";
@@ -8854,6 +9029,9 @@
     document.getElementById("h-med").onclick=function(){ apriMedagliere(null); };
     document.getElementById("ma-tracce").onclick=apriTracce;
     document.getElementById("m-tracce-chiudi").onclick=function(){ document.getElementById("m-tracce").classList.remove("show"); };
+    document.getElementById("m-dove-qui").onclick=segnaloQuiDoveSono;
+    document.getElementById("m-dove-mappa").onclick=segnaloSullaMappa;
+    document.getElementById("m-dove-annulla").onclick=function(){ document.getElementById("m-dove").classList.remove("show"); };
     document.getElementById("m-dic-annulla").onclick=function(){
       document.getElementById("m-dichiara").classList.remove("show"); dicContesto=null;
     };
