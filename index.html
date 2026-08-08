@@ -394,6 +394,28 @@
   #mapbanner button{background:rgba(255,255,255,.9); border:none; color:#7a2e1d;
     border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; flex-shrink:0;}
 
+  /* ---------- CLASSIFICA ---------- */
+  .clrow{display:flex; align-items:center; gap:10px; background:var(--dark2);
+    border:1px solid var(--dark3); border-radius:11px; padding:11px 12px; margin-bottom:7px;}
+  .clrow .pos{width:26px; text-align:center; font-size:15px; font-weight:700; color:var(--muted); flex-shrink:0;}
+  .clrow.podio1 .pos{color:#F2C230;} .clrow.podio2 .pos{color:#C9C9C9;} .clrow.podio3 .pos{color:#C08552;}
+  .clrow.podio1{border-color:#6b4a28; background:#3a2c18;}
+  .clrow .nm{flex:1; min-width:0; font-size:14px; color:var(--cream); font-weight:600;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .clrow .pt{font-size:17px; font-weight:700; color:var(--gold); flex-shrink:0;}
+  .clrow .inf{background:none; border:1px solid var(--dark3); color:var(--muted);
+    border-radius:50%; width:24px; height:24px; font-size:12px; flex-shrink:0;}
+  .clmini{font-size:10px; color:var(--muted); margin-top:2px;}
+  .medcard{display:flex; align-items:center; gap:10px; background:var(--dark2);
+    border:1px solid var(--dark3); border-radius:11px; padding:10px; margin-bottom:6px;}
+  .medcard img{width:40px; height:40px; object-fit:contain; flex-shrink:0;}
+  .medcard .mi{width:40px; height:40px; border-radius:8px; background:#4a3320; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:19px;}
+  .cont{display:flex; align-items:center; gap:6px; flex-shrink:0;}
+  .cont button{width:30px; height:30px; border-radius:8px; border:1px solid var(--dark3);
+    background:var(--dark2); color:var(--cream); font-size:16px; line-height:1;}
+  .cont .v{min-width:22px; text-align:center; font-size:15px; font-weight:700; color:var(--cream);}
+
   /* ---------- RICERCA DI UN LUOGO ---------- */
   .cerca-ris{background:var(--dark2); border:1px solid var(--dark3); border-radius:10px;
     padding:10px 11px; margin-bottom:6px; cursor:pointer;}
@@ -740,7 +762,7 @@
             <div class="nm">Sondaggi</div>
             <div class="ds">Si decide insieme</div>
           </button>
-          <button class="tile soon" data-soon="Classifica">
+          <button class="tile" data-go="classifica">
             <span class="badge">presto</span>
             <div class="ic">🏆</div>
             <div class="nm">Classifica</div>
@@ -799,43 +821,7 @@
         <button data-home>‹ Home</button>
         <div class="ttl">Sergente Mario</div>
       </div>
-      <div class="scroll" style="text-align:center; padding-top:20px;">
-
-        <img src="sm-sergente.png" alt="Sergente Mario a cavallo del cinghiale"
-             style="width:82%; max-width:300px; margin:0 auto 16px; display:block;"
-             onerror="this.style.display='none'">
-
-        <div style="font-size:22px; font-weight:700; color:var(--gold); font-family:Georgia,serif; margin-bottom:6px;">
-          Sergente Mario
-        </div>
-        <div style="font-size:13px; color:var(--muted); margin-bottom:22px;">
-          Giudice di giornata
-        </div>
-
-        <div class="card" style="text-align:left; background:#4a3320; border:1px solid #6b4a28;">
-          <div style="font-size:13px; color:var(--cream); line-height:1.7;">
-            È lui che tiene il conto. A fine battuta assegna
-            <b style="color:var(--gold)">le uccisioni</b> e
-            <b style="color:var(--gold)">le padelle</b>, e da lì nasce la classifica.
-          </div>
-        </div>
-
-        <div class="card" style="text-align:left; margin-top:10px;">
-          <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:9px;">
-            La sua area — in arrivo
-          </div>
-          <div style="font-size:13px; color:var(--muted); line-height:1.7;">
-            🎯 &nbsp;Assegnare uccisioni e padelle<br>
-            🏆 &nbsp;Redigere la classifica<br>
-            📜 &nbsp;Il verbale della giornata<br>
-            📊 &nbsp;Gli storici: chi rende, dove
-          </div>
-        </div>
-
-        <div style="font-size:11px; color:#5a4f3a; margin-top:20px; font-style:italic;">
-          "La padella non mente."
-        </div>
-      </div>
+      <div class="scroll" id="sergente-scroll"><div class="loading">Carico…</div></div>
     </section>
 
     <!-- CASSA -->
@@ -845,6 +831,15 @@
         <div class="ttl" id="cassa-titolo">Cassa</div>
       </div>
       <div class="scroll" id="cassa-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- CLASSIFICA -->
+    <section class="view" id="v-classifica">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl" id="cl-titolo">Classifica</div>
+      </div>
+      <div class="scroll" id="classifica-scroll"><div class="loading">Carico…</div></div>
     </section>
 
     <!-- CASSA · sottosezioni -->
@@ -1543,6 +1538,55 @@
   </div>
 </div>
 
+<!-- MODALE: da dove vengono i punti -->
+<div class="modal" id="m-punti">
+  <div class="sheet">
+    <h3 id="m-punti-nome">—</h3>
+    <div id="m-punti-corpo"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-punti-chiudi">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: quanto vale ogni cosa -->
+<div class="modal" id="m-barema">
+  <div class="sheet">
+    <h3>Quanto vale ogni cosa</h3>
+    <p class="hint" id="m-barema-hint">Vale per la stagione in corso. Le stagioni passate non si toccano.</p>
+    <div id="m-barema-corpo"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-barema-annulla">Annulla</button>
+      <button class="btn primary" id="m-barema-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: assegna una medaglia -->
+<div class="modal" id="m-medaglia">
+  <div class="sheet">
+    <h3 id="m-medaglia-nome">Assegna una medaglia</h3>
+    <p class="hint">Scegli l'onore della giornata. Si può togliere dopo.</p>
+    <div id="m-medaglia-lista" style="max-height:50vh; overflow-y:auto"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-medaglia-chiudi">Chiudi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: il verbale della giornata -->
+<div class="modal" id="m-verbale">
+  <div class="sheet">
+    <h3>Verbale della giornata</h3>
+    <p class="hint">Com'è andata: le aree battute, i cani, il tempo, quello che vale ricordare.</p>
+    <textarea id="m-verbale-testo" rows="8" placeholder="Si è partiti alle 6 dal Piazzale…"></textarea>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="m-verbale-annulla">Annulla</button>
+      <button class="btn primary" id="m-verbale-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -1552,7 +1596,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.39";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.40";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2872,6 +2916,8 @@
     if(v==="squadra") caricaSquadra();
     if(v==="battute") caricaBattute();
     if(v==="cassa") caricaCassa();
+    if(v==="classifica") caricaClassifica();
+    if(v==="sergente") caricaSergente();
     if(v==="scadenze"){ scadenzeDi=null; caricaScadenze(); }
     window.scrollTo(0,0);
   }
@@ -4825,6 +4871,580 @@
     }catch(e){
       toast("Non sono riuscito a salvare il punto di ritrovo");
     }
+  }
+
+  /* ===== CLASSIFICA E SERGENTE MARIO =====
+     REGOLA MADRE: esiste UNA sola verita' per i numeri.
+       presenze e tracciate  -> si leggono dalle adesioni delle giornate CONCLUSE
+       uccisioni, padelle, medaglie -> le assegna Mario, righe in hn_fatti
+     La classifica generale, quella delle uccisioni, quella delle padelle e il
+     riquadro di dettaglio sono la STESSA lista filtrata in modi diversi: se un
+     totale non torna con le sue voci, e' un errore, non un arrotondamento.
+     I punti NON sono congelati: si ricalcolano col barema della stagione a cui
+     la giornata appartiene. */
+
+  var clSub = "generale";     // generale | uccisioni | padelle | medagliere
+  var clStagione = null;      // "2026/27"
+  var barema = {};            // {presenza:2, tracciata:3, ...} della stagione aperta
+  var baremaRighe = [];       // le righe vere, per poterle aggiornare
+  var medaglie = [];          // catalogo
+  var clFatti = [];           // i fatti della stagione
+  var clAdesioni = [];        // le adesioni delle giornate concluse della stagione
+  var smBattutaId = null;     // la giornata su cui sta lavorando Mario
+  var smAdesioni = [];        // le adesioni della SOLA giornata di Mario
+  var smFatti = [];           // i fatti della SOLA giornata di Mario
+  var TIPI_BAREMA = [
+    {k:"presenza",  n:"Presenza alla giornata"},
+    {k:"tracciata", n:"Tracciata (presente e tracciatore)"},
+    {k:"uccisione", n:"Uccisione"},
+    {k:"padella",   n:"Padella"}
+  ];
+
+  // la stagione venatoria va dal 1 agosto al 31 luglio
+  function stagioneDi(dataIso){
+    var p = String(dataIso).split("-");
+    var anno = +p[0], mese = +p[1];
+    var primo = (mese >= 8) ? anno : anno - 1;
+    return primo + "/" + String((primo + 1) % 100).padStart(2, "0");
+  }
+  function stagioneCorrente(){ return stagioneDi(iso(new Date())); }
+  function stagioniDisponibili(){
+    var st = {};
+    st[stagioneCorrente()] = true;
+    battute.forEach(function(b){ if(b.stato==="conclusa") st[stagioneDi(b.data)] = true; });
+    return Object.keys(st).sort().reverse();
+  }
+  function valBarema(t){ return Number(barema[t] || 0); }
+
+  async function caricaClassifica(){
+    var root = document.getElementById("classifica-scroll");
+    root.innerHTML = '<div class="loading">Carico…</div>';
+    if(!clStagione) clStagione = stagioneCorrente();
+    try{
+      if(!battute.length){
+        var rb = await sb.from("hn_battute").select("*").eq("squadra_id", me.squadra_id).order("data");
+        if(!rb.error) battute = rb.data || [];
+      }
+      if(!membri.length) await caricaMembriSilenzioso();
+
+      var rBar = await sb.from("hn_barema").select("*")
+                   .eq("squadra_id", me.squadra_id).eq("stagione", clStagione);
+      baremaRighe = (rBar.error ? [] : (rBar.data || []));
+      barema = {};
+      baremaRighe.forEach(function(r){ barema[r.tipo] = Number(r.punti || 0); });
+
+      var rMed = await sb.from("hn_medaglie").select("*").eq("squadra_id", me.squadra_id);
+      medaglie = (rMed.error ? [] : (rMed.data || []));
+
+      var idsStagione = battute.filter(function(b){
+        return b.stato === "conclusa" && stagioneDi(b.data) === clStagione;
+      }).map(function(b){ return b.id; });
+
+      clFatti = []; clAdesioni = [];
+      if(idsStagione.length){
+        var rF = await sb.from("hn_fatti").select("*").in("battuta_id", idsStagione);
+        if(!rF.error) clFatti = rF.data || [];
+        var rA = await sb.from("hn_adesioni").select("*").in("battuta_id", idsStagione);
+        if(!rA.error) clAdesioni = rA.data || [];
+      }
+      try{
+        localStorage.setItem("hunter_cache_classifica", JSON.stringify(
+          {st:clStagione, barema:barema, medaglie:medaglie, fatti:clFatti, ades:clAdesioni}));
+      }catch(e){}
+    }catch(e){
+      try{
+        var c = JSON.parse(localStorage.getItem("hunter_cache_classifica"));
+        if(c && c.st === clStagione){
+          barema = c.barema || {}; medaglie = c.medaglie || [];
+          clFatti = c.fatti || []; clAdesioni = c.ades || [];
+          toast("Senza rete: uso i dati salvati");
+        }
+      }catch(e2){}
+    }
+    renderClassifica();
+  }
+
+  /* LA QUERY MADRE: da qui escono tutte le classifiche e tutti i dettagli */
+  function calcolaClassifica(){
+    var per = {};
+    function riga(mid){
+      if(!per[mid]) per[mid] = {membro_id:mid, presenze:0, tracciate:0,
+                                uccisioni:0, padelle:0, medaglie:[], punti:0};
+      return per[mid];
+    }
+    clAdesioni.forEach(function(a){
+      if(!a.presente) return;
+      var r = riga(a.membro_id);
+      r.presenze++;
+      if(a.tracciatore) r.tracciate++;
+    });
+    clFatti.forEach(function(f){
+      var r = riga(f.membro_id);
+      var q = Number(f.quanti || 1);
+      if(f.tipo === "uccisione") r.uccisioni += q;
+      else if(f.tipo === "padella") r.padelle += q;
+      else if(f.tipo === "medaglia"){
+        r.medaglie.push({fatto:f, med:medaglie.find(function(x){ return x.id === f.medaglia_id; })});
+      }
+    });
+    Object.keys(per).forEach(function(k){
+      var r = per[k];
+      var pm = r.medaglie.reduce(function(sm, x){ return sm + (x.med ? Number(x.med.punti || 0) : 0); }, 0);
+      r.punti = r.presenze  * valBarema("presenza")
+              + r.tracciate * valBarema("tracciata")
+              + r.uccisioni * valBarema("uccisione")
+              + r.padelle   * valBarema("padella")
+              + pm;
+    });
+    return Object.keys(per).map(function(k){ return per[k]; });
+  }
+
+  function nomeDi(mid){
+    var m = membri.find(function(x){ return x.id === mid; });
+    return m ? m.nome : "\u2014";
+  }
+  function numPulito(n){
+    var v = Number(n || 0);
+    return (Math.round(v * 100) / 100).toString().replace(".", ",");
+  }
+
+  function renderClassifica(){
+    var root = document.getElementById("classifica-scroll");
+    var righe = calcolaClassifica();
+    var h = "";
+
+    // scelta della stagione
+    var stag = stagioniDisponibili();
+    h += '<div style="display:flex; gap:6px; overflow-x:auto; margin-bottom:12px">';
+    stag.forEach(function(st){
+      h += '<button class="chip '+(st===clStagione?'on':'')+'" data-stag="'+st+'" style="flex-shrink:0">'+st+'</button>';
+    });
+    h += '</div>';
+
+    // linguette
+    var tabs = [["generale","Generale"],["uccisioni","Uccisioni"],["padelle","Padelle"],["medagliere","Medagliere"]];
+    h += '<div style="display:flex; gap:6px; overflow-x:auto; margin-bottom:14px">';
+    tabs.forEach(function(t){
+      h += '<button class="chip '+(clSub===t[0]?'on':'')+'" data-clsub="'+t[0]+'" style="flex-shrink:0">'+t[1]+'</button>';
+    });
+    h += '</div>';
+
+    if(!righe.length){
+      h += '<div class="empty" style="padding-top:26px"><div style="font-size:34px; margin-bottom:10px">🏆</div>'
+         + '<div style="font-size:14px; color:var(--cream); margin-bottom:8px">Ancora nessun punto</div>'
+         + '<div style="line-height:1.6">I punti nascono dalle giornate concluse.<br>'
+         + 'Concludi una battuta e la classifica parte.</div></div>';
+      if(puoGestireSquadra()) h += '<button class="btn line" id="cl-barema" style="margin-top:16px">⚖️ Quanto vale ogni cosa</button>';
+      root.innerHTML = h;
+      bindClassifica();
+      return;
+    }
+
+    if(clSub === "medagliere"){
+      h += renderMedagliere(righe);
+    }else{
+      var chiave = clSub === "uccisioni" ? "uccisioni" : (clSub === "padelle" ? "padelle" : "punti");
+      var ord = righe.slice().sort(function(a,b){
+        if(b[chiave] !== a[chiave]) return b[chiave] - a[chiave];
+        return b.punti - a.punti;
+      });
+      if(clSub !== "generale") ord = ord.filter(function(r){ return r[chiave] > 0; });
+      if(!ord.length){
+        h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna '+(clSub==="uccisioni"?"uccisione":"padella")+' registrata in questa stagione.</div>';
+      }
+      ord.forEach(function(r, i){
+        var cl = "clrow" + (clSub==="generale" && i<3 ? " podio"+(i+1) : "");
+        h += '<div class="'+cl+'">';
+        h += '<div class="pos">'+(i+1)+'</div>';
+        h += '<div style="flex:1; min-width:0"><div class="nm">'+esc(nomeDi(r.membro_id))+'</div>';
+        h += '<div class="clmini">'+r.presenze+' present'+(r.presenze===1?'a':'e')
+           + ' · '+r.uccisioni+' uccision'+(r.uccisioni===1?'e':'i')
+           + ' · '+r.padelle+' padell'+(r.padelle===1?'a':'e')
+           + (r.medaglie.length ? ' · '+r.medaglie.length+' medagli'+(r.medaglie.length===1?'a':'e') : '')
+           + '</div></div>';
+        h += '<div class="pt">'+(clSub==="generale" ? numPulito(r.punti) : r[chiave])+'</div>';
+        h += '<button class="inf" data-clinfo="'+r.membro_id+'">i</button>';
+        h += '</div>';
+      });
+    }
+
+    if(puoGestireSquadra()) h += '<button class="btn line" id="cl-barema" style="margin-top:16px">⚖️ Quanto vale ogni cosa</button>';
+    root.innerHTML = h;
+    bindClassifica();
+  }
+
+  function renderMedagliere(righe){
+    var conMed = righe.filter(function(r){ return r.medaglie.length; })
+                      .sort(function(a,b){ return b.medaglie.length - a.medaglie.length; });
+    if(!conMed.length){
+      return '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.5">'
+           + 'Nessuna medaglia assegnata in questa stagione. Le assegna Sergente Mario a fine giornata.</div>';
+    }
+    var h = "";
+    conMed.forEach(function(r){
+      h += '<div class="sechead">'+esc(nomeDi(r.membro_id))+' · '+r.medaglie.length+'</div>';
+      r.medaglie.forEach(function(x){
+        var m = x.med;
+        h += '<div class="medcard">';
+        if(m && m.immagine) h += '<img src="'+esc(m.immagine)+'" onerror="this.style.display=\'none\'">';
+        else h += '<div class="mi">🎖️</div>';
+        h += '<div style="flex:1; min-width:0">';
+        h += '<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(m ? m.nome : "Medaglia")+'</div>';
+        var b = battute.find(function(y){ return y.id === x.fatto.battuta_id; });
+        h += '<div style="font-size:10px; color:var(--muted)">'+(b ? fmtGiorno(daIso(b.data)) : "")
+           + (m && Number(m.punti) ? ' · '+numPulito(m.punti)+' punti' : '')+'</div>';
+        if(x.fatto.nota) h += '<div style="font-size:11px; color:var(--gold); margin-top:2px">'+esc(x.fatto.nota)+'</div>';
+        h += '</div></div>';
+      });
+    });
+    return h;
+  }
+
+  function bindClassifica(){
+    var root = document.getElementById("classifica-scroll");
+    root.querySelectorAll("[data-stag]").forEach(function(b){
+      b.onclick = function(){ clStagione = b.dataset.stag; caricaClassifica(); };
+    });
+    root.querySelectorAll("[data-clsub]").forEach(function(b){
+      b.onclick = function(){ clSub = b.dataset.clsub; renderClassifica(); };
+    });
+    root.querySelectorAll("[data-clinfo]").forEach(function(b){
+      b.onclick = function(){ apriDettaglioPunti(b.dataset.clinfo); };
+    });
+    var bb = root.querySelector("#cl-barema");
+    if(bb) bb.onclick = apriBarema;
+  }
+
+  /* il riquadro che spiega da dove vengono i punti */
+  function apriDettaglioPunti(mid){
+    var r = calcolaClassifica().find(function(x){ return x.membro_id === mid; });
+    if(!r) return;
+    document.getElementById("m-punti-nome").textContent = nomeDi(mid);
+    var h = "";
+    function voce(et, quanti, valore){
+      if(!quanti) return;
+      var tot = quanti * valore;
+      h += '<div style="display:flex; align-items:center; gap:8px; padding:8px 0; border-bottom:1px solid var(--dark3)">';
+      h += '<div style="flex:1; font-size:13px; color:var(--cream)">'+quanti+' × '+et+'</div>';
+      h += '<div style="font-size:11px; color:var(--muted)">'+numPulito(valore)+' cad.</div>';
+      h += '<div style="font-size:14px; font-weight:700; color:'+(tot<0?'#e08a8a':'var(--gold)')+'; min-width:44px; text-align:right">'+numPulito(tot)+'</div>';
+      h += '</div>';
+    }
+    voce("presenza",  r.presenze,  valBarema("presenza"));
+    voce("tracciata", r.tracciate, valBarema("tracciata"));
+    voce("uccisione", r.uccisioni, valBarema("uccisione"));
+    voce("padella",   r.padelle,   valBarema("padella"));
+    r.medaglie.forEach(function(x){
+      voce("🎖️ " + (x.med ? x.med.nome : "medaglia"), 1, x.med ? Number(x.med.punti || 0) : 0);
+    });
+    if(!h) h = '<div class="hint">Nessun punto in questa stagione.</div>';
+    h += '<div style="display:flex; align-items:center; gap:8px; padding:11px 0 2px">';
+    h += '<div style="flex:1; font-size:13px; color:var(--cream); font-weight:700">Totale</div>';
+    h += '<div style="font-size:19px; font-weight:700; color:var(--gold)">'+numPulito(r.punti)+'</div></div>';
+    h += '<div class="hint" style="margin-top:8px">Stagione '+clStagione+'. I punti si ricalcolano se cambi quanto vale ogni cosa.</div>';
+    document.getElementById("m-punti-corpo").innerHTML = h;
+    document.getElementById("m-punti").classList.add("show");
+  }
+
+  /* il barema: quanto vale ogni cosa, per la stagione aperta */
+  function apriBarema(){
+    if(!puoGestireSquadra()) return;
+    document.getElementById("m-barema-hint").textContent =
+      "Vale per la stagione " + clStagione + ". Le altre stagioni non si toccano.";
+    var h = "";
+    TIPI_BAREMA.forEach(function(t){
+      h += '<div style="margin-bottom:10px">';
+      h += '<div class="lab">'+t.n+'</div>';
+      h += '<input type="number" step="0.5" data-bar="'+t.k+'" value="'+(barema[t.k]!==undefined?barema[t.k]:0)+'">';
+      h += '</div>';
+    });
+    h += '<div class="hint">La padella puoi lasciarla a zero, oppure metterla in negativo (per esempio -1) se deve pesare.</div>';
+    document.getElementById("m-barema-corpo").innerHTML = h;
+    document.getElementById("m-barema").classList.add("show");
+  }
+
+  async function salvaBarema(){
+    var corpo = document.getElementById("m-barema-corpo");
+    var da = [];
+    corpo.querySelectorAll("[data-bar]").forEach(function(inp){
+      da.push({tipo:inp.dataset.bar, punti:Number(inp.value || 0)});
+    });
+    try{
+      for(var i=0;i<da.length;i++){
+        var d = da[i];
+        var esiste = baremaRighe.find(function(x){ return x.tipo === d.tipo; });
+        var r;
+        if(esiste){
+          r = await sb.from("hn_barema").update({punti:d.punti}).eq("id", esiste.id).select().single();
+        }else{
+          r = await sb.from("hn_barema").insert({
+                squadra_id:me.squadra_id, stagione:clStagione, tipo:d.tipo, punti:d.punti
+              }).select().single();
+        }
+        if(r.error) throw r.error;
+        var k = baremaRighe.findIndex(function(x){ return x.tipo === d.tipo; });
+        if(k>=0) baremaRighe[k] = r.data; else baremaRighe.push(r.data);
+        barema[d.tipo] = Number(r.data.punti || 0);
+      }
+      document.getElementById("m-barema").classList.remove("show");
+      renderClassifica();
+      toast("Punti aggiornati");
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+  /* ===== SERGENTE MARIO ===== */
+  function puoGiudicare(){ return puoGestireBattute(); }
+
+  async function caricaSergente(){
+    var root = document.getElementById("sergente-scroll");
+    root.innerHTML = '<div class="loading">Carico…</div>';
+    try{
+      if(!battute.length){
+        var rb = await sb.from("hn_battute").select("*").eq("squadra_id", me.squadra_id).order("data");
+        if(!rb.error) battute = rb.data || [];
+      }
+      if(!membri.length) await caricaMembriSilenzioso();
+      if(!medaglie.length){
+        var rM = await sb.from("hn_medaglie").select("*").eq("squadra_id", me.squadra_id);
+        if(!rM.error) medaglie = rM.data || [];
+      }
+      var concluse = battute.filter(function(b){ return b.stato === "conclusa"; })
+                            .sort(function(a,b){ return a.data < b.data ? 1 : -1; });
+      if(!smBattutaId && concluse.length) smBattutaId = concluse[0].id;
+      if(smBattutaId){
+        var rA = await sb.from("hn_adesioni").select("*").eq("battuta_id", smBattutaId);
+        smAdesioni = (rA.error ? [] : (rA.data || []));
+        var rF = await sb.from("hn_fatti").select("*").eq("battuta_id", smBattutaId);
+        smFatti = (rF.error ? [] : (rF.data || []));
+      }
+    }catch(e){ toast("Serve la rete"); }
+    renderSergente();
+  }
+
+  function renderSergente(){
+    var root = document.getElementById("sergente-scroll");
+    var h = "";
+    h += '<div style="text-align:center; margin-bottom:14px">';
+    h += '<img src="sm-sergente.png" style="width:46%; max-width:170px; display:block; margin:0 auto 8px" onerror="this.style.display=\'none\'">';
+    h += '<div style="font-size:18px; font-weight:700; color:var(--gold); font-family:Georgia,serif">Sergente Mario</div>';
+    h += '<div style="font-size:12px; color:var(--muted)">Giudice di giornata</div></div>';
+
+    if(!puoGiudicare()){
+      h += '<div class="card" style="background:#4a3320; border:1px solid #6b4a28">';
+      h += '<div style="font-size:13px; color:var(--cream); line-height:1.7">È lui che tiene il conto: a fine battuta assegna '
+         + '<b style="color:var(--gold)">uccisioni</b>, <b style="color:var(--gold)">padelle</b> e le medaglie, '
+         + 'e da lì nasce la classifica.</div></div>';
+      h += '<button class="btn line" id="sm-vaicl" style="margin-top:12px">🏆 Vai alla classifica</button>';
+      root.innerHTML = h; bindSergente(); return;
+    }
+
+    var concluse = battute.filter(function(b){ return b.stato === "conclusa"; })
+                          .sort(function(a,b){ return a.data < b.data ? 1 : -1; });
+    if(!concluse.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
+         + 'Nessuna giornata conclusa. Mario lavora sulle giornate chiuse dal capocaccia: '
+         + 'concludi una battuta e qui potrai assegnare uccisioni, padelle e medaglie.</div>';
+      root.innerHTML = h; bindSergente(); return;
+    }
+
+    h += '<div class="sechead">Giornata</div>';
+    h += '<div style="display:flex; gap:6px; overflow-x:auto; margin-bottom:14px">';
+    concluse.slice(0, 20).forEach(function(b){
+      h += '<button class="chip '+(b.id===smBattutaId?'on':'')+'" data-smb="'+b.id+'" style="flex-shrink:0">'
+         + fmtGiorno(daIso(b.data))+'</button>';
+    });
+    h += '</div>';
+
+    var b = battute.find(function(x){ return x.id === smBattutaId; });
+    var presenti = smAdesioni.filter(function(a){ return a.presente; });
+    if(!presenti.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessun presente in questa giornata.</div>';
+      root.innerHTML = h; bindSergente(); return;
+    }
+
+    h += '<div class="sechead">Uccisioni e padelle</div>';
+    presenti.forEach(function(a){
+      var u = fattoDi(a.membro_id, "uccisione");
+      var p = fattoDi(a.membro_id, "padella");
+      var med = smFatti.filter(function(f){ return f.membro_id===a.membro_id && f.tipo==="medaglia"; });
+      h += '<div class="card" style="margin-bottom:7px">';
+      h += '<div style="display:flex; align-items:center; gap:8px">';
+      h += '<div style="flex:1; min-width:0; font-size:14px; color:var(--cream); font-weight:600">'+esc(nomeDi(a.membro_id))+'</div>';
+      h += '<button class="btn line" data-smmed="'+a.membro_id+'" style="width:auto; padding:6px 10px; font-size:12px">🎖️</button>';
+      h += '</div>';
+      h += '<div style="display:flex; align-items:center; gap:12px; margin-top:9px">';
+      h += '<div style="flex:1; font-size:12px; color:#7be0a8">Uccisioni</div>';
+      h += '<div class="cont"><button data-smf="'+a.membro_id+'|uccisione|-1">−</button>';
+      h += '<div class="v">'+(u?u.quanti:0)+'</div>';
+      h += '<button data-smf="'+a.membro_id+'|uccisione|1">+</button></div></div>';
+      h += '<div style="display:flex; align-items:center; gap:12px; margin-top:7px">';
+      h += '<div style="flex:1; font-size:12px; color:#e0a87b">Padelle</div>';
+      h += '<div class="cont"><button data-smf="'+a.membro_id+'|padella|-1">−</button>';
+      h += '<div class="v">'+(p?p.quanti:0)+'</div>';
+      h += '<button data-smf="'+a.membro_id+'|padella|1">+</button></div></div>';
+      if(med.length){
+        h += '<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px">';
+        med.forEach(function(f){
+          var m = medaglie.find(function(x){ return x.id === f.medaglia_id; });
+          h += '<button class="chip" data-smdel="'+f.id+'" style="font-size:11px; padding:5px 9px">🎖️ '
+             + esc(m ? m.nome : "medaglia")+' ✕</button>';
+        });
+        h += '</div>';
+      }
+      h += '</div>';
+    });
+
+    h += '<div class="sechead">Verbale</div>';
+    if(b && b.verbale){
+      h += '<div class="card" style="font-size:13px; color:var(--cream); line-height:1.6; white-space:pre-wrap">'+esc(b.verbale)+'</div>';
+      h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">✏️ Modifica il verbale</button>';
+    }else{
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessun verbale per questa giornata.</div>';
+      h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">📜 Scrivi il verbale</button>';
+    }
+    h += '<button class="btn primary" id="sm-vaicl" style="margin-top:14px">🏆 Vai alla classifica</button>';
+    root.innerHTML = h;
+    bindSergente();
+  }
+
+  function fattoDi(mid, tipo){
+    return smFatti.find(function(f){ return f.membro_id===mid && f.tipo===tipo; }) || null;
+  }
+
+  function bindSergente(){
+    var root = document.getElementById("sergente-scroll");
+    root.querySelectorAll("[data-smb]").forEach(function(b){
+      b.onclick = function(){ smBattutaId = b.dataset.smb; caricaSergente(); };
+    });
+    root.querySelectorAll("[data-smf]").forEach(function(b){
+      b.onclick = function(){
+        var p = b.dataset.smf.split("|");
+        cambiaFatto(p[0], p[1], parseInt(p[2],10));
+      };
+    });
+    root.querySelectorAll("[data-smmed]").forEach(function(b){
+      b.onclick = function(){ apriMedaglia(b.dataset.smmed); };
+    });
+    root.querySelectorAll("[data-smdel]").forEach(function(b){
+      b.onclick = function(){ togliMedaglia(b.dataset.smdel); };
+    });
+    var v = root.querySelector("#sm-verbale");
+    if(v) v.onclick = apriVerbale;
+    var c = root.querySelector("#sm-vaicl");
+    if(c) c.onclick = function(){ clStagione = null; showView("classifica"); };
+  }
+
+  async function cambiaFatto(mid, tipo, delta){
+    if(!puoGiudicare() || !smBattutaId) return;
+    var f = fattoDi(mid, tipo);
+    var nuovo = (f ? Number(f.quanti || 0) : 0) + delta;
+    if(nuovo < 0) return;
+    try{
+      if(f && nuovo === 0){
+        var rd = await sb.from("hn_fatti").delete().eq("id", f.id).select().single();
+        if(rd.error) throw rd.error;
+        smFatti = smFatti.filter(function(x){ return x.id !== f.id; });
+      }else if(f){
+        var ru = await sb.from("hn_fatti").update({quanti:nuovo}).eq("id", f.id).select().single();
+        if(ru.error) throw ru.error;
+        var k = smFatti.findIndex(function(x){ return x.id === f.id; });
+        if(k>=0) smFatti[k] = ru.data;
+      }else{
+        var ri = await sb.from("hn_fatti").insert({
+                   squadra_id:me.squadra_id, battuta_id:smBattutaId, membro_id:mid,
+                   tipo:tipo, quanti:nuovo, assegnato_da:me.membro_id
+                 }).select().single();
+        if(ri.error) throw ri.error;
+        smFatti.push(ri.data);
+      }
+      renderSergente();
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+  function apriMedaglia(mid){
+    if(!puoGiudicare()) return;
+    document.getElementById("m-medaglia-nome").textContent = "Medaglia per " + nomeDi(mid);
+    var attive = medaglie.filter(function(m){ return m.attiva !== false; });
+    var h = "";
+    if(!attive.length) h = '<div class="hint">Nessuna medaglia nel catalogo.</div>';
+    attive.forEach(function(m){
+      h += '<div class="medcard" data-scegli="'+m.id+'|'+mid+'" style="cursor:pointer">';
+      if(m.immagine) h += '<img src="'+esc(m.immagine)+'" onerror="this.style.display=\'none\'">';
+      else h += '<div class="mi">🎖️</div>';
+      h += '<div style="flex:1; min-width:0">';
+      h += '<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(m.nome)+'</div>';
+      if(m.descrizione) h += '<div style="font-size:11px; color:var(--muted)">'+esc(m.descrizione)+'</div>';
+      h += '</div>';
+      if(Number(m.punti)) h += '<div style="font-size:13px; color:var(--gold); font-weight:700">+'+numPulito(m.punti)+'</div>';
+      h += '</div>';
+    });
+    var box = document.getElementById("m-medaglia-lista");
+    box.innerHTML = h;
+    box.querySelectorAll("[data-scegli]").forEach(function(el){
+      el.onclick = function(){
+        var p = el.dataset.scegli.split("|");
+        assegnaMedaglia(p[1], p[0]);
+      };
+    });
+    document.getElementById("m-medaglia").classList.add("show");
+  }
+
+  async function assegnaMedaglia(mid, medId){
+    if(!puoGiudicare() || !smBattutaId) return;
+    var gia = smFatti.find(function(f){
+      return f.membro_id===mid && f.tipo==="medaglia" && f.medaglia_id===medId;
+    });
+    if(gia){ toast("Ce l'ha già per questa giornata"); return; }
+    var nota = prompt("Motivazione (facoltativa)");
+    try{
+      var r = await sb.from("hn_fatti").insert({
+                squadra_id:me.squadra_id, battuta_id:smBattutaId, membro_id:mid,
+                tipo:"medaglia", quanti:1, medaglia_id:medId,
+                nota:(nota && nota.trim() ? nota.trim() : null),
+                assegnato_da:me.membro_id
+              }).select().single();
+      if(r.error) throw r.error;
+      smFatti.push(r.data);
+      document.getElementById("m-medaglia").classList.remove("show");
+      renderSergente();
+      toast("Medaglia assegnata");
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+  async function togliMedaglia(fattoId){
+    if(!puoGiudicare()) return;
+    if(!confirm("Togliere questa medaglia?")) return;
+    try{
+      var r = await sb.from("hn_fatti").delete().eq("id", fattoId).select().single();
+      if(r.error) throw r.error;
+      smFatti = smFatti.filter(function(x){ return x.id !== fattoId; });
+      renderSergente();
+      toast("Medaglia togliata");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  function apriVerbale(){
+    if(!puoGiudicare() || !smBattutaId) return;
+    var b = battute.find(function(x){ return x.id === smBattutaId; });
+    document.getElementById("m-verbale-testo").value = (b && b.verbale) ? b.verbale : "";
+    document.getElementById("m-verbale").classList.add("show");
+  }
+
+  async function salvaVerbale(){
+    if(!puoGiudicare() || !smBattutaId) return;
+    var t = document.getElementById("m-verbale-testo").value.trim();
+    try{
+      var r = await sb.from("hn_battute").update({
+                verbale: (t || null), verbale_da: me.membro_id,
+                verbale_il: new Date().toISOString()
+              }).eq("id", smBattutaId).select().single();
+      if(r.error) throw r.error;
+      var k = battute.findIndex(function(x){ return x.id === r.data.id; });
+      if(k>=0) battute[k] = r.data;
+      document.getElementById("m-verbale").classList.remove("show");
+      renderSergente();
+      toast(t ? "Verbale salvato" : "Verbale cancellato");
+    }catch(e){ toast("Serve la rete per salvare"); }
   }
 
   /* ===== PRESENZA REALE ALLA BATTUTA =====
@@ -6979,6 +7599,12 @@
     document.getElementById("m-del-annulla").onclick=function(){ document.getElementById("m-delega").classList.remove("show"); };
     document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
     document.getElementById("m-rt-mappa").onclick=function(){ iniziaPickRitrovo("battuta"); };
+    document.getElementById("m-punti-chiudi").onclick=function(){ document.getElementById("m-punti").classList.remove("show"); };
+    document.getElementById("m-barema-annulla").onclick=function(){ document.getElementById("m-barema").classList.remove("show"); };
+    document.getElementById("m-barema-salva").onclick=salvaBarema;
+    document.getElementById("m-medaglia-chiudi").onclick=function(){ document.getElementById("m-medaglia").classList.remove("show"); };
+    document.getElementById("m-verbale-annulla").onclick=function(){ document.getElementById("m-verbale").classList.remove("show"); };
+    document.getElementById("m-verbale-salva").onclick=salvaVerbale;
     document.getElementById("pres-no").onclick=chiudiModalePresenza;
     document.getElementById("pres-si").onclick=async function(){
       chiudiModalePresenza();
