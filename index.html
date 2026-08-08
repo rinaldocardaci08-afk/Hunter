@@ -472,6 +472,8 @@
   #trbanner .tx .b{font-size:11px; color:#d5c6e6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #trbanner button{background:rgba(255,255,255,.92); border:none; color:#3a2652;
     border-radius:8px; padding:8px 11px; font-size:13px; font-weight:600; flex-shrink:0;}
+  #trbanner #trbanner-annulla{font-size:19px; line-height:1; padding:7px 11px;}
+  #trbanner #trbanner-esci{font-size:15px; line-height:1; padding:8px 10px;}
   #trbanner button:disabled{opacity:.45;}
   #trbanner button.no{background:rgba(255,255,255,.22); color:#fff;}
 
@@ -1114,9 +1116,9 @@
           <div class="a">Disegna la linea</div>
           <div class="b" id="trbanner-sub">tocca sulla mappa i punti del percorso</div>
         </div>
-        <button id="trbanner-annulla" class="no">Indietro</button>
+        <button id="trbanner-annulla" class="no" title="Annulla l'ultimo punto" aria-label="Annulla l'ultimo punto">↺</button>
         <button id="trbanner-ok" disabled>Salva</button>
-        <button id="trbanner-esci" class="no">✕</button>
+        <button id="trbanner-esci" class="no" title="Esci">✕</button>
       </div>
 
       <!-- barra SCELTA DEL PUNTO DI RITROVO (tocca sulla mappa) -->
@@ -1623,6 +1625,20 @@
   </div>
 </div>
 
+<!-- MODALE: come si chiama la linea -->
+<div class="modal" id="m-nomelinea">
+  <div class="sheet">
+    <h3 id="m-nl-tit">Nome della linea</h3>
+    <p class="hint" id="m-nl-hint">Come la chiami? Serve al tracciatore per riconoscerla.</p>
+    <input id="m-nl-testo" type="text" autocomplete="off" placeholder="Giro completo">
+    <div id="m-nl-riepilogo" style="margin-top:10px; font-size:12px; color:var(--muted)"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-nl-annulla">Annulla</button>
+      <button class="btn primary" id="m-nl-ok">Salva</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: le linee di tracciamento di una mappa -->
 <div class="modal" id="m-tracce">
   <div class="sheet">
@@ -1694,7 +1710,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.45";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.46";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5134,9 +5150,26 @@
     toast("Tocca i punti uno dopo l'altro");
   }
 
+  var CHIUDI_ANELLO = 45;   // metri dal primo punto entro cui la forma si chiude
+
   function aggiungiPuntoTraccia(lat, lng){
     if(!disegnoTraccia || !map) return;
-    disegnoTraccia.punti.push({lat:lat, lng:lng});
+    var p = disegnoTraccia.punti;
+    // toccando vicino al PRIMO punto il giro si chiude e diventa un anello
+    if(p.length >= 3 && !disegnoTraccia.chiuso){
+      if(distM({lat:lat, lng:lng}, p[0]) <= CHIUDI_ANELLO){
+        p.push({lat:p[0].lat, lng:p[0].lng});
+        disegnoTraccia.chiuso = true;
+        ridisegnaTraccia();
+        toast("Giro chiuso: torna al punto di partenza");
+        return;
+      }
+    }
+    if(disegnoTraccia.chiuso){
+      disegnoTraccia.chiuso = false;   // ha riaperto il giro
+      p.pop();
+    }
+    p.push({lat:lat, lng:lng});
     ridisegnaTraccia();
   }
 
@@ -5152,13 +5185,20 @@
     }else{
       disegnoTraccia.linea = null;
     }
-    p.forEach(function(q){
+    p.forEach(function(q, i){
+      var primo = (i === 0);
       disegnoTraccia.segni.push(L.circleMarker([q.lat,q.lng],
-        {radius:5, color:"#4a3560", fillColor:"#c9b3e0", fillOpacity:1, weight:2}).addTo(map));
+        {radius: primo ? 8 : 5,
+         color: primo ? "#F2C230" : "#4a3560",
+         fillColor: primo ? "#4a3560" : "#c9b3e0",
+         fillOpacity: 1, weight: primo ? 3 : 2}).addTo(map));
     });
     var d = p.length > 1 ? distanzaTotale(p) : 0;
     document.getElementById("trbanner-sub").textContent =
-      p.length + (p.length===1?" punto":" punti") + (d ? " · "+(d/1000).toFixed(2)+" km" : "");
+      (disegnoTraccia.chiuso ? "giro chiuso · " : "")
+      + p.length + (p.length===1?" punto":" punti")
+      + (d ? " · "+(d/1000).toFixed(2)+" km" : "")
+      + (p.length>=3 && !disegnoTraccia.chiuso ? " · tocca il primo per chiudere" : "");
     document.getElementById("trbanner-ok").disabled = (p.length < 2);
   }
 
@@ -5178,12 +5218,46 @@
     if(b) b.classList.remove("show");
   }
 
-  async function salvaDisegnoTraccia(){
+  /* IL NOME SI CHIEDE CON UNA FINESTRA VERA.
+     La finestrella del browser (prompt) nelle app installate sulla schermata
+     Home a volte non compare: si preme Salva e sembra che non funzioni nulla. */
+  var nomeLineaCb = null;
+
+  function chiediNomeLinea(titolo, aiuto, riepilogo, proposta, cb){
+    nomeLineaCb = cb;
+    document.getElementById("m-nl-tit").textContent = titolo;
+    document.getElementById("m-nl-hint").textContent = aiuto;
+    document.getElementById("m-nl-riepilogo").textContent = riepilogo || "";
+    document.getElementById("m-nl-testo").value = proposta || "";
+    document.getElementById("m-nomelinea").classList.add("show");
+    setTimeout(function(){ try{ document.getElementById("m-nl-testo").focus(); }catch(e){} }, 150);
+  }
+  function chiudiNomeLinea(){
+    document.getElementById("m-nomelinea").classList.remove("show");
+    nomeLineaCb = null;
+  }
+  function confermaNomeLinea(){
+    var v = document.getElementById("m-nl-testo").value.trim();
+    if(!v){ toast("Scrivi un nome"); return; }
+    var cb = nomeLineaCb;
+    document.getElementById("m-nomelinea").classList.remove("show");
+    nomeLineaCb = null;
+    if(cb) cb(v);
+  }
+
+  function salvaDisegnoTraccia(){
     if(!disegnoTraccia || disegnoTraccia.punti.length < 2){ toast("Servono almeno due punti"); return; }
-    var nome = prompt("Nome della linea\n(es. Giro completo, Lato est)");
-    if(!nome) return;
-    nome = nome.trim();
-    if(!nome) return;
+    var p = disegnoTraccia.punti;
+    var km = (distanzaTotale(p)/1000).toFixed(2);
+    chiediNomeLinea("Nome della linea",
+      "Come la chiami? Serve al tracciatore per riconoscerla.",
+      p.length + " punti \u00b7 " + km + " km" + (disegnoTraccia.chiuso ? " \u00b7 giro chiuso" : ""),
+      disegnoTraccia.chiuso ? "Giro completo" : "",
+      scriviDisegnoTraccia);
+  }
+
+  async function scriviDisegnoTraccia(nome){
+    if(!disegnoTraccia){ toast("Il disegno non c'\u00e8 pi\u00f9"); return; }
     if(!navigator.onLine){ toast("Serve la rete per salvare la linea"); return; }
     var areaId = disegnoTraccia.areaId;
     var punti = disegnoTraccia.punti.slice();
@@ -5200,7 +5274,17 @@
       traccaAperta = areaId;
       document.getElementById("m-tracce").classList.add("show");
       renderTracce();
-    }catch(e){ toast("Non sono riuscito a salvare"); }
+    }catch(e){ avvisaErroreLinea(e); }
+  }
+
+  /* dire COSA e' andato storto: "non sono riuscito" fa cercare nel posto sbagliato */
+  function avvisaErroreLinea(e){
+    var m = (e && (e.message || e.hint || e.details)) ? String(e.message || e.hint || e.details) : "";
+    if(m.indexOf("hn_tracce") >= 0 || m.indexOf("does not exist") >= 0 || m.indexOf("schema cache") >= 0){
+      alert("Manca la tabella hn_tracce sul database.\n\nLancia l'SQL della versione 1.44 nell'editor di Supabase, poi riprova: il disegno resta dov'\u00e8.");
+      return;
+    }
+    alert("Non sono riuscito a salvare la linea.\n\nIl database ha risposto:\n" + (m || "errore sconosciuto"));
   }
 
   /* --- registrazione camminando: riusa il percorso, cambia solo dove finisce --- */
@@ -5208,12 +5292,15 @@
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var a = aree.find(function(x){ return x.id === traccaAperta; });
     if(!a) return;
-    var nome = prompt("Nome della linea che stai per camminare\n(es. Giro completo)");
-    if(!nome || !nome.trim()) return;
-    registroTraccia = nome.trim();
-    document.getElementById("m-tracce").classList.remove("show");
-    entraMappatura(a.id, false);
-    toast("Cammina: alla fine premi Fine e la salvo come linea");
+    chiediNomeLinea("Nome della linea",
+      "La registro mentre cammini. Alla fine premi Fine e la salvo con questo nome.",
+      "Mappa: " + a.nome, "Giro completo",
+      function(nome){
+        registroTraccia = nome;
+        document.getElementById("m-tracce").classList.remove("show");
+        entraMappatura(a.id, false);
+        toast("Cammina: alla fine premi Fine e la salvo come linea");
+      });
   }
 
   async function salvaTracciaCamminata(dati, areaId){
@@ -5228,7 +5315,7 @@
       toast("Linea salvata: " + registroTraccia);
       return true;
     }catch(e){
-      toast("Serve la rete per salvare la linea");
+      avvisaErroreLinea(e);
       return false;
     }
   }
@@ -8220,6 +8307,11 @@
     document.getElementById("h-med").onclick=function(){ apriMedagliere(null); };
     document.getElementById("ma-tracce").onclick=apriTracce;
     document.getElementById("m-tracce-chiudi").onclick=function(){ document.getElementById("m-tracce").classList.remove("show"); };
+    document.getElementById("m-nl-annulla").onclick=chiudiNomeLinea;
+    document.getElementById("m-nl-ok").onclick=confermaNomeLinea;
+    document.getElementById("m-nl-testo").addEventListener("keydown", function(e){
+      if(e.key==="Enter"){ e.preventDefault(); confermaNomeLinea(); }
+    });
     document.getElementById("trbanner-ok").onclick=salvaDisegnoTraccia;
     document.getElementById("trbanner-annulla").onclick=annullaUltimoPunto;
     document.getElementById("trbanner-esci").onclick=function(){
