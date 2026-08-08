@@ -416,6 +416,38 @@
     background:var(--dark2); color:var(--cream); font-size:16px; line-height:1;}
   .cont .v{min-width:22px; text-align:center; font-size:15px; font-weight:700; color:var(--cream);}
 
+  /* ---------- IL MURO DELLE MEDAGLIE ---------- */
+  .muro{border-radius:14px; padding:16px 12px 20px; margin-bottom:14px;
+    background:
+      repeating-linear-gradient(180deg,
+        rgba(0,0,0,.16) 0px, rgba(0,0,0,.16) 1px,
+        rgba(255,255,255,.03) 2px, rgba(255,255,255,.03) 3px,
+        rgba(0,0,0,0) 4px, rgba(0,0,0,0) 46px,
+        rgba(0,0,0,.28) 47px, rgba(0,0,0,.28) 49px),
+      linear-gradient(160deg, #6b4a2f 0%, #573a24 55%, #46301e 100%);
+    box-shadow:inset 0 2px 14px rgba(0,0,0,.45);}
+  .muro .griglia{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 8px;}
+  .chiodo{text-align:center;}
+  .chiodo .gancio{width:5px; height:5px; border-radius:50%; background:#2b1d12;
+    margin:0 auto 4px; box-shadow:0 1px 0 rgba(255,255,255,.18);}
+  .chiodo .disco{width:62px; height:62px; margin:0 auto; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; position:relative;
+    background:rgba(0,0,0,.26); border:2px solid rgba(0,0,0,.35);}
+  .chiodo.vinta .disco{background:radial-gradient(circle at 35% 30%, #4a3320, #2e2015);
+    border-color:var(--gold); box-shadow:0 3px 8px rgba(0,0,0,.5);}
+  .chiodo .disco img{width:52px; height:52px; object-fit:contain;}
+  .chiodo .disco .em{font-size:25px; opacity:.95;}
+  .chiodo.manca .disco .em{opacity:.22; filter:grayscale(1);}
+  .chiodo.manca .disco img{opacity:.16; filter:grayscale(1);}
+  .chiodo .et{font-size:10px; margin-top:5px; line-height:1.25; color:#e6d6bd;}
+  .chiodo.manca .et{color:rgba(230,214,189,.42);}
+  .chiodo .q{position:absolute; top:-4px; right:-4px; background:var(--gold);
+    color:#2b1d12; font-size:10px; font-weight:700; border-radius:9px; padding:1px 5px;}
+  #h-medbadge{position:absolute; top:-3px; right:-4px; background:var(--gold);
+    color:#2b1d12; font-size:9px; font-weight:700; border-radius:8px; padding:0 4px;
+    line-height:14px; display:none;}
+  #h-medbadge.show{display:block;}
+
   /* ---------- RICERCA DI UN LUOGO ---------- */
   .cerca-ris{background:var(--dark2); border:1px solid var(--dark3); border-radius:10px;
     padding:10px 11px; margin-bottom:6px; cursor:pointer;}
@@ -676,10 +708,15 @@
 </svg>
 
   <header>
-    <div class="brand"><img src="icon-180.png" alt="" onerror="this.parentNode.textContent='🐗'"></div>
-    <div style="min-width:0">
-      <div class="t" id="h-squadra">Zannalunga</div>
-      <div class="s" id="h-utente">—</div>
+    <div id="h-med" style="display:flex; align-items:center; gap:9px; min-width:0; cursor:pointer">
+      <div class="brand" style="position:relative">
+        <img src="icon-180.png" alt="" onerror="this.parentNode.textContent='🐗'">
+        <span id="h-medbadge">0</span>
+      </div>
+      <div style="min-width:0">
+        <div class="t" id="h-squadra">Zannalunga</div>
+        <div class="s" id="h-utente">—</div>
+      </div>
     </div>
     <div class="ver" id="h-ver">v1</div>
     <div class="gps off" id="gpsdot"><span class="d"></span><span id="gpstxt">GPS</span></div>
@@ -833,6 +870,15 @@
       <div class="scroll" id="cassa-scroll"><div class="loading">Carico…</div></div>
     </section>
 
+    <!-- IL MURO DELLE MEDAGLIE -->
+    <section class="view" id="v-medagliere">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl" id="md-titolo">Medagliere</div>
+      </div>
+      <div class="scroll" id="medagliere-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
     <!-- CLASSIFICA -->
     <section class="view" id="v-classifica">
       <div class="backbar">
@@ -906,6 +952,11 @@
 
         <label class="lbl">Compiti <span class="opt">(puoi sceglierne più d'uno)</span></label>
         <div id="mb-compiti">
+          <button class="opz" data-compito="sergente">
+            <span class="box"></span>
+            <svg class="ci big" style="color:#C9A227"><use href="#ic-scudo"/></svg>
+            <span class="tx">Sergente (giudice di giornata)</span>
+          </button>
           <button class="opz" data-compito="postaiolo">
             <span class="box"></span>
             <svg class="ci big" style="color:#C0392B"><use href="#ic-bandiera"/></svg>
@@ -1596,7 +1647,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.40";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.41";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1832,6 +1883,7 @@
     await caricaMembriSilenzioso();   // servono per le battute
     await caricaRitrovi();
     caricaGiornataDiOggi();   // c'e' battuta oggi? devo chiedergli la presenza?
+    aggiornaBadgeMedaglie();  // il pallino d'oro sulla barra in alto
     // le battute servono alla cassa (quote di giornata)
     try{
       var rb=await sb.from("hn_battute").select("*").eq("squadra_id",me.squadra_id).order("data");
@@ -3535,7 +3587,8 @@
     canaio:         { nome:"Canaio",                   icona:"#ic-cane",     col:"#5DAE6A" },
     acc_canaio:     { nome:"Accompagnatore canaio",    icona:"#ic-cane",     col:"#3d7a48" },
     acc_battitore:  { nome:"Accompagnatore battitore", icona:"#ic-voce",     col:"#a86f22" },
-    tracciatore:    { nome:"Tracciatore",              icona:"#ic-orma",     col:"#7B5EA7" }
+    tracciatore:    { nome:"Tracciatore",              icona:"#ic-orma",     col:"#7B5EA7" },
+    sergente:       { nome:"Sergente (giudice)",       icona:"#ic-scudo",    col:"#C9A227" }
   };
 
   function puoGestireSquadra(){
@@ -5142,7 +5195,13 @@
     h += '<div style="flex:1; font-size:13px; color:var(--cream); font-weight:700">Totale</div>';
     h += '<div style="font-size:19px; font-weight:700; color:var(--gold)">'+numPulito(r.punti)+'</div></div>';
     h += '<div class="hint" style="margin-top:8px">Stagione '+clStagione+'. I punti si ricalcolano se cambi quanto vale ogni cosa.</div>';
+    h += '<button class="btn line" id="m-punti-muro" style="margin-top:10px">🎖️ Vedi il medagliere</button>';
     document.getElementById("m-punti-corpo").innerHTML = h;
+    var bm = document.getElementById("m-punti-muro");
+    if(bm) bm.onclick = function(){
+      document.getElementById("m-punti").classList.remove("show");
+      apriMedagliere(mid);
+    };
     document.getElementById("m-punti").classList.add("show");
   }
 
@@ -5192,8 +5251,143 @@
     }catch(e){ toast("Serve la rete per salvare"); }
   }
 
+  /* ===== IL MURO DELLE MEDAGLIE =====
+     Il medagliere personale: si apre toccando la barra in alto.
+     Un chiodo per ogni medaglia del catalogo: accesa quella vinta,
+     sagoma scura quella che manca ancora. */
+  var mdChi = null;        // di chi sto guardando il muro
+  var mdFatti = [];        // le sue medaglie, di tutte le stagioni
+
+  async function apriMedagliere(mid){
+    mdChi = mid || (me ? me.membro_id : null);
+    if(!mdChi) return;
+    showView("medagliere");
+    var root = document.getElementById("medagliere-scroll");
+    root.innerHTML = '<div class="loading">Carico…</div>';
+    document.getElementById("md-titolo").textContent =
+      (mdChi === me.membro_id) ? "Il mio medagliere" : ("Medagliere di " + nomeDi(mdChi));
+    try{
+      if(!membri.length) await caricaMembriSilenzioso();
+      if(!medaglie.length){
+        var rM = await sb.from("hn_medaglie").select("*").eq("squadra_id", me.squadra_id);
+        if(!rM.error) medaglie = rM.data || [];
+      }
+      if(!battute.length){
+        var rb = await sb.from("hn_battute").select("*").eq("squadra_id", me.squadra_id).order("data");
+        if(!rb.error) battute = rb.data || [];
+      }
+      var rF = await sb.from("hn_fatti").select("*")
+                 .eq("squadra_id", me.squadra_id).eq("membro_id", mdChi).eq("tipo", "medaglia");
+      mdFatti = (rF.error ? [] : (rF.data || []));
+      try{ localStorage.setItem("hunter_cache_med_"+mdChi, JSON.stringify(mdFatti)); }catch(e){}
+    }catch(e){
+      try{
+        var c = JSON.parse(localStorage.getItem("hunter_cache_med_"+mdChi));
+        if(c){ mdFatti = c; toast("Senza rete: uso i dati salvati"); }
+      }catch(e2){}
+    }
+    renderMedagliereMuro();
+  }
+
+  function renderMedagliereMuro(){
+    var root = document.getElementById("medagliere-scroll");
+    var attive = medaglie.filter(function(m){ return m.attiva !== false; });
+    var vinte = {};
+    mdFatti.forEach(function(f){
+      if(!vinte[f.medaglia_id]) vinte[f.medaglia_id] = [];
+      vinte[f.medaglia_id].push(f);
+    });
+    var quante = mdFatti.length;
+
+    var h = "";
+    h += '<div style="text-align:center; margin-bottom:12px">';
+    h += '<div style="font-size:15px; color:var(--cream); font-weight:600">'+esc(nomeDi(mdChi))+'</div>';
+    h += '<div style="font-size:12px; color:var(--muted)">'
+       + (quante ? quante+' medagli'+(quante===1?'a':'e')+' su '+attive.length : 'Nessuna medaglia. Il muro aspetta.')
+       + '</div></div>';
+
+    if(!attive.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna medaglia nel catalogo della squadra.</div>';
+      root.innerHTML = h; return;
+    }
+
+    h += '<div class="muro"><div class="griglia">';
+    attive.forEach(function(m){
+      var mie = vinte[m.id] || [];
+      var vinta = mie.length > 0;
+      h += '<div class="chiodo '+(vinta?'vinta':'manca')+'" data-mdinfo="'+m.id+'">';
+      h += '<div class="gancio"></div>';
+      h += '<div class="disco">';
+      if(m.immagine) h += '<img src="'+esc(m.immagine)+'" onerror="this.outerHTML=\'<span class=&quot;em&quot;>🎖️</span>\'">';
+      else h += '<span class="em">🎖️</span>';
+      if(mie.length > 1) h += '<span class="q">×'+mie.length+'</span>';
+      h += '</div>';
+      h += '<div class="et">'+esc(m.nome)+'</div>';
+      h += '</div>';
+    });
+    h += '</div></div>';
+
+    if(quante){
+      h += '<div class="sechead">Come le hai prese</div>';
+      mdFatti.slice().sort(function(a,b){ return (a.creato_il||"") < (b.creato_il||"") ? 1 : -1; })
+        .forEach(function(f){
+          var m = medaglie.find(function(x){ return x.id === f.medaglia_id; });
+          var b = battute.find(function(x){ return x.id === f.battuta_id; });
+          h += '<div class="medcard">';
+          if(m && m.immagine) h += '<img src="'+esc(m.immagine)+'" onerror="this.style.display=\'none\'">';
+          else h += '<div class="mi">🎖️</div>';
+          h += '<div style="flex:1; min-width:0">';
+          h += '<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(m?m.nome:"Medaglia")+'</div>';
+          h += '<div style="font-size:10px; color:var(--muted)">'
+             + (b ? fmtGiorno(daIso(b.data))+' · stagione '+stagioneDi(b.data) : '')+'</div>';
+          if(f.nota) h += '<div style="font-size:11px; color:var(--gold); margin-top:2px">'+esc(f.nota)+'</div>';
+          h += '</div></div>';
+        });
+    }else{
+      h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
+         + 'Le medaglie le assegnano il sergente e il capocaccia a fine giornata. '
+         + 'Le sagome scure sono quelle che puoi ancora prendere.</div>';
+    }
+
+    root.innerHTML = h;
+    root.querySelectorAll("[data-mdinfo]").forEach(function(el){
+      el.onclick = function(){
+        var m = medaglie.find(function(x){ return x.id === el.dataset.mdinfo; });
+        if(!m) return;
+        var mie = (vinte[m.id] || []).length;
+        toast(m.nome + (m.descrizione ? " — " + m.descrizione : "") + (mie ? " · presa "+mie+(mie===1?" volta":" volte") : " · non ancora presa"));
+      };
+    });
+  }
+
+  async function aggiornaBadgeMedaglie(){
+    var el = document.getElementById("h-medbadge");
+    if(!el || !me || !me.membro_id) return;
+    var n = 0;
+    try{
+      var r = await sb.from("hn_fatti").select("id")
+                .eq("squadra_id", me.squadra_id).eq("membro_id", me.membro_id).eq("tipo", "medaglia");
+      if(!r.error && r.data) n = r.data.length;
+    }catch(e){ return; }
+    el.textContent = n;
+    el.classList.toggle("show", n > 0);
+  }
+
   /* ===== SERGENTE MARIO ===== */
-  function puoGiudicare(){ return puoGestireBattute(); }
+  /* Il GIUDICE e' una persona precisa: chi ha il compito "sergente".
+     L'admin c'e' sempre dentro, altrimenti se il sergente lascia la squadra
+     nessuno potrebbe piu' assegnare niente. */
+  function puoGiudicare(){
+    if(!me) return false;
+    if(me.is_admin === true) return true;
+    var m = membri.find(function(x){ return x.id === me.membro_id; });
+    return !!(m && (m.compiti || []).indexOf("sergente") >= 0);
+  }
+  /* Le medaglie le danno il giudice E il capocaccia. */
+  function puoDareMedaglie(){
+    if(puoGiudicare()) return true;
+    return !!(me && me.ruolo === "capocaccia");
+  }
 
   async function caricaSergente(){
     var root = document.getElementById("sergente-scroll");
@@ -5229,12 +5423,18 @@
     h += '<div style="font-size:18px; font-weight:700; color:var(--gold); font-family:Georgia,serif">Sergente Mario</div>';
     h += '<div style="font-size:12px; color:var(--muted)">Giudice di giornata</div></div>';
 
-    if(!puoGiudicare()){
+    var giudice = puoGiudicare();
+    var medagliere = puoDareMedaglie();
+
+    // --- QUELLO CHE VEDONO TUTTI: la presentazione e i suoi verbali ---
+    if(!medagliere){
       h += '<div class="card" style="background:#4a3320; border:1px solid #6b4a28">';
       h += '<div style="font-size:13px; color:var(--cream); line-height:1.7">È lui che tiene il conto: a fine battuta assegna '
          + '<b style="color:var(--gold)">uccisioni</b>, <b style="color:var(--gold)">padelle</b> e le medaglie, '
          + 'e da lì nasce la classifica.</div></div>';
+      h += renderVerbaliPubblici();
       h += '<button class="btn line" id="sm-vaicl" style="margin-top:12px">🏆 Vai alla classifica</button>';
+      h += '<button class="btn line" id="sm-vaimed" style="margin-top:7px">🎖️ Il mio medagliere</button>';
       root.innerHTML = h; bindSergente(); return;
     }
 
@@ -5262,7 +5462,11 @@
       root.innerHTML = h; bindSergente(); return;
     }
 
-    h += '<div class="sechead">Uccisioni e padelle</div>';
+    h += '<div class="sechead">'+(giudice ? 'Uccisioni e padelle' : 'La giornata')+'</div>';
+    if(!giudice){
+      h += '<div class="card" style="font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:8px">'
+         + 'Uccisioni, padelle e verbale li tiene il sergente. Tu puoi assegnare le medaglie.</div>';
+    }
     presenti.forEach(function(a){
       var u = fattoDi(a.membro_id, "uccisione");
       var p = fattoDi(a.membro_id, "padella");
@@ -5272,16 +5476,22 @@
       h += '<div style="flex:1; min-width:0; font-size:14px; color:var(--cream); font-weight:600">'+esc(nomeDi(a.membro_id))+'</div>';
       h += '<button class="btn line" data-smmed="'+a.membro_id+'" style="width:auto; padding:6px 10px; font-size:12px">🎖️</button>';
       h += '</div>';
-      h += '<div style="display:flex; align-items:center; gap:12px; margin-top:9px">';
-      h += '<div style="flex:1; font-size:12px; color:#7be0a8">Uccisioni</div>';
-      h += '<div class="cont"><button data-smf="'+a.membro_id+'|uccisione|-1">−</button>';
-      h += '<div class="v">'+(u?u.quanti:0)+'</div>';
-      h += '<button data-smf="'+a.membro_id+'|uccisione|1">+</button></div></div>';
-      h += '<div style="display:flex; align-items:center; gap:12px; margin-top:7px">';
-      h += '<div style="flex:1; font-size:12px; color:#e0a87b">Padelle</div>';
-      h += '<div class="cont"><button data-smf="'+a.membro_id+'|padella|-1">−</button>';
-      h += '<div class="v">'+(p?p.quanti:0)+'</div>';
-      h += '<button data-smf="'+a.membro_id+'|padella|1">+</button></div></div>';
+      if(giudice){
+        h += '<div style="display:flex; align-items:center; gap:12px; margin-top:9px">';
+        h += '<div style="flex:1; font-size:12px; color:#7be0a8">Uccisioni</div>';
+        h += '<div class="cont"><button data-smf="'+a.membro_id+'|uccisione|-1">−</button>';
+        h += '<div class="v">'+(u?u.quanti:0)+'</div>';
+        h += '<button data-smf="'+a.membro_id+'|uccisione|1">+</button></div></div>';
+        h += '<div style="display:flex; align-items:center; gap:12px; margin-top:7px">';
+        h += '<div style="flex:1; font-size:12px; color:#e0a87b">Padelle</div>';
+        h += '<div class="cont"><button data-smf="'+a.membro_id+'|padella|-1">−</button>';
+        h += '<div class="v">'+(p?p.quanti:0)+'</div>';
+        h += '<button data-smf="'+a.membro_id+'|padella|1">+</button></div></div>';
+      }else{
+        h += '<div style="display:flex; gap:14px; margin-top:7px; font-size:11px; color:var(--muted)">';
+        h += '<div>Uccisioni: <b style="color:#7be0a8">'+(u?u.quanti:0)+'</b></div>';
+        h += '<div>Padelle: <b style="color:#e0a87b">'+(p?p.quanti:0)+'</b></div></div>';
+      }
       if(med.length){
         h += '<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px">';
         med.forEach(function(f){
@@ -5297,14 +5507,36 @@
     h += '<div class="sechead">Verbale</div>';
     if(b && b.verbale){
       h += '<div class="card" style="font-size:13px; color:var(--cream); line-height:1.6; white-space:pre-wrap">'+esc(b.verbale)+'</div>';
-      h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">✏️ Modifica il verbale</button>';
+      if(giudice) h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">✏️ Modifica il verbale</button>';
     }else{
       h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessun verbale per questa giornata.</div>';
-      h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">📜 Scrivi il verbale</button>';
+      if(giudice) h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">📜 Scrivi il verbale</button>';
     }
     h += '<button class="btn primary" id="sm-vaicl" style="margin-top:14px">🏆 Vai alla classifica</button>';
+    h += '<button class="btn line" id="sm-vaimed" style="margin-top:7px">🎖️ Il mio medagliere</button>';
     root.innerHTML = h;
     bindSergente();
+  }
+
+  /* i riassunti di giornata che Mario scrive: li leggono tutti */
+  function renderVerbaliPubblici(){
+    var conV = battute.filter(function(b){ return b.stato==="conclusa" && b.verbale; })
+                      .sort(function(a,b){ return a.data < b.data ? 1 : -1; });
+    var h = '<div class="sechead">I suoi resoconti</div>';
+    if(!conV.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
+         + 'Nessun resoconto ancora scritto. Qui compariranno i suoi appunti di giornata.</div>';
+      return h;
+    }
+    conV.slice(0, 30).forEach(function(b){
+      h += '<div class="card" style="margin-bottom:7px">';
+      h += '<div style="font-size:11px; color:var(--gold); margin-bottom:5px">'
+         + fmtGiorno(daIso(b.data))+'</div>';
+      h += '<div style="font-size:13px; color:var(--cream); line-height:1.6; white-space:pre-wrap">'
+         + esc(b.verbale)+'</div>';
+      h += '</div>';
+    });
+    return h;
   }
 
   function fattoDi(mid, tipo){
@@ -5332,10 +5564,12 @@
     if(v) v.onclick = apriVerbale;
     var c = root.querySelector("#sm-vaicl");
     if(c) c.onclick = function(){ clStagione = null; showView("classifica"); };
+    var vm = root.querySelector("#sm-vaimed");
+    if(vm) vm.onclick = function(){ apriMedagliere(null); };
   }
 
   async function cambiaFatto(mid, tipo, delta){
-    if(!puoGiudicare() || !smBattutaId) return;
+    if(!puoGiudicare() || !smBattutaId) return;   // uccisioni e padelle: solo il giudice
     var f = fattoDi(mid, tipo);
     var nuovo = (f ? Number(f.quanti || 0) : 0) + delta;
     if(nuovo < 0) return;
@@ -5362,7 +5596,7 @@
   }
 
   function apriMedaglia(mid){
-    if(!puoGiudicare()) return;
+    if(!puoDareMedaglie()) return;   // giudice e capocaccia
     document.getElementById("m-medaglia-nome").textContent = "Medaglia per " + nomeDi(mid);
     var attive = medaglie.filter(function(m){ return m.attiva !== false; });
     var h = "";
@@ -5390,7 +5624,7 @@
   }
 
   async function assegnaMedaglia(mid, medId){
-    if(!puoGiudicare() || !smBattutaId) return;
+    if(!puoDareMedaglie() || !smBattutaId) return;
     var gia = smFatti.find(function(f){
       return f.membro_id===mid && f.tipo==="medaglia" && f.medaglia_id===medId;
     });
@@ -5407,12 +5641,13 @@
       smFatti.push(r.data);
       document.getElementById("m-medaglia").classList.remove("show");
       renderSergente();
+      aggiornaBadgeMedaglie();
       toast("Medaglia assegnata");
     }catch(e){ toast("Serve la rete per salvare"); }
   }
 
   async function togliMedaglia(fattoId){
-    if(!puoGiudicare()) return;
+    if(!puoDareMedaglie()) return;
     if(!confirm("Togliere questa medaglia?")) return;
     try{
       var r = await sb.from("hn_fatti").delete().eq("id", fattoId).select().single();
@@ -7599,6 +7834,7 @@
     document.getElementById("m-del-annulla").onclick=function(){ document.getElementById("m-delega").classList.remove("show"); };
     document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
     document.getElementById("m-rt-mappa").onclick=function(){ iniziaPickRitrovo("battuta"); };
+    document.getElementById("h-med").onclick=function(){ apriMedagliere(null); };
     document.getElementById("m-punti-chiudi").onclick=function(){ document.getElementById("m-punti").classList.remove("show"); };
     document.getElementById("m-barema-annulla").onclick=function(){ document.getElementById("m-barema").classList.remove("show"); };
     document.getElementById("m-barema-salva").onclick=salvaBarema;
