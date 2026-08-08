@@ -477,6 +477,29 @@
   #trbanner button:disabled{opacity:.45;}
   #trbanner button.no{background:rgba(255,255,255,.22); color:#fff;}
 
+  #srbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
+    background:rgba(58,49,34,.96); border-radius:12px; padding:10px 12px;
+    display:none; align-items:center; gap:8px; backdrop-filter:blur(4px);}
+  #srbanner.show{display:flex;}
+  #srbanner .tx{flex:1; min-width:0;}
+  #srbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
+  #srbanner .tx .b{font-size:11px; color:#d9c9a8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #srbanner button{background:rgba(255,255,255,.92); border:none; color:#3a3122;
+    border-radius:8px; padding:8px 13px; font-size:13px; font-weight:600; flex-shrink:0;}
+
+  #tcbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
+    background:rgba(29,58,42,.96); border-radius:12px; padding:10px 12px;
+    display:none; align-items:center; gap:7px; backdrop-filter:blur(4px);}
+  #tcbanner.show{display:flex;}
+  #tcbanner .tx{flex:1; min-width:0;}
+  #tcbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
+  #tcbanner .tx .b{font-size:11px; color:#a8dcc0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #tcbanner button{border:none; border-radius:8px; padding:8px 10px;
+    font-size:13px; font-weight:600; flex-shrink:0; color:#fff;}
+  #tc-entrata{background:#1D9E75;}
+  #tc-uscita{background:#E24B4A;}
+  #tc-chiudi{background:rgba(255,255,255,.9); color:#123a29;}
+
   #rtbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
     background:rgba(46,107,79,.96); border-radius:12px; padding:10px 12px;
     display:none; align-items:center; gap:8px; backdrop-filter:blur(4px);}
@@ -1110,6 +1133,26 @@
         <button id="mapbanner-fine">Fine</button>
       </div>
 
+      <!-- barra SEGNO A MEMORIA DOVE HO VISTO -->
+      <div id="srbanner">
+        <div class="tx">
+          <div class="a">Dove hai visto passare?</div>
+          <div class="b" id="sr-sub">tocca sulla mappa il punto</div>
+        </div>
+        <button id="sr-fine">Fine</button>
+      </div>
+
+      <!-- barra TRACCIATA IN CORSO -->
+      <div id="tcbanner">
+        <div class="tx">
+          <div class="a" id="tc-nome">Tracciata in corso</div>
+          <div class="b" id="tc-sub">0,00 km · 0 segnalazioni</div>
+        </div>
+        <button id="tc-entrata" title="Ho visto entrare">↓</button>
+        <button id="tc-uscita" title="Ho visto uscire">↑</button>
+        <button id="tc-chiudi">Chiudi</button>
+      </div>
+
       <!-- barra DISEGNO DELLA LINEA DI TRACCIAMENTO -->
       <div id="trbanner">
         <div class="tx">
@@ -1625,6 +1668,47 @@
   </div>
 </div>
 
+<!-- MODALE: dichiaro una tracciata gia' fatta -->
+<div class="modal" id="m-dichiara">
+  <div class="sheet">
+    <h3 id="m-dic-tit">L'ho gi&agrave; fatta</h3>
+    <p class="hint">Nessun percorso registrato, ma il capocaccia sapr&agrave; che hai battuto questa zona. Scrivi com'&egrave; andata.</p>
+    <textarea id="m-dic-note" rows="4" placeholder="Partito alle 6, salito dal costone. Nessuna traccia fresca fino al fosso&hellip;"></textarea>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="m-dic-annulla">Annulla</button>
+      <button class="btn primary" id="m-dic-salva">Segna come fatta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: entrata o uscita (quando segno a memoria) -->
+<div class="modal" id="m-tiposegn">
+  <div class="sheet">
+    <h3>Cosa hai visto qui?</h3>
+    <p class="hint">Il punto lo hai gi&agrave; toccato sulla mappa.</p>
+    <div class="btnrow">
+      <button class="btn" id="m-ts-entrata" style="background:#1D9E75; color:#fff">&darr; Entrare</button>
+      <button class="btn" id="m-ts-uscita" style="background:#E24B4A; color:#fff">&uarr; Uscire</button>
+    </div>
+    <div class="btnrow" style="margin-top:10px">
+      <button class="btn line" id="m-ts-annulla">Annulla</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: quanti capi hai visto -->
+<div class="modal" id="m-capi">
+  <div class="sheet">
+    <h3 id="m-capi-tit">Quanti ne hai visti?</h3>
+    <p class="hint">Se non li hai contati salta pure: il punto vale lo stesso.</p>
+    <div id="m-capi-scelte" style="display:flex; flex-wrap:wrap; gap:7px"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-capi-annulla">Annulla</button>
+      <button class="btn primary" id="m-capi-salta">Non li ho contati</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: come si chiama la linea -->
 <div class="modal" id="m-nomelinea">
   <div class="sheet">
@@ -1710,7 +1794,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.46";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.48";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1946,6 +2030,7 @@
     await caricaMembriSilenzioso();   // servono per le battute
     await caricaRitrovi();
     caricaTracce();           // le linee dei tracciatori
+    setTimeout(recuperaTracciata, 1200);   // avevo una tracciata aperta?
     caricaGiornataDiOggi();   // c'e' battuta oggi? devo chiedergli la presenza?
     aggiornaBadgeMedaglie();  // il pallino d'oro sulla barra in alto
     // le battute servono alla cassa (quote di giornata)
@@ -2298,7 +2383,7 @@
     // REGOLA NUOVA: se sto registrando una traccia o ne sto seguendo una,
     // il GPS NON si spegne mai, nemmeno se esco dalla sezione mappa.
     // Prima bastava toccare "Bacheca" per bucare la traccia.
-    if(mappatura || percorsoAttivo || seguoPercorso) return;
+    if(mappatura || percorsoAttivo || seguoPercorso || tracciataAperta) return;
     gpsRichiesto = false;
     stopGPS();
   }
@@ -2324,6 +2409,7 @@
           mappaMaiCentrata=false;
         }
       }
+      aggiungiAllaTracciata(pos);   // registro il cammino della tracciata
       controllaRitrovoVicino();  // se sono al ritrovo mi segno presente da solo
       if(mode==="schema") drawSchema();
     }, function(err){
@@ -2386,10 +2472,12 @@
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(map);
     areeLayer=L.layerGroup().addTo(map);    // i poligoni delle aree (sotto)
     posteLayer=L.layerGroup().addTo(map);   // le poste (sopra)
+    segnLayer=L.layerGroup().addTo(map);    // le frecce di entrata e uscita
     // il tocco sulla mappa serve SOLO mentre si sceglie un punto di ritrovo:
     // fuori da quella modalita' non fa assolutamente nulla
     map.on("click", function(e){
       if(disegnoTraccia){ aggiungiPuntoTraccia(e.latlng.lat, e.latlng.lng); return; }
+      if(segnRemota){ toccatoPuntoRemoto(e.latlng.lat, e.latlng.lng); return; }
       if(!pickRitrovo) return;
       segnaPuntoRitrovo(e.latlng.lat, e.latlng.lng);
     });
@@ -2506,6 +2594,7 @@
       var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda)}).addTo(posteLayer);
       m.on("click", function(){ apriSchedaPosta(p); });
     });
+    disegnaSegnalazioni();
   }
   function updateUser(){
     if(!map||!pos) return;
@@ -3012,6 +3101,7 @@
     // se stavo scegliendo un ritrovo e me ne vado dalla mappa, la scelta decade
     if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
     if(typeof disegnoTraccia!=="undefined" && disegnoTraccia && v!=="mappa") chiudiDisegnoTraccia();
+    if(typeof segnRemota!=="undefined" && segnRemota && v!=="mappa") chiudiSegnRemota();
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
     // il GPS si accende solo dove serve
@@ -4164,6 +4254,8 @@
     giornataAperta = b || { data:dataIso, stato:"nuova", squadra_id:me.squadra_id };
     document.getElementById("gi-titolo").textContent=fmtGiorno(daIso(dataIso));
     showView("giornata");
+    await caricaTracciate();      // chi ha gia' fatto la sua tracciata
+    caricaSegnalazioni();
     await caricaAdesioni();
   }
 
@@ -4315,12 +4407,22 @@
             if(ar2.comune) h+='<div style="font-size:11px; color:#c9b3e0; margin-bottom:9px">'+esc(ar2.comune)+'</div>';
             if(lineeMie.length){
               h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
+              var giaFatte = tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
               lineeMie.forEach(function(t){
                 var kmt=(Number(t.distanza||0)/1000).toFixed(2);
-                h+='<button class="btn" data-gitr="'+t.id+'" style="background:#7B5EA7; color:#fff; width:100%; margin-bottom:6px; text-align:left; padding:12px 13px">';
-                h+='<div style="font-size:14px; font-weight:700">〰️ '+esc(t.nome)+'</div>';
-                h+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'+kmt+' km · tocca e ti porto sulla traccia</div>';
-                h+='</button>';
+                var fatta = giaFatte.find(function(x){ return x.traccia_id===t.id && x.chiusa_il; });
+                h+='<div style="margin-bottom:8px">';
+                h+='<button class="btn" data-gitr="'+t.id+'" style="background:'+(fatta?'#2d5a3f':'#7B5EA7')+'; color:#fff; width:100%; text-align:left; padding:12px 13px">';
+                h+='<div style="font-size:14px; font-weight:700">'+(fatta?'\u2713 ':'\u3030\ufe0f ')+esc(t.nome)+'</div>';
+                h+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'
+                 + (fatta ? ('gi\u00e0 fatta' + (fatta.dichiarata ? ' \u00b7 dichiarata'
+                             : ' \u00b7 ' + (Number(fatta.distanza||0)/1000).toFixed(2) + ' km'))
+                          : (kmt + ' km \u00b7 tocca per aprire la tracciata'))
+                 + '</div></button>';
+                if(!fatta && !tracciataAperta){
+                  h+='<button class="btn line" data-gidich="'+t.id+'" style="width:100%; margin-top:4px; font-size:11.5px; padding:8px">L\'ho gi\u00e0 fatta senza aprirla</button>';
+                }
+                h+='</div>';
               });
             }else if(ar2.percorso && ar2.percorso.punti && ar2.percorso.punti.length>4){
               var kmt2=(ar2.percorso.distanza/1000).toFixed(2);
@@ -4391,6 +4493,39 @@
       if(capo && !conclusa){
         h+='<button class="btn line" id="gi-presenze" style="margin-top:8px; margin-bottom:6px">✓ Segna chi c\'è</button>';
       }
+    }
+
+    // --- LE TRACCIATE DELLA GIORNATA (le vede il capo) ---
+    if(capo && tracciate.length){
+      h+='<div class="sechead">Tracciate</div>';
+      tracciate.forEach(function(tc){
+        var t = tracce.find(function(x){ return x.id===tc.traccia_id; });
+        var ar = aree.find(function(x){ return x.id===tc.area_id; });
+        var nseg = segnalazioni.filter(function(x){ return x.tracciata_id===tc.id; });
+        var ent = nseg.filter(function(x){ return x.tipo==="entrata"; }).length;
+        var usc = nseg.filter(function(x){ return x.tipo==="uscita"; }).length;
+        h+='<div class="card" style="margin-bottom:7px"><div style="display:flex; align-items:center; gap:8px">';
+        h+='<span style="font-size:15px">'+(tc.chiusa_il ? '\u2713' : '\u23f1')+'</span>';
+        h+='<div style="flex:1; min-width:0">';
+        h+='<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(nomeDi(tc.membro_id))+'</div>';
+        h+='<div style="font-size:10.5px; color:var(--muted)">'
+         + esc(t ? t.nome : (ar ? ar.nome : 'zona'))
+         + (tc.dichiarata ? ' \u00b7 dichiarata'
+                          : (tc.chiusa_il ? ' \u00b7 ' + (Number(tc.distanza||0)/1000).toFixed(2) + ' km'
+                                          : ' \u00b7 in corso'))
+         + '</div></div>';
+        if(ent||usc){
+          h+='<div style="text-align:right; flex-shrink:0">';
+          if(ent) h+='<div style="font-size:11px; color:#7be0a8">\u2193 '+ent+'</div>';
+          if(usc) h+='<div style="font-size:11px; color:#e08a8a">\u2191 '+usc+'</div>';
+          h+='</div>';
+        }
+        h+='</div>';
+        if(tc.note){
+          h+='<div style="margin-top:7px; padding-top:7px; border-top:1px solid var(--dark3); font-size:12px; color:var(--cream); line-height:1.5; white-space:pre-wrap">'+esc(tc.note)+'</div>';
+        }
+        h+='</div>';
+      });
     }
 
     // --- DELEGA DELLA CASSA (solo il cassiere) ---
@@ -4468,7 +4603,15 @@
     root.querySelectorAll("[data-gitr]").forEach(function(b){
       b.onclick=function(){
         var t=tracce.find(function(x){ return x.id===b.dataset.gitr; });
-        if(t) seguiTraccia(t);
+        if(!t) return;
+        if(tracciataAperta){ seguiTraccia(t); return; }   // gia' aperta: solo la guida
+        apriTracciata(t, t.area_id);
+      };
+    });
+    root.querySelectorAll("[data-gidich]").forEach(function(b){
+      b.onclick=function(){
+        var t=tracce.find(function(x){ return x.id===b.dataset.gidich; });
+        if(t) dichiaraTracciata(t, t.area_id);
       };
     });
     var rr=root.querySelector("#gi-ritrovo");
@@ -5353,6 +5496,355 @@
       aggiornaGuida();
     }, 250);
     toast("Segui: " + t.nome);
+  }
+
+  /* ===== LA TRACCIATA COME SESSIONE =====
+     Prima esisteva solo "segui la linea": la freccia si accendeva e basta.
+     Adesso la tracciata si APRE, registra il cammino e le segnalazioni,
+     e si CHIUDE lasciando un resoconto al capocaccia. Chi se la dimentica
+     puo' dichiararla dopo, senza percorso: il capo sapra' comunque che
+     quella zona e' stata battuta. */
+  var segnLayer = null;
+  var tracciataAperta = null;    // la sessione in corso
+  var tracciataPunti = [];       // il cammino registrato
+  var segnalazioni = [];         // le entrate e le uscite della giornata
+  var TC_KEY = "hunter_tracciata_corso";
+
+  function salvaTracciataCorso(){
+    try{
+      localStorage.setItem(TC_KEY, JSON.stringify(
+        {sessione:tracciataAperta, punti:tracciataPunti, quando:Date.now()}));
+    }catch(e){}
+  }
+  function pulisciTracciataCorso(){ try{ localStorage.removeItem(TC_KEY); }catch(e){} }
+
+  /* --- APERTURA --- */
+  async function apriTracciata(traccia, areaId){
+    if(tracciataAperta){ toast("Hai gia' una tracciata aperta"); return; }
+    if(!giornataAperta){ toast("Serve una giornata di battuta"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per aprire la tracciata"); return; }
+    try{
+      var r = await sb.from("hn_tracciate").insert({
+        squadra_id:me.squadra_id, battuta_id:giornataAperta.id, membro_id:me.membro_id,
+        area_id:areaId || (traccia ? traccia.area_id : null),
+        traccia_id:traccia ? traccia.id : null,
+        dichiarata:false
+      }).select().single();
+      if(r.error) throw r.error;
+      tracciataAperta = r.data;
+      tracciataPunti = pos ? [{lat:pos.lat, lng:pos.lng}] : [];
+      salvaTracciataCorso();
+      document.getElementById("tc-nome").textContent = traccia ? traccia.nome : "Tracciata in corso";
+      document.getElementById("tcbanner").classList.add("show");
+      aggiornaBarraTracciata();
+      if(traccia) seguiTraccia(traccia);
+      else { serveGPS("percorso"); tieniSchermoAcceso(); showView("mappa"); }
+      caricaSegnalazioni();
+      toast("Tracciata aperta: cammina");
+    }catch(e){ avvisaErroreTracciata(e); }
+  }
+
+  function avvisaErroreTracciata(e){
+    var m = (e && (e.message || e.hint || e.details)) ? String(e.message || e.hint || e.details) : "";
+    if(m.indexOf("hn_tracciate") >= 0 || m.indexOf("hn_segnalazioni") >= 0 ||
+       m.indexOf("does not exist") >= 0 || m.indexOf("schema cache") >= 0){
+      alert("Mancano le tabelle della tracciata sul database.\n\nLancia l'SQL della versione 1.47 nell'editor di Supabase, poi riprova.");
+      return;
+    }
+    alert("Non ha funzionato.\n\nIl database ha risposto:\n" + (m || "errore sconosciuto"));
+  }
+
+  /* il cammino si registra a ogni aggancio del GPS */
+  function aggiungiAllaTracciata(p){
+    if(!tracciataAperta || !p) return;
+    var u = tracciataPunti[tracciataPunti.length-1];
+    if(u && distM(u, p) < 8) return;      // fermo: non accumulo rumore
+    tracciataPunti.push({lat:p.lat, lng:p.lng});
+    salvaTracciataCorso();
+    aggiornaBarraTracciata();
+  }
+
+  function aggiornaBarraTracciata(){
+    var b = document.getElementById("tcbanner");
+    if(!b || !b.classList.contains("show")) return;
+    var km = tracciataPunti.length > 1 ? (distanzaTotale(tracciataPunti)/1000) : 0;
+    var n = segnalazioni.filter(function(x){
+      return tracciataAperta && x.tracciata_id === tracciataAperta.id;
+    }).length;
+    document.getElementById("tc-sub").textContent =
+      km.toFixed(2).replace(".", ",") + " km \u00b7 " +
+      (n ? (n + (n===1 ? " segnalazione" : " segnalazioni")) : "nessuna segnalazione");
+  }
+
+  /* --- SEGNALAZIONI --- */
+  var segnTipoInCorso = null;
+
+  function chiediSegnalazione(tipo){
+    if(!tracciataAperta){ toast("Apri prima la tracciata"); return; }
+    if(!pos){ toast("Aspetta il segnale GPS"); return; }
+    segnTipoInCorso = tipo;
+    document.getElementById("m-capi-tit").textContent =
+      (tipo === "entrata") ? "Visti ENTRARE: quanti?" : "Visti USCIRE: quanti?";
+    var h = "";
+    ["1","2","3","4","5","6+"].forEach(function(v){
+      h += '<button class="chip" data-capi="'+v+'" style="flex:1; min-width:60px; justify-content:center">'+v+'</button>';
+    });
+    document.getElementById("m-capi-scelte").innerHTML = h;
+    document.getElementById("m-capi-scelte").querySelectorAll("[data-capi]").forEach(function(bt){
+      bt.onclick = function(){
+        var v = bt.dataset.capi;
+        salvaSegnalazione(segnTipoInCorso, v === "6+" ? 6 : parseInt(v,10));
+      };
+    });
+    document.getElementById("m-capi").classList.add("show");
+  }
+
+  async function salvaSegnalazione(tipo, capi){
+    document.getElementById("m-capi").classList.remove("show");
+    if(!tracciataAperta || !pos) return;
+    if(!navigator.onLine){ toast("Serve la rete per segnalare"); return; }
+    try{
+      var r = await sb.from("hn_segnalazioni").insert({
+        squadra_id:me.squadra_id, tracciata_id:tracciataAperta.id,
+        battuta_id:giornataAperta ? giornataAperta.id : null,
+        membro_id:me.membro_id, tipo:tipo,
+        lat:pos.lat, lng:pos.lng,
+        capi:(capi || null)
+      }).select().single();
+      if(r.error) throw r.error;
+      segnalazioni.push(r.data);
+      aggiornaBarraTracciata();
+      disegnaSegnalazioni();
+      toast(tipo === "entrata" ? "Entrata segnata" : "Uscita segnata");
+    }catch(e){ avvisaErroreTracciata(e); }
+  }
+
+  async function caricaSegnalazioni(){
+    if(!giornataAperta) return;
+    try{
+      var r = await sb.from("hn_segnalazioni").select("*").eq("battuta_id", giornataAperta.id);
+      if(!r.error) segnalazioni = r.data || [];
+      disegnaSegnalazioni();
+    }catch(e){}
+  }
+
+  /* il centro della mappa serve a capire da che parte punta la freccia */
+  function centroArea(a){
+    var pts = [];
+    if(a && a.poste) a.poste.forEach(function(p){ pts.push(p); });
+    if(a && a.percorso && a.percorso.punti) a.percorso.punti.forEach(function(p){ pts.push(p); });
+    tracceDi(a ? a.id : null).forEach(function(t){
+      (t.punti||[]).forEach(function(p){ pts.push(p); });
+    });
+    if(!pts.length) return null;
+    var la=0, ln=0;
+    pts.forEach(function(p){ la+=Number(p.lat); ln+=Number(p.lng); });
+    return {lat:la/pts.length, lng:ln/pts.length};
+  }
+
+  function iconFreccia(gradi, colore){
+    return L.divIcon({className:"", iconSize:[30,30], iconAnchor:[15,15],
+      html:'<div style="width:30px;height:30px;display:flex;align-items:center;justify-content:center;'
+         + 'transform:rotate('+Math.round(gradi)+'deg);font-size:24px;line-height:1;color:'+colore+';'
+         + 'text-shadow:0 0 3px rgba(0,0,0,.9)">\u27a4</div>'});
+  }
+
+  function disegnaSegnalazioni(){
+    if(!segnLayer) return;
+    segnLayer.clearLayers();
+    if(!areaApertaInMappa) return;
+    var a = areaAttiva();
+    if(!a) return;
+    var centro = centroArea(a);
+    // le vede il capo; ognuno vede comunque le proprie
+    var visibili = segnalazioni.filter(function(x){
+      return puoGestireBattute() || x.membro_id === me.membro_id;
+    });
+    visibili.forEach(function(x){
+      var p = {lat:Number(x.lat), lng:Number(x.lng)};
+      var g = centro ? bearing(p, centro) : 0;
+      if(x.tipo === "uscita") g = (g + 180) % 360;
+      var col = (x.tipo === "entrata") ? "#1D9E75" : "#E24B4A";
+      L.circleMarker([p.lat,p.lng], {radius:5, color:col, fillColor:col, fillOpacity:1, weight:2})
+        .addTo(segnLayer);
+      var m = L.marker([p.lat,p.lng], {icon:iconFreccia(g - 90, col)}).addTo(segnLayer);
+      m.on("click", function(){
+        var chi = nomeDi(x.membro_id);
+        toast((x.tipo === "entrata" ? "Entrata" : "Uscita") +
+              (x.capi ? " \u00b7 " + x.capi + (x.capi>=6 ? "+ capi" : " cap" + (x.capi===1?"o":"i")) : "") +
+              " \u00b7 " + chi + (x.da_remoto ? " \u00b7 segnata a memoria" : ""));
+      });
+    });
+  }
+
+  /* --- CHIUSURA --- */
+  async function chiudiTracciata(){
+    if(!tracciataAperta) return;
+    var km = tracciataPunti.length > 1 ? distanzaTotale(tracciataPunti) : 0;
+    var n = segnalazioni.filter(function(x){ return x.tracciata_id === tracciataAperta.id; }).length;
+    if(!confirm("Chiudere la tracciata?\n\n" + (km/1000).toFixed(2) + " km \u00b7 " +
+                n + (n===1 ? " segnalazione" : " segnalazioni"))) return;
+    try{
+      var r = await sb.from("hn_tracciate").update({
+        chiusa_il:new Date().toISOString(),
+        percorso:{punti:tracciataPunti},
+        distanza:Math.round(km)
+      }).eq("id", tracciataAperta.id).select().single();
+      if(r.error) throw r.error;
+      tracciataAperta = null;
+      tracciataPunti = [];
+      pulisciTracciataCorso();
+      document.getElementById("tcbanner").classList.remove("show");
+      smettiDiSeguire();
+      showView("giornata");
+      renderGiornata();
+      toast("Tracciata chiusa e salvata");
+    }catch(e){ avvisaErroreTracciata(e); }
+  }
+
+  /* --- DICHIARAZIONE A POSTERIORI, COL RESOCONTO ---
+     Il caso vero: scendo dalla macchina, faccio la tracciata e mi accorgo di
+     aver lasciato il telefono. Al ritorno non basta la spunta "fatta": devo
+     poter dire cosa ho visto, e segnarlo sulla mappa col dito. */
+  var dicContesto = null;   // {traccia, areaId}
+
+  function dichiaraTracciata(traccia, areaId){
+    if(!giornataAperta) return;
+    dicContesto = {traccia:traccia || null, areaId:areaId || (traccia ? traccia.area_id : null)};
+    document.getElementById("m-dic-tit").textContent =
+      traccia ? ("L'ho gi\u00e0 fatta: " + traccia.nome) : "L'ho gi\u00e0 fatta";
+    document.getElementById("m-dic-note").value = "";
+    document.getElementById("m-dichiara").classList.add("show");
+  }
+
+  async function salvaDichiarazione(){
+    if(!dicContesto || !giornataAperta) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var note = document.getElementById("m-dic-note").value.trim();
+    var c = dicContesto;
+    try{
+      var r = await sb.from("hn_tracciate").insert({
+        squadra_id:me.squadra_id, battuta_id:giornataAperta.id, membro_id:me.membro_id,
+        area_id:c.areaId, traccia_id:c.traccia ? c.traccia.id : null,
+        dichiarata:true, chiusa_il:new Date().toISOString(),
+        note:(note || null)
+      }).select().single();
+      if(r.error) throw r.error;
+      tracciate.push(r.data);
+      document.getElementById("m-dichiara").classList.remove("show");
+      dicContesto = null;
+      renderGiornata();
+      // subito dopo gli offro di segnare sulla mappa cosa ha visto
+      if(confirm("Segnata come fatta.\n\nVuoi segnare sulla mappa dove hai visto entrare o uscire?")){
+        iniziaSegnRemota(r.data, c.areaId);
+      }else{
+        toast("Segnata come fatta");
+      }
+    }catch(e){ avvisaErroreTracciata(e); }
+  }
+
+  /* --- SEGNARE A MEMORIA, TOCCANDO LA MAPPA --- */
+  var segnRemota = null;    // {tracciataId, areaId, punto}
+
+  function iniziaSegnRemota(tracciata, areaId){
+    if(!tracciata) return;
+    segnRemota = {tracciataId:tracciata.id, areaId:areaId, punto:null};
+    areaAttivaId = areaId || tracciata.area_id;
+    areaApertaInMappa = true;
+    aggiornaPills();
+    document.getElementById("sr-sub").textContent = "tocca sulla mappa il punto";
+    document.getElementById("srbanner").classList.add("show");
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      renderAreePoligoni();
+      renderPoste();
+      fitArea();
+    }, 250);
+    toast("Tocca dove hai visto passare");
+  }
+
+  function chiudiSegnRemota(){
+    segnRemota = null;
+    var b = document.getElementById("srbanner");
+    if(b) b.classList.remove("show");
+  }
+
+  function toccatoPuntoRemoto(lat, lng){
+    if(!segnRemota) return;
+    segnRemota.punto = {lat:lat, lng:lng};
+    document.getElementById("m-tiposegn").classList.add("show");
+  }
+
+  function scegliTipoRemoto(tipo){
+    document.getElementById("m-tiposegn").classList.remove("show");
+    if(!segnRemota || !segnRemota.punto) return;
+    segnTipoInCorso = tipo;
+    document.getElementById("m-capi-tit").textContent =
+      (tipo === "entrata") ? "Visti ENTRARE: quanti?" : "Visti USCIRE: quanti?";
+    var h = "";
+    ["1","2","3","4","5","6+"].forEach(function(v){
+      h += '<button class="chip" data-capi="'+v+'" style="flex:1; min-width:60px; justify-content:center">'+v+'</button>';
+    });
+    document.getElementById("m-capi-scelte").innerHTML = h;
+    document.getElementById("m-capi-scelte").querySelectorAll("[data-capi]").forEach(function(bt){
+      bt.onclick = function(){
+        var v = bt.dataset.capi;
+        salvaSegnRemota(segnTipoInCorso, v === "6+" ? 6 : parseInt(v,10));
+      };
+    });
+    document.getElementById("m-capi").classList.add("show");
+  }
+
+  async function salvaSegnRemota(tipo, capi){
+    document.getElementById("m-capi").classList.remove("show");
+    if(!segnRemota || !segnRemota.punto) return;
+    if(!navigator.onLine){ toast("Serve la rete per segnare"); return; }
+    var p = segnRemota.punto;
+    try{
+      var r = await sb.from("hn_segnalazioni").insert({
+        squadra_id:me.squadra_id, tracciata_id:segnRemota.tracciataId,
+        battuta_id:giornataAperta ? giornataAperta.id : null,
+        membro_id:me.membro_id, tipo:tipo,
+        lat:p.lat, lng:p.lng, capi:(capi || null),
+        da_remoto:true
+      }).select().single();
+      if(r.error) throw r.error;
+      segnalazioni.push(r.data);
+      segnRemota.punto = null;
+      var n = segnalazioni.filter(function(x){ return x.tracciata_id === segnRemota.tracciataId; }).length;
+      document.getElementById("sr-sub").textContent =
+        n + (n===1 ? " segnalazione" : " segnalazioni") + " \u00b7 tocca ancora o premi Fine";
+      disegnaSegnalazioni();
+      toast(tipo === "entrata" ? "Entrata segnata" : "Uscita segnata");
+    }catch(e){ avvisaErroreTracciata(e); }
+  }
+
+  var tracciate = [];   // le tracciate della giornata aperta
+
+  async function caricaTracciate(){
+    if(!giornataAperta) return;
+    try{
+      var r = await sb.from("hn_tracciate").select("*").eq("battuta_id", giornataAperta.id);
+      if(!r.error) tracciate = r.data || [];
+    }catch(e){ tracciate = []; }
+  }
+
+  /* se l'app si e' chiusa con una tracciata aperta, la riprendo */
+  function recuperaTracciata(){
+    if(tracciataAperta) return;
+    try{
+      var d = JSON.parse(localStorage.getItem(TC_KEY));
+      if(!d || !d.sessione) return;
+      if(Date.now() - (d.quando||0) > 14*3600*1000){ pulisciTracciataCorso(); return; }
+      tracciataAperta = d.sessione;
+      tracciataPunti = d.punti || [];
+      document.getElementById("tc-nome").textContent = "Tracciata ripresa";
+      document.getElementById("tcbanner").classList.add("show");
+      aggiornaBarraTracciata();
+      serveGPS("percorso");
+      toast("Avevi una tracciata aperta: l'ho ripresa");
+    }catch(e){}
   }
 
   /* ===== CLASSIFICA E SERGENTE MARIO =====
@@ -8222,7 +8714,7 @@
 
   async function controllaVersione(){
     // MAI mentre si lavora sul campo: un ricaricamento a met\u00e0 mappatura non serve a nessuno
-    if(mappatura || percorsoAttivo || seguoPercorso) return;
+    if(mappatura || percorsoAttivo || seguoPercorso || tracciataAperta) return;
     if(!navigator.onLine) return;
     if(Date.now() < aggRimandatoFino) return;
     var b=document.getElementById("aggbanner");
@@ -8307,6 +8799,29 @@
     document.getElementById("h-med").onclick=function(){ apriMedagliere(null); };
     document.getElementById("ma-tracce").onclick=apriTracce;
     document.getElementById("m-tracce-chiudi").onclick=function(){ document.getElementById("m-tracce").classList.remove("show"); };
+    document.getElementById("m-dic-annulla").onclick=function(){
+      document.getElementById("m-dichiara").classList.remove("show"); dicContesto=null;
+    };
+    document.getElementById("m-dic-salva").onclick=salvaDichiarazione;
+    document.getElementById("m-ts-entrata").onclick=function(){ scegliTipoRemoto("entrata"); };
+    document.getElementById("m-ts-uscita").onclick=function(){ scegliTipoRemoto("uscita"); };
+    document.getElementById("m-ts-annulla").onclick=function(){
+      document.getElementById("m-tiposegn").classList.remove("show");
+      if(segnRemota) segnRemota.punto=null;
+    };
+    document.getElementById("sr-fine").onclick=function(){
+      chiudiSegnRemota(); showView("giornata"); renderGiornata(); toast("Resoconto salvato");
+    };
+    document.getElementById("tc-entrata").onclick=function(){ chiediSegnalazione("entrata"); };
+    document.getElementById("tc-uscita").onclick=function(){ chiediSegnalazione("uscita"); };
+    document.getElementById("tc-chiudi").onclick=chiudiTracciata;
+    document.getElementById("m-capi-annulla").onclick=function(){ document.getElementById("m-capi").classList.remove("show"); };
+    // "non li ho contati" deve seguire la stessa strada del numero:
+    // col GPS se sto camminando, a memoria se sto segnando sulla mappa
+    document.getElementById("m-capi-salta").onclick=function(){
+      if(segnRemota && segnRemota.punto) salvaSegnRemota(segnTipoInCorso, null);
+      else salvaSegnalazione(segnTipoInCorso, null);
+    };
     document.getElementById("m-nl-annulla").onclick=chiudiNomeLinea;
     document.getElementById("m-nl-ok").onclick=confermaNomeLinea;
     document.getElementById("m-nl-testo").addEventListener("keydown", function(e){
