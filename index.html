@@ -1518,6 +1518,31 @@
   </div>
 </div>
 
+<!-- MODALE: sei alla battuta? -->
+<div class="modal" id="m-presenza">
+  <div class="sheet">
+    <h3>Sei alla battuta?</h3>
+    <p class="hint">Oggi c'&egrave; la battuta e avevi dato l'adesione. Conferma che sei sul posto: serve per le quote e per la classifica.</p>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="pres-no">Non ancora</button>
+      <button class="btn primary" id="pres-si">S&igrave;, sono qui</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: il capo segna chi non c'era -->
+<div class="modal" id="m-presenze">
+  <div class="sheet">
+    <h3>Chi c'&egrave; sul posto</h3>
+    <p class="hint">Sono gi&agrave; segnati presenti tutti quelli che avevano dato l'adesione. Tocca chi non si &egrave; presentato per toglierlo.</p>
+    <div id="m-pres-lista" style="max-height:50vh; overflow-y:auto"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-pres-annulla">Annulla</button>
+      <button class="btn primary" id="m-pres-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -1527,7 +1552,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.38";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.39";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1762,6 +1787,7 @@
     await caricaAree();
     await caricaMembriSilenzioso();   // servono per le battute
     await caricaRitrovi();
+    caricaGiornataDiOggi();   // c'e' battuta oggi? devo chiedergli la presenza?
     // le battute servono alla cassa (quote di giornata)
     try{
       var rb=await sb.from("hn_battute").select("*").eq("squadra_id",me.squadra_id).order("data");
@@ -2138,6 +2164,7 @@
           mappaMaiCentrata=false;
         }
       }
+      controllaRitrovoVicino();  // se sono al ritrovo mi segno presente da solo
       if(mode==="schema") drawSchema();
     }, function(err){
       setGps("off", err.code===1?"permesso negato":"GPS assente");
@@ -4011,14 +4038,21 @@
     var osp=adesioni.reduce(function(s,a){return s+(a.viene?(a.ospiti||0):0);},0);
     var noRisp=Math.max(0, membri.filter(function(m){return m.tipo!=="ospite";}).length - adesioni.length);
 
-    var statoTxt = b.stato==="aperta" ? "● adesioni aperte" : "● adesioni chiuse";
-    var statoCol = b.stato==="aperta" ? "#7be0a8" : "var(--muted)";
+    var nPres = adesioni.filter(function(a){return a.presente;}).length;
+    var conclusa = b.stato==="conclusa";
+    var statoTxt = conclusa ? "● giornata conclusa"
+                 : (b.stato==="aperta" ? "● adesioni aperte" : "● adesioni chiuse");
+    var statoCol = conclusa ? "var(--gold)" : (b.stato==="aperta" ? "#7be0a8" : "var(--muted)");
     h+='<div style="font-size:12px; color:'+statoCol+'; margin-bottom:12px">'+statoTxt+'</div>';
 
     h+='<div class="conta">';
     h+='<div class="box" style="background:#1d3a2a"><div class="n" style="color:#7be0a8">'+si+'</div><div class="t" style="color:#7bd3b0">hanno detto sì</div></div>';
     h+='<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--gold)">'+tr+'</div><div class="t" style="color:var(--muted)">tracciatori</div></div>';
-    h+='<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--muted)">'+noRisp+'</div><div class="t" style="color:var(--muted)">non risposto</div></div>';
+    if(nPres || conclusa){
+      h+='<div class="box" style="background:#4a3320"><div class="n" style="color:var(--gold)">'+nPres+'</div><div class="t" style="color:var(--gold)">presenti</div></div>';
+    }else{
+      h+='<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--muted)">'+noRisp+'</div><div class="t" style="color:var(--muted)">non risposto</div></div>';
+    }
     h+='</div>';
     if(osp) h+='<div style="font-size:12px; color:#9fc8ed; margin-bottom:12px">+ '+osp+' ospit'+(osp===1?'e':'i')+'</div>';
 
@@ -4130,6 +4164,34 @@
       h+='<div class="nm">'+esc(m?m.nome:"—")+' — non viene</div></div>';
     });
 
+    // --- CHI C'E' DAVVERO ---
+    var presenti = adesioni.filter(function(a){ return a.presente; });
+    var assenti  = adesioni.filter(function(a){ return a.viene && a.presente_da==="assente"; });
+    if(presenti.length || assenti.length || conclusa || capo){
+      h+='<div class="sechead">Presenti sul posto</div>';
+      if(!presenti.length){
+        h+='<div class="card" style="font-size:12px; color:var(--muted); line-height:1.5">'+
+           (conclusa ? 'Nessuno risulta presente.'
+                     : 'Ancora nessuno. Si segnano da soli arrivando al ritrovo, oppure li segni tu.')+'</div>';
+      }
+      presenti.forEach(function(a){
+        var m=membri.find(function(x){return x.id===a.membro_id;});
+        h+='<div class="aderente">';
+        h+='<div class="pallino" style="background:var(--gold)"></div>';
+        h+='<div class="nm">'+esc(m?m.nome:"—")+'</div>';
+        h+='<span style="font-size:9px; color:var(--muted)">'+etichettaOrigine(a.presente_da)+'</span>';
+        h+='</div>';
+      });
+      assenti.forEach(function(a){
+        var m=membri.find(function(x){return x.id===a.membro_id;});
+        h+='<div class="aderente no"><div class="pallino" style="background:#6a3030"></div>';
+        h+='<div class="nm">'+esc(m?m.nome:"—")+' — non si è presentato</div></div>';
+      });
+      if(capo && !conclusa){
+        h+='<button class="btn line" id="gi-presenze" style="margin-top:8px; margin-bottom:6px">✓ Segna chi c\'è</button>';
+      }
+    }
+
     // --- DELEGA DELLA CASSA (solo il cassiere) ---
     if(isCassiere() && b.id){
       var del = b.delegato_id ? membri.find(function(x){return x.id===b.delegato_id;}) : null;
@@ -4162,6 +4224,12 @@
       h+='<button class="btn line" id="gi-chiudi">Chiudi le adesioni</button>';
       h+='</div>';
     }
+    // la giornata si conclude quando e' passata: da li' i presenti sono definitivi
+    if(capo && !conclusa && b.id && daIso(b.data) <= new Date()){
+      h+='<button class="btn primary" id="gi-concludi" style="margin-top:10px">🏁 Concludi la giornata</button>';
+      h+='<div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5">'+
+         'Chi ha dato l\'adesione e non hai tolto risulter&agrave; presente. Da quel momento le quote e la classifica contano queste presenze.</div>';
+    }
 
     root.innerHTML=h;
     bindGiornata();
@@ -4189,6 +4257,10 @@
     if(d) d.onclick=dividiTracciatori;
     var c=root.querySelector("#gi-chiudi");
     if(c) c.onclick=chiudiAdesioni;
+    var gp=root.querySelector("#gi-presenze");
+    if(gp) gp.onclick=apriPresenze;
+    var gc=root.querySelector("#gi-concludi");
+    if(gc) gc.onclick=concludiGiornata;
     var rr=root.querySelector("#gi-ritrovo");
     if(rr) rr.onclick=scegliRitrovo;
     var gd=root.querySelector("#gi-delega");
@@ -4755,6 +4827,203 @@
     }
   }
 
+  /* ===== PRESENZA REALE ALLA BATTUTA =====
+     Sono due cose diverse e non vanno confuse:
+       ADESIONE  = la prenotazione data in anticipo (campo `viene`)
+       PRESENZA  = chi c'era davvero sul posto (campo `presente`)
+     La presenza nasce in tre modi, tutti sullo stesso campo:
+       - da solo, col telefono, arrivando vicino al ritrovo (automatica)
+       - da solo, rispondendo al popup all'apertura dell'app
+       - dal capocaccia, che toglie chi non si e' presentato
+     Quando il capo CONCLUDE la giornata, chi era prenotato e non e' stato
+     tolto diventa presente: sono quelli che contano per quote e classifica. */
+
+  var RAGGIO_RITROVO = 300;     // metri dal ritrovo entro cui la presenza scatta da sola
+  var battutaOggi = null;       // la battuta di oggi, se c'e'
+  var miaAdesioneOggi = null;   // la mia riga di adesione per oggi
+  var presenzaGiaChiesta = false;
+  var ultimoCheckRitrovo = 0;
+
+  async function caricaGiornataDiOggi(){
+    battutaOggi = null; miaAdesioneOggi = null;
+    if(!me || !me.squadra_id || !me.membro_id) return;
+    if(!navigator.onLine) return;
+    try{
+      var r = await sb.from("hn_battute").select("*")
+                .eq("squadra_id", me.squadra_id).eq("data", iso(new Date())).limit(1);
+      if(r.error || !r.data || !r.data.length) return;
+      var b = r.data[0];
+      if(b.stato === "conclusa") return;      // gia' chiusa: non chiedo piu' niente
+      battutaOggi = b;
+      var r2 = await sb.from("hn_adesioni").select("*")
+                 .eq("battuta_id", b.id).eq("membro_id", me.membro_id).limit(1);
+      if(!r2.error && r2.data && r2.data.length) miaAdesioneOggi = r2.data[0];
+      chiediPresenzaSeServe();
+    }catch(e){}
+  }
+
+  function chiediPresenzaSeServe(){
+    if(presenzaGiaChiesta) return;
+    if(!battutaOggi || !miaAdesioneOggi) return;
+    if(!miaAdesioneOggi.viene) return;        // non aveva prenotato: non lo assillo
+    if(miaAdesioneOggi.presente) return;      // gia' segnato
+    presenzaGiaChiesta = true;
+    document.getElementById("m-presenza").classList.add("show");
+  }
+  function chiudiModalePresenza(){
+    document.getElementById("m-presenza").classList.remove("show");
+  }
+
+  async function segnaPresenza(da){
+    if(!battutaOggi) return false;
+    var ora = new Date().toISOString();
+    try{
+      var res;
+      if(miaAdesioneOggi){
+        res = await sb.from("hn_adesioni")
+                .update({presente:true, presente_da:da, presente_il:ora})
+                .eq("id", miaAdesioneOggi.id).select().single();
+      }else{
+        // arrivato senza aver prenotato: la riga si crea ora
+        res = await sb.from("hn_adesioni").insert({
+                battuta_id:battutaOggi.id, membro_id:me.membro_id,
+                viene:false, presente:true, presente_da:da, presente_il:ora
+              }).select().single();
+      }
+      if(res.error) throw res.error;
+      miaAdesioneOggi = res.data;
+      var i = adesioni.findIndex(function(x){ return x.id===res.data.id; });
+      if(i>=0) adesioni[i]=res.data; else adesioni.push(res.data);
+      return true;
+    }catch(e){ return false; }
+  }
+
+  // chiamata a ogni aggancio del GPS: se sono al ritrovo mi segno da solo
+  function controllaRitrovoVicino(){
+    if(!pos || !battutaOggi || !battutaOggi.ritrovo_id) return;
+    if(miaAdesioneOggi && miaAdesioneOggi.presente) return;
+    var ora = Date.now();
+    if(ora - ultimoCheckRitrovo < 20000) return;   // ogni 20 secondi e' piu' che abbastanza
+    ultimoCheckRitrovo = ora;
+    var r = ritrovoDi(battutaOggi.ritrovo_id);
+    if(!r) return;
+    if(distM(pos, {lat:r.lat, lng:r.lng}) > RAGGIO_RITROVO) return;
+    segnaPresenza("ritrovo").then(function(ok){
+      if(!ok) return;
+      chiudiModalePresenza();
+      toast("Sei al ritrovo: presenza registrata");
+      if(giornataAperta && battutaOggi && giornataAperta.id===battutaOggi.id) renderGiornata();
+    });
+  }
+
+  function etichettaOrigine(da){
+    if(da==="ritrovo")  return "rilevato al ritrovo";
+    if(da==="telefono") return "segnato da s\u00e9";
+    if(da==="capo")     return "aggiunto dal capo";
+    if(da==="chiusura") return "dall'adesione";
+    return "";
+  }
+
+  /* --- il capo sistema le presenze --- */
+  function apriPresenze(){
+    if(!puoGestireBattute()) return;
+    var b = giornataAperta;
+    if(!b || !b.id) return;
+    if(b.stato==="conclusa"){ toast("Giornata gi\u00e0 conclusa"); return; }
+    var righe = adesioni.filter(function(a){ return a.viene || a.presente; });
+    if(!righe.length){ toast("Nessuno ha dato l'adesione"); return; }
+    var h = "";
+    righe.forEach(function(a){
+      var m = membri.find(function(x){ return x.id===a.membro_id; });
+      var ci = presenzaPrevista(a);
+      h += '<button class="opz '+(ci?'on':'')+'" data-pres="'+a.id+'" style="margin-bottom:6px">';
+      h += '<span class="box"></span><span class="tx">'+esc(m?m.nome:"\u2014");
+      if(a.presente && a.presente_da) h += ' <span style="font-size:10px; color:var(--muted)">\u00b7 '+etichettaOrigine(a.presente_da)+'</span>';
+      else if(!a.viene) h += ' <span style="font-size:10px; color:var(--muted)">\u00b7 senza adesione</span>';
+      h += '</span></button>';
+    });
+    document.getElementById("m-pres-lista").innerHTML = h;
+    var root = document.getElementById("m-pres-lista");
+    root.querySelectorAll("[data-pres]").forEach(function(bt){
+      bt.onclick = function(){ bt.classList.toggle("on"); };
+    });
+    document.getElementById("m-presenze").classList.add("show");
+  }
+
+  // com'e' messo adesso: presente esplicito, oppure prenotato e non ancora tolto
+  function presenzaPrevista(a){
+    if(a.presente === true) return true;
+    if(a.presente_da === "assente") return false;
+    return a.viene === true;
+  }
+
+  async function salvaPresenze(){
+    var root = document.getElementById("m-pres-lista");
+    var cambi = [];
+    root.querySelectorAll("[data-pres]").forEach(function(bt){
+      var id = bt.dataset.pres;
+      var a = adesioni.find(function(x){ return x.id===id; });
+      if(!a) return;
+      var vuole = bt.classList.contains("on");
+      if(vuole === presenzaPrevista(a) && (a.presente===true || a.presente_da==="assente")) return;
+      cambi.push({a:a, presente:vuole});
+    });
+    if(!cambi.length){ document.getElementById("m-presenze").classList.remove("show"); return; }
+    var ora = new Date().toISOString();
+    try{
+      for(var i=0;i<cambi.length;i++){
+        var c = cambi[i];
+        var dati = c.presente
+          ? {presente:true,  presente_da:"capo",    presente_il:ora}
+          : {presente:false, presente_da:"assente", presente_il:ora};
+        var r = await sb.from("hn_adesioni").update(dati).eq("id", c.a.id).select().single();
+        if(r.error) throw r.error;
+        var k = adesioni.findIndex(function(x){ return x.id===r.data.id; });
+        if(k>=0) adesioni[k]=r.data;
+      }
+      document.getElementById("m-presenze").classList.remove("show");
+      renderGiornata();
+      toast("Presenze aggiornate");
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+  /* --- conclusione della giornata: da qui in poi i presenti sono definitivi --- */
+  async function concludiGiornata(){
+    if(!puoGestireBattute()) return;
+    var b = giornataAperta;
+    if(!b || !b.id) return;
+    if(b.stato==="conclusa"){ toast("Gi\u00e0 conclusa"); return; }
+    var futuri = adesioni.filter(presenzaPrevista);
+    if(!futuri.length){
+      alert("Non risulta presente nessuno.\n\nSegna prima chi c'era, poi concludi la giornata.");
+      return;
+    }
+    if(!confirm("Concludere la giornata?\n\n"+futuri.length+" present"+(futuri.length===1?"e":"i")+
+                " entreranno nel conteggio delle quote e nella classifica.\nDopo non si potr\u00e0 pi\u00f9 modificare.")) return;
+    var ora = new Date().toISOString();
+    try{
+      // chi era prenotato e non e' stato tolto diventa presente adesso
+      for(var i=0;i<futuri.length;i++){
+        var a = futuri[i];
+        if(a.presente === true) continue;
+        var r = await sb.from("hn_adesioni")
+                  .update({presente:true, presente_da:"chiusura", presente_il:ora})
+                  .eq("id", a.id).select().single();
+        if(r.error) throw r.error;
+        var k = adesioni.findIndex(function(x){ return x.id===r.data.id; });
+        if(k>=0) adesioni[k]=r.data;
+      }
+      var rb = await sb.from("hn_battute").update({stato:"conclusa"}).eq("id", b.id).select().single();
+      if(rb.error) throw rb.error;
+      giornataAperta = rb.data;
+      var j = battute.findIndex(function(x){ return x.id===rb.data.id; });
+      if(j>=0) battute[j]=rb.data;
+      if(battutaOggi && battutaOggi.id===rb.data.id) battutaOggi=null;
+      renderGiornata();
+      toast("Giornata conclusa");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
   /* --- scelta del ritrovo per una giornata (capocaccia) --- */
   function scegliRitrovo(){
     if(!puoGestireBattute()) return;
@@ -5195,7 +5464,11 @@
       });
     }
 
-    var presenti=ades.filter(function(a){return a.viene;});
+    // se la giornata e' stata conclusa contano i presenti VERI;
+    // per tutte le altre (e per lo storico) restano validi gli iscritti
+    var presenti = (b.stato==="conclusa")
+      ? ades.filter(function(a){ return a.presente; })
+      : ades.filter(function(a){ return a.viene; });
     var pagati=0, tot=0;
     presenti.forEach(function(a){
       var v=movimenti.filter(function(m){return m.causale==="giornata" && m.rif_id===b.id && m.membro_id===a.membro_id;})
@@ -6596,7 +6869,7 @@
         if(percorsoAttivo && percorso) salvaPercorsoCorso(percorso, areaAttivaId);
       }else{
         if(mappatura) tieniSchermoAcceso();
-        if(navigator.onLine){ sincronizzaCoda(true); controllaVersione(); }
+        if(navigator.onLine){ sincronizzaCoda(true); controllaVersione(); caricaGiornataDiOggi(); }
       }
     });
     window.addEventListener("pagehide", function(){
@@ -6706,6 +6979,15 @@
     document.getElementById("m-del-annulla").onclick=function(){ document.getElementById("m-delega").classList.remove("show"); };
     document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
     document.getElementById("m-rt-mappa").onclick=function(){ iniziaPickRitrovo("battuta"); };
+    document.getElementById("pres-no").onclick=chiudiModalePresenza;
+    document.getElementById("pres-si").onclick=async function(){
+      chiudiModalePresenza();
+      var ok = await segnaPresenza("telefono");
+      toast(ok ? "Presenza registrata" : "Serve la rete");
+      if(giornataAperta && battutaOggi && giornataAperta.id===battutaOggi.id) renderGiornata();
+    };
+    document.getElementById("m-pres-annulla").onclick=function(){ document.getElementById("m-presenze").classList.remove("show"); };
+    document.getElementById("m-pres-salva").onclick=salvaPresenze;
     document.getElementById("btn-cerca").onclick=apriCerca;
     document.getElementById("cerca-chiudi").onclick=chiudiCerca;
     document.getElementById("cerca-vai").onclick=eseguiCerca;
