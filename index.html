@@ -391,6 +391,19 @@
   #mapbanner button{background:rgba(255,255,255,.9); border:none; color:#7a2e1d;
     border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; flex-shrink:0;}
 
+  /* ---------- BARRA SCELTA PUNTO DI RITROVO ---------- */
+  #rtbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
+    background:rgba(46,107,79,.96); border-radius:12px; padding:10px 12px;
+    display:none; align-items:center; gap:8px; backdrop-filter:blur(4px);}
+  #rtbanner.show{display:flex;}
+  #rtbanner .tx{flex:1; min-width:0;}
+  #rtbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
+  #rtbanner .tx .b{font-size:11px; color:#dcefe4; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #rtbanner button{background:rgba(255,255,255,.92); border:none; color:#1d4635;
+    border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; flex-shrink:0;}
+  #rtbanner button:disabled{opacity:.45;}
+  #rtbanner button.no{background:rgba(255,255,255,.25); color:#fff;}
+
   .actionbar{position:absolute; left:10px; right:10px; bottom:12px; z-index:500; display:flex; gap:8px;}
   .bigbtn{flex:1; border:none; border-radius:14px; padding:15px 10px; font-size:15px; font-weight:600;
     display:flex; align-items:center; justify-content:center; gap:7px;}
@@ -1018,6 +1031,16 @@
         <button id="mapbanner-fine">Fine</button>
       </div>
 
+      <!-- barra SCELTA DEL PUNTO DI RITROVO (tocca sulla mappa) -->
+      <div id="rtbanner">
+        <div class="tx">
+          <div class="a">Punto di ritrovo</div>
+          <div class="b" id="rtbanner-sub">tocca sulla mappa dove si trova la squadra</div>
+        </div>
+        <button id="rtbanner-ok" disabled>Conferma</button>
+        <button id="rtbanner-no" class="no">Annulla</button>
+      </div>
+
       <!-- avviso di chiusura del cerchio -->
       <div id="cr-chiusura"></div>
 
@@ -1277,7 +1300,8 @@
   <div class="sheet">
     <h3>Punto di ritrovo</h3>
     <div id="m-rt-lista" style="max-height:50vh; overflow-y:auto"></div>
-    <div class="btnrow" style="margin-top:15px">
+    <button class="btn line" id="m-rt-mappa" style="margin-top:10px">🗺️ Scegli un punto nuovo sulla mappa</button>
+    <div class="btnrow" style="margin-top:12px">
       <button class="btn line" id="m-rt-annulla">Annulla</button>
       <button class="btn primary" id="m-rt-salva">Salva</button>
     </div>
@@ -1479,7 +1503,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.36";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.37";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2151,6 +2175,12 @@
     L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(map);
     areeLayer=L.layerGroup().addTo(map);    // i poligoni delle aree (sotto)
     posteLayer=L.layerGroup().addTo(map);   // le poste (sopra)
+    // il tocco sulla mappa serve SOLO mentre si sceglie un punto di ritrovo:
+    // fuori da quella modalita' non fa assolutamente nulla
+    map.on("click", function(e){
+      if(!pickRitrovo) return;
+      segnaPuntoRitrovo(e.latlng.lat, e.latlng.lng);
+    });
     mapReady=true;
   }
   function iconPosta(n,tipo,inCoda){
@@ -2670,6 +2700,8 @@
 
     var nr=root.querySelector("#btn-newritrovo");
     if(nr) nr.onclick=creaRitrovo;
+    var nrm=root.querySelector("#btn-newritrovo-map");
+    if(nrm) nrm.onclick=function(){ iniziaPickRitrovo("aree"); };
     root.querySelectorAll("[data-ritrovo]").forEach(function(el){
       el.onclick=function(){ apriRitrovo(el.dataset.ritrovo); };
     });
@@ -2759,6 +2791,8 @@
   /* ================= VISTE ================= */
   var mappaMaiCentrata=true;
   function showView(v){
+    // se stavo scegliendo un ritrovo e me ne vado dalla mappa, la scelta decade
+    if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
     // il GPS si accende solo dove serve
@@ -4382,7 +4416,8 @@
     var h='<div class="sechead" style="margin-top:20px">Punti di ritrovo</div>';
     if(!ritrovi.length){
       h+='<div class="card" style="font-size:12px; color:var(--muted); line-height:1.5">'+
-         'Nessun punto di ritrovo. Servono al capocaccia per dire alla squadra dove trovarsi.</div>';
+         'Nessun punto di ritrovo. Servono al capocaccia per dire alla squadra dove trovarsi.<br>' +
+         'Puoi crearne uno stando sul posto, oppure sceglierlo sulla mappa da casa.</div>';
     }
     ritrovi.forEach(function(r){
       h+='<div class="card" data-ritrovo="'+r.id+'" style="cursor:pointer">';
@@ -4394,7 +4429,10 @@
       h+='</div></div>';
     });
     if(puoMappare()){
-      h+='<button class="btn line" id="btn-newritrovo" style="margin-top:6px">📌 Nuovo punto di ritrovo (qui)</button>';
+      h+='<button class="btn line" id="btn-newritrovo" style="margin-top:6px">📌 Nuovo punto di ritrovo (dove sono ora)</button>';
+    }
+    if(puoMappare() || puoGestireBattute()){
+      h+='<button class="btn line" id="btn-newritrovo-map" style="margin-top:6px">🗺️ Nuovo punto di ritrovo (scegli sulla mappa)</button>';
     }
     return h;
   }
@@ -4470,12 +4508,104 @@
     }catch(e){ toast("Serve la rete"); }
   }
 
+  /* ===== SCEGLIERE IL PUNTO DI RITROVO TOCCANDO LA MAPPA =====
+     Il tasto "dove sono ora" richiede di stare fisicamente sul posto.
+     Questo invece permette di prepararlo da casa: si apre la mappa,
+     si tocca il punto, si da' il nome. Il ritrovo viene solo CREATO:
+     poi lo si sceglie dall'elenco come tutti gli altri. */
+  var pickRitrovo = null;   // {origine:"battuta"|"aree", lat, lng, marker}
+
+  function iconRitrovoScelto(){
+    return L.divIcon({className:"", iconSize:[36,36], iconAnchor:[18,18],
+      html:'<div style="width:36px;height:36px;border-radius:50%;background:#2E6B4F;border:3px solid #F0E6D2;display:flex;align-items:center;justify-content:center;font-size:17px;box-shadow:0 2px 6px rgba(0,0,0,.55)">📌</div>'});
+  }
+
+  function iniziaPickRitrovo(origine){
+    if(!(puoMappare() || puoGestireBattute())){ toast("Non hai il permesso"); return; }
+    document.getElementById("m-scegli-rt").classList.remove("show");
+    pickRitrovo = {origine:origine, lat:null, lng:null, marker:null};
+    document.getElementById("rtbanner-sub").textContent="tocca sulla mappa dove si trova la squadra";
+    document.getElementById("rtbanner-ok").disabled=true;
+    document.getElementById("rtbanner").classList.add("show");
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      var p = pos || ultimaPosNota();
+      if(p) map.setView([p.lat,p.lng], 15);
+    },250);
+    toast("Tocca il punto sulla mappa");
+  }
+
+  function segnaPuntoRitrovo(lat,lng){
+    if(!pickRitrovo || !map) return;
+    pickRitrovo.lat=lat; pickRitrovo.lng=lng;
+    if(pickRitrovo.marker) map.removeLayer(pickRitrovo.marker);
+    pickRitrovo.marker=L.marker([lat,lng],{icon:iconRitrovoScelto()}).addTo(map);
+    document.getElementById("rtbanner-sub").textContent=lat.toFixed(5)+", "+lng.toFixed(5)+" \u00b7 puoi ritoccare";
+    document.getElementById("rtbanner-ok").disabled=false;
+  }
+
+  function chiudiPickRitrovo(){
+    if(pickRitrovo && pickRitrovo.marker && map){
+      try{ map.removeLayer(pickRitrovo.marker); }catch(e){}
+    }
+    pickRitrovo=null;
+    var b=document.getElementById("rtbanner");
+    if(b) b.classList.remove("show");
+  }
+
+  function tornaDaPickRitrovo(origine, riapriElenco){
+    if(origine==="battuta" && giornataAperta){
+      showView("giornata");
+      renderGiornata();
+      if(riapriElenco) setTimeout(scegliRitrovo, 300);
+    }else{
+      showView("aree");
+      renderAree();
+    }
+  }
+
+  function annullaPickRitrovo(){
+    var o = pickRitrovo ? pickRitrovo.origine : null;
+    chiudiPickRitrovo();
+    tornaDaPickRitrovo(o, false);
+  }
+
+  async function confermaPuntoRitrovo(){
+    if(!pickRitrovo || pickRitrovo.lat===null){ toast("Tocca prima il punto sulla mappa"); return; }
+    var nome=prompt("Nome del punto di ritrovo\n(es. Piazzale Fontana)");
+    if(!nome) return;
+    nome=nome.trim();
+    if(!nome) return;
+    if(!navigator.onLine){ toast("Serve la rete per salvare il punto di ritrovo"); return; }
+    var lat=pickRitrovo.lat, lng=pickRitrovo.lng, origine=pickRitrovo.origine;
+    try{
+      var r=await sb.from("hn_ritrovi").insert({
+        squadra_id:me.squadra_id, nome:nome,
+        lat:lat, lng:lng, accuratezza:0,
+        creato_da:me.user_id
+      }).select().single();
+      if(r.error) throw r.error;
+      ritrovi.push(r.data);
+      try{ localStorage.setItem("hunter_cache_ritrovi", JSON.stringify(ritrovi)); }catch(e){}
+      chiudiPickRitrovo();
+      toast("Ritrovo salvato: "+nome);
+      tornaDaPickRitrovo(origine, true);
+    }catch(e){
+      toast("Non sono riuscito a salvare il punto di ritrovo");
+    }
+  }
+
   /* --- scelta del ritrovo per una giornata (capocaccia) --- */
   function scegliRitrovo(){
     if(!puoGestireBattute()) return;
-    if(!ritrovi.length){ toast("Non ci sono punti di ritrovo. Creane uno da Mappe."); return; }
+    // la modale si apre SEMPRE, anche senza ritrovi: dentro c'e' il tasto per crearne uno
     var sel=giornataAperta.ritrovo_id || null;
     var h='<div style="font-size:11px; color:var(--muted); margin-bottom:10px">Dove si trova la squadra quella mattina.</div>';
+    if(!ritrovi.length){
+      h+='<div style="font-size:12px; color:var(--muted); background:rgba(255,255,255,.05); border-radius:10px; padding:12px; margin-bottom:10px">'
+       + 'Non hai ancora nessun punto di ritrovo.<br>Toccando qui sotto lo scegli direttamente sulla mappa.</div>';
+    }
     h+='<button class="chip '+(!sel?'on':'')+'" data-rt="" style="width:100%; margin-bottom:6px; justify-content:center">Nessuno</button>';
     ritrovi.forEach(function(r){
       h+='<button class="opz '+(sel===r.id?'on':'')+'" data-rt="'+r.id+'" style="margin-bottom:6px">';
@@ -6416,6 +6546,9 @@
     document.getElementById("m-del-salva").onclick=salvaDelega;
     document.getElementById("m-del-annulla").onclick=function(){ document.getElementById("m-delega").classList.remove("show"); };
     document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
+    document.getElementById("m-rt-mappa").onclick=function(){ iniziaPickRitrovo("battuta"); };
+    document.getElementById("rtbanner-ok").onclick=confermaPuntoRitrovo;
+    document.getElementById("rtbanner-no").onclick=annullaPickRitrovo;
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
 
