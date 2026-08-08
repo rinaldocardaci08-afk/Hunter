@@ -1878,7 +1878,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.52";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.54";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4587,6 +4587,42 @@
     h+='</div>';
     if(osp) h+='<div style="font-size:12px; color:#9fc8ed; margin-bottom:12px">+ '+osp+' ospit'+(osp===1?'e':'i')+'</div>';
 
+    // --- I CUBI DI SINTESI: si premono e si apre il dettaglio ---
+    if(capo){
+      var pres = adesioni.filter(function(a){ return a.presente; });
+      var trac = adesioni.filter(function(a){ return a.viene && a.tracciatore; });
+      var conResoconto = tracciate.filter(function(x){ return x.chiusa_il; });
+      var capiEntrati = segnalazioni.filter(function(x){ return x.tipo==="entrata"; })
+                        .reduce(function(t,x){ return t + (Number(x.capi)||0); }, 0);
+      var capiUsciti  = segnalazioni.filter(function(x){ return x.tipo==="uscita"; })
+                        .reduce(function(t,x){ return t + (Number(x.capi)||0); }, 0);
+
+      var nAree = (b.aree_segnalate || []).length;
+      h+='<div class="cubi" style="margin-top:14px">';
+
+      h+='<button class="cubo" data-sin="presenti">';
+      h+='<div class="et">Presenze di oggi</div>';
+      h+='<div class="rg"><span class="n">'+pres.length+'</span><span class="t">present'+(pres.length===1?'e':'i')+'</span></div>';
+      h+='<div class="rg"><span class="n">'+adesioni.filter(function(a){return a.viene;}).length+'</span><span class="t">hanno detto s\u00ec</span></div>';
+      h+='<div class="vai">vedi chi \u203a</div></button>';
+
+      h+='<button class="cubo" data-sin="tracciatori">';
+      h+='<div class="et">Aree e tracciatori</div>';
+      h+='<div class="rg"><span class="n">'+trac.length+'</span><span class="t">tracciatori</span></div>';
+      h+='<div class="rg"><span class="n">'+nAree+'</span><span class="t">aree da tracciare</span></div>';
+      h+='<div class="rg"><span class="n">'+conResoconto.length+'</span><span class="t">resoconti</span></div>';
+      h+='<div class="vai">apri \u203a</div></button>';
+
+      h+='<button class="cubo" data-sin="segnalazioni">';
+      h+='<div class="et">Segnalazioni</div>';
+      h+='<div class="rg"><span class="n">'+capiEntrati+'</span><span class="t">capi in entrata</span></div>';
+      h+='<div class="rg"><span class="n">'+capiUsciti+'</span><span class="t">capi in uscita</span></div>';
+      h+='<div class="rg"><span class="n">'+segnalazioni.length+'</span><span class="t">punti segnati</span></div>';
+      h+='<div class="vai">apri \u203a</div></button>';
+
+      h+='</div>';
+    }
+
     // --- PUNTO DI RITROVO ---
     var rit = b.ritrovo_id ? ritrovoDi(b.ritrovo_id) : null;
     h+='<div class="sechead">Punto di ritrovo</div>';
@@ -4754,40 +4790,6 @@
       }
     }
 
-    // --- I CUBI DI SINTESI: si premono e si apre il dettaglio ---
-    if(capo){
-      var pres = adesioni.filter(function(a){ return a.presente; });
-      var trac = adesioni.filter(function(a){ return a.viene && a.tracciatore; });
-      var conResoconto = tracciate.filter(function(x){ return x.chiusa_il; });
-      var capiEntrati = segnalazioni.filter(function(x){ return x.tipo==="entrata"; })
-                        .reduce(function(t,x){ return t + (Number(x.capi)||0); }, 0);
-      var capiUsciti  = segnalazioni.filter(function(x){ return x.tipo==="uscita"; })
-                        .reduce(function(t,x){ return t + (Number(x.capi)||0); }, 0);
-
-      h+='<div class="cubi" style="margin-top:14px">';
-
-      h+='<button class="cubo" data-sin="presenti">';
-      h+='<div class="et">Presenze di oggi</div>';
-      h+='<div class="rg"><span class="n">'+pres.length+'</span><span class="t">present'+(pres.length===1?'e':'i')+'</span></div>';
-      h+='<div class="rg"><span class="n">'+adesioni.filter(function(a){return a.viene;}).length+'</span><span class="t">hanno detto s\u00ec</span></div>';
-      h+='<div class="vai">vedi chi \u203a</div></button>';
-
-      h+='<button class="cubo" data-sin="tracciatori">';
-      h+='<div class="et">Aree e tracciatori</div>';
-      h+='<div class="rg"><span class="n">'+trac.length+'</span><span class="t">tracciatori</span></div>';
-      h+='<div class="rg"><span class="n">'+areeSeg.length+'</span><span class="t">aree da tracciare</span></div>';
-      h+='<div class="rg"><span class="n">'+conResoconto.length+'</span><span class="t">resoconti</span></div>';
-      h+='<div class="vai">apri \u203a</div></button>';
-
-      h+='<button class="cubo" data-sin="segnalazioni">';
-      h+='<div class="et">Segnalazioni</div>';
-      h+='<div class="rg"><span class="n">'+capiEntrati+'</span><span class="t">capi in entrata</span></div>';
-      h+='<div class="rg"><span class="n">'+capiUsciti+'</span><span class="t">capi in uscita</span></div>';
-      h+='<div class="rg"><span class="n">'+segnalazioni.length+'</span><span class="t">punti segnati</span></div>';
-      h+='<div class="vai">apri \u203a</div></button>';
-
-      h+='</div>';
-    }
 
     // --- LE TRACCIATE DELLA GIORNATA (le vede il capo) ---
     // il capo le vede tutte; ognuno vede almeno la propria, per aggiungerci quello che ha visto
@@ -6291,6 +6293,15 @@
       var m = L.marker([fine.lat,fine.lng], {icon:iconFreccia(g - 90, col)}).addTo(segnLayer);
       m.on("click", function(){
         var chi = nomeDi(x.membro_id);
+        if(puoGestireBattute() || x.membro_id === me.membro_id){
+          if(confirm((x.tipo === "entrata" ? "Entrata" : "Uscita")
+              + (x.capi ? " \u00b7 " + x.capi + " cap" + (x.capi===1?"o":"i") : "")
+              + " \u00b7 " + chi + "\n\nVuoi cancellarla?")){
+            eliminaSegnalazione(x.id);
+            return;
+          }
+          return;
+        }
         toast((x.tipo === "entrata" ? "Entrata" : "Uscita") +
               (x.capi ? " \u00b7 " + x.capi + (x.capi>=6 ? "+ capi" : " cap" + (x.capi===1?"o":"i")) : "") +
               " \u00b7 " + chi + (x.da_remoto ? " \u00b7 segnata a memoria" : ""));
@@ -6306,6 +6317,9 @@
     else                          { tit = "Segnalazioni";     corpo = sintesiSegnalazioni(); }
     document.getElementById("m-sin-tit").textContent = tit;
     document.getElementById("m-sin-corpo").innerHTML = corpo;
+    document.getElementById("m-sin-corpo").querySelectorAll("[data-segndel]").forEach(function(b){
+      b.onclick = function(){ eliminaSegnalazione(b.dataset.segndel); };
+    });
     document.getElementById("m-sintesi").classList.add("show");
   }
 
@@ -6401,6 +6415,26 @@
     return h;
   }
 
+  async function eliminaSegnalazione(id){
+    var x = segnalazioni.find(function(y){ return y.id === id; });
+    if(!x) return;
+    if(!(puoGestireBattute() || x.membro_id === me.membro_id)){ toast("Non puoi toglierla"); return; }
+    var che = (x.tipo === "entrata" ? "l'entrata" : "l'uscita")
+            + (x.capi ? " di " + x.capi + " cap" + (x.capi===1?"o":"i") : "")
+            + " segnata da " + nomeDi(x.membro_id);
+    if(!confirm("Vuoi cancellare " + che + "?")) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_segnalazioni").delete().eq("id", id);
+      if(r.error) throw r.error;
+      segnalazioni = segnalazioni.filter(function(y){ return y.id !== id; });
+      disegnaSegnalazioni();
+      renderGiornata();
+      apriSintesi("segnalazioni");   // resto dov'ero, con la lista aggiornata
+      toast("Segnalazione cancellata");
+    }catch(e){ avvisaErroreTracciata(e); }
+  }
+
   function sintesiSegnalazioni(){
     if(!segnalazioni.length) return '<div class="hint">Nessuna segnalazione oggi.</div>';
     var h = "";
@@ -6419,7 +6453,13 @@
         h += '<div style="font-size:10.5px; color:var(--muted)">'+esc(nomeDi(x.membro_id))
            + (ar ? ' \u00b7 ' + esc(ar.nome) : '')
            + (x.da_remoto ? ' \u00b7 a memoria' : '')+'</div>';
-        h += '</div></div></div>';
+        h += '</div>';
+        // la puo' togliere chi l'ha fatta e il capo: una lista lunga non si legge
+        if(puoGestireBattute() || x.membro_id === me.membro_id){
+          h += '<button class="inf" data-segndel="'+x.id+'" title="Elimina" '
+             + 'style="flex:0 0 auto; width:28px; height:28px; font-size:14px">\u2715</button>';
+        }
+        h += '</div></div>';
       });
     return h;
   }
