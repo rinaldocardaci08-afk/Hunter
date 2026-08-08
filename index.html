@@ -1694,7 +1694,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.44";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.45";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4168,10 +4168,19 @@
     return adesioni.find(function(a){ return a.membro_id===me.membro_id; }) || null;
   }
 
+  /* DUE VISTE DELLA GIORNATA.
+     Chi comanda vede molte cose in piu' e finisce per non trovare le proprie;
+     chi non comanda attraversa roba che non lo riguarda. Il tasto qui sotto
+     mostra la giornata con gli occhi dell'uno o dell'altro. Serve anche sul
+     campo: il capocaccia e' pure lui un cacciatore, e la sua adesione la deve
+     dare come tutti. */
+  var vistaGiornata = "capo";   // capo | cacciatore
+
   function renderGiornata(){
     var root=document.getElementById("giornata-scroll");
     var b=giornataAperta;
-    var capo=puoGestireBattute();
+    var capoReale=puoGestireBattute();          // che poteri ha davvero
+    var capo=capoReale && vistaGiornata==="capo";  // cosa sta guardando adesso
     var h="";
 
     // --- giornata non ancora aperta (solo il capo la vede) ---
@@ -4195,6 +4204,14 @@
 
     var nPres = adesioni.filter(function(a){return a.presente;}).length;
     var conclusa = b.stato==="conclusa";
+    // il selettore delle due viste: solo per chi ha i poteri
+    if(capoReale){
+      h+='<div style="display:flex; gap:6px; margin-bottom:12px">';
+      h+='<button class="chip '+(vistaGiornata==="capo"?"on":"")+'" data-vg="capo" style="flex:1; justify-content:center">👑 Vista capo</button>';
+      h+='<button class="chip '+(vistaGiornata==="cacciatore"?"on":"")+'" data-vg="cacciatore" style="flex:1; justify-content:center">🎯 Vista cacciatore</button>';
+      h+='</div>';
+    }
+
     var statoTxt = conclusa ? "● giornata conclusa"
                  : (b.stato==="aperta" ? "● adesioni aperte" : "● adesioni chiuse");
     var statoCol = conclusa ? "var(--gold)" : (b.stato==="aperta" ? "#7be0a8" : "var(--muted)");
@@ -4229,7 +4246,7 @@
 
     // --- AREE SEGNALATE ---
     var areeSeg = b.aree_segnalate || [];
-    if(areeSeg.length || capo){
+    if((areeSeg.length || capo) && vistaGiornata==="capo"){
       h+='<div class="sechead">Aree segnalate per la tracciata</div>';
       if(areeSeg.length){
         h+='<div class="card" style="background:#4a3320; border:1px solid #6b4a28">';
@@ -4335,7 +4352,7 @@
     // --- CHI C'E' DAVVERO ---
     var presenti = adesioni.filter(function(a){ return a.presente; });
     var assenti  = adesioni.filter(function(a){ return a.viene && a.presente_da==="assente"; });
-    if(presenti.length || assenti.length || conclusa || capo){
+    if(presenti.length || assenti.length || conclusa || capoReale){
       h+='<div class="sechead">Presenti sul posto</div>';
       if(!presenti.length){
         h+='<div class="card" style="font-size:12px; color:var(--muted); line-height:1.5">'+
@@ -4361,7 +4378,7 @@
     }
 
     // --- DELEGA DELLA CASSA (solo il cassiere) ---
-    if(isCassiere() && b.id){
+    if(isCassiere() && b.id && vistaGiornata==="capo"){
       var del = b.delegato_id ? membri.find(function(x){return x.id===b.delegato_id;}) : null;
       h+='<div class="sechead">Raccolta quote</div>';
       if(del){
@@ -4377,7 +4394,7 @@
       h+='<button class="btn line" id="gi-delega" style="margin-bottom:14px">💰 Delega la raccolta</button>';
     }
     // se sono il delegato, lo vedo
-    else if(b.delegato_id===me.membro_id){
+    else if(b.delegato_id===me.membro_id && vistaGiornata==="capo"){
       h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:14px">';
       h+='<div style="font-size:13px; color:var(--gold); font-weight:600; margin-bottom:4px">💰 Sei delegato alla raccolta</div>';
       h+='<div style="font-size:11px; color:var(--muted); line-height:1.5">Puoi segnare chi versa la quota di oggi. La delega vale solo per questa giornata.</div>';
@@ -4425,6 +4442,9 @@
     if(d) d.onclick=dividiTracciatori;
     var c=root.querySelector("#gi-chiudi");
     if(c) c.onclick=chiudiAdesioni;
+    root.querySelectorAll("[data-vg]").forEach(function(bt){
+      bt.onclick=function(){ vistaGiornata=bt.dataset.vg; renderGiornata(); };
+    });
     var gp=root.querySelector("#gi-presenze");
     if(gp) gp.onclick=apriPresenze;
     var gc=root.querySelector("#gi-concludi");
