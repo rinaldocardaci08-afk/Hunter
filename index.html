@@ -85,7 +85,9 @@
     color:#1d3a5a; border-radius:7px; padding:6px 11px; font-size:12px; font-weight:600; flex-shrink:0;}
 
   /* ---------- AVVISO NUOVA VERSIONE ---------- */
-  #aggbanner{position:fixed; left:11px; right:11px; bottom:78px; z-index:99999;
+  /* stava a 99999, cioe' SOPRA le finestre (2000): compariva sui bottoni
+     Salva/Annulla di qualsiasi modale aperta. Ora sta sotto. */
+  #aggbanner{position:fixed; left:11px; right:11px; bottom:78px; z-index:1500;
     display:none; background:#1d3a5a; border:1px solid #3d6e9e; border-radius:13px;
     padding:12px 13px; box-shadow:0 6px 22px rgba(0,0,0,.55);}
   #aggbanner.show{display:block;}
@@ -357,12 +359,22 @@
   #cruscotto .c .u{font-size:8.5px; color:var(--muted); margin-top:2px;}
 
   /* avviso chiusura cerchio */
-  #cr-chiusura{position:absolute; left:10px; right:10px; bottom:120px; z-index:645;
+  /* il cruscotto e' alto circa 50px e parte da 70: arrivava a sfiorarlo */
+  #cr-chiusura{position:absolute; left:10px; right:10px; bottom:132px; z-index:645;
     display:none; padding:9px 12px; border-radius:9px; font-size:12px; font-weight:600;
     color:#2C2418; text-align:center;}
   #cr-chiusura.show{display:block;}
 
   /* ---------- BARRA DI GUIDA (segui il percorso) ---------- */
+  /* Le barre in alto stanno tutte dentro una colonna: se ne compaiono due
+     insieme si mettono una sotto l'altra invece di coprirsi. Prima mapbanner
+     e guidabar avevano lo STESSO livello e la STESSA posizione, e il tasto
+     "Fine" della mappatura finiva nascosto sotto la barra di guida. */
+  #topstack{position:absolute; left:10px; right:10px; top:56px; z-index:660;
+    display:flex; flex-direction:column; gap:6px; pointer-events:none;}
+  #topstack > *{pointer-events:auto; position:static !important;
+    left:auto !important; right:auto !important; top:auto !important;}
+
   #guidabar{position:absolute; left:10px; right:10px; top:56px; z-index:650;
     display:none; align-items:center; gap:11px; padding:11px 12px; border-radius:14px;
     background:#4a3560; backdrop-filter:blur(4px); box-shadow:0 2px 10px rgba(0,0,0,.4);}
@@ -426,7 +438,9 @@
         rgba(0,0,0,.28) 47px, rgba(0,0,0,.28) 49px),
       linear-gradient(160deg, #6b4a2f 0%, #573a24 55%, #46301e 100%);
     box-shadow:inset 0 2px 14px rgba(0,0,0,.45);}
-  .muro .griglia{display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 8px;}
+  .muro .griglia{display:flex; flex-wrap:wrap; justify-content:center; align-items:flex-start;
+    gap:18px 14px; min-height:120px;}
+  .muro .griglia .chiodo{width:88px;}
   .chiodo{text-align:center;}
   .chiodo .gancio{width:5px; height:5px; border-radius:50%; background:#2b1d12;
     margin:0 auto 4px; box-shadow:0 1px 0 rgba(255,255,255,.18);}
@@ -1079,6 +1093,7 @@
         <button id="navclose">✕</button>
       </div>
       <!-- barra MODALITÀ MAPPATURA (compare solo mappando) -->
+      <div id="topstack">
       <div id="mapbanner">
         <div class="tx">
           <div class="a">Mappatura in corso</div>
@@ -1097,9 +1112,6 @@
         <button id="rtbanner-no" class="no">Annulla</button>
       </div>
 
-      <!-- avviso di chiusura del cerchio -->
-      <div id="cr-chiusura"></div>
-
       <!-- BARRA DI GUIDA (tracciatore che segue il percorso) -->
       <div id="guidabar">
         <div class="frecciabox"><div id="gu-freccia">↑</div></div>
@@ -1115,6 +1127,10 @@
         </div>
         <button id="gu-esci">✕</button>
       </div>
+      </div><!-- /topstack -->
+
+      <!-- avviso di chiusura del cerchio -->
+      <div id="cr-chiusura"></div>
 
       <!-- CRUSCOTTO di mappatura -->
       <div id="cruscotto">
@@ -1647,7 +1663,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.41";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.42";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5298,26 +5314,32 @@
       vinte[f.medaglia_id].push(f);
     });
     var quante = mdFatti.length;
+    // il muro non e' una griglia da riempire: appende SOLO quello che ha vinto
+    var sue = attive.filter(function(m){ return (vinte[m.id] || []).length > 0; });
 
     var h = "";
     h += '<div style="text-align:center; margin-bottom:12px">';
     h += '<div style="font-size:15px; color:var(--cream); font-weight:600">'+esc(nomeDi(mdChi))+'</div>';
     h += '<div style="font-size:12px; color:var(--muted)">'
-       + (quante ? quante+' medagli'+(quante===1?'a':'e')+' su '+attive.length : 'Nessuna medaglia. Il muro aspetta.')
+       + (quante ? quante+' medagli'+(quante===1?'a':'e') : 'Il muro aspetta la prima medaglia.')
        + '</div></div>';
 
-    if(!attive.length){
-      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna medaglia nel catalogo della squadra.</div>';
-      root.innerHTML = h; return;
-    }
-
     h += '<div class="muro"><div class="griglia">';
-    attive.forEach(function(m){
+    if(!sue.length){
+      h += '<div style="padding:30px 10px; text-align:center; color:rgba(230,214,189,.5); font-size:12px; line-height:1.6">'
+         + 'Muro vuoto.<br>Le medaglie le assegnano il sergente e il capocaccia.</div>';
+    }
+    sue.forEach(function(m){
       var mie = vinte[m.id] || [];
-      var vinta = mie.length > 0;
-      h += '<div class="chiodo '+(vinta?'vinta':'manca')+'" data-mdinfo="'+m.id+'">';
+      // ogni medaglia pende un filo diversa, come su un muro vero, ma sempre
+      // allo stesso modo per la stessa medaglia: non deve ballare a ogni apertura
+      var seme = 0;
+      for(var i=0;i<String(m.id).length;i++) seme += String(m.id).charCodeAt(i);
+      var incl = (seme % 7) - 3;     // da -3 a +3 gradi
+      var giu  = seme % 11;          // da 0 a 10 px piu' in basso
+      h += '<div class="chiodo vinta" data-mdinfo="'+m.id+'" style="margin-top:'+giu+'px">';
       h += '<div class="gancio"></div>';
-      h += '<div class="disco">';
+      h += '<div class="disco" style="transform:rotate('+incl+'deg)">';
       if(m.immagine) h += '<img src="'+esc(m.immagine)+'" onerror="this.outerHTML=\'<span class=&quot;em&quot;>🎖️</span>\'">';
       else h += '<span class="em">🎖️</span>';
       if(mie.length > 1) h += '<span class="q">×'+mie.length+'</span>';
@@ -7742,6 +7764,8 @@
   function mostraAvvisoAgg(v){
     var b=document.getElementById("aggbanner");
     if(!b || b.classList.contains("show")) return;
+    // se c'e' una finestra aperta aspetto: non gli copro i bottoni sotto le dita
+    if(document.querySelector(".modal.show")){ aggRimandatoFino = Date.now() + 60000; return; }
     document.getElementById("agg-ver").textContent = v;
     b.classList.add("show");
   }
