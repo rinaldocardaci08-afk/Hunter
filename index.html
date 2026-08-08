@@ -463,6 +463,18 @@
   .cerca-ris .b{font-size:11px; color:var(--muted); margin-top:2px;}
 
   /* ---------- BARRA SCELTA PUNTO DI RITROVO ---------- */
+  #trbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
+    background:rgba(74,53,96,.96); border-radius:12px; padding:10px 12px;
+    display:none; align-items:center; gap:7px; backdrop-filter:blur(4px);}
+  #trbanner.show{display:flex;}
+  #trbanner .tx{flex:1; min-width:0;}
+  #trbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
+  #trbanner .tx .b{font-size:11px; color:#d5c6e6; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #trbanner button{background:rgba(255,255,255,.92); border:none; color:#3a2652;
+    border-radius:8px; padding:8px 11px; font-size:13px; font-weight:600; flex-shrink:0;}
+  #trbanner button:disabled{opacity:.45;}
+  #trbanner button.no{background:rgba(255,255,255,.22); color:#fff;}
+
   #rtbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
     background:rgba(46,107,79,.96); border-radius:12px; padding:10px 12px;
     display:none; align-items:center; gap:8px; backdrop-filter:blur(4px);}
@@ -1096,6 +1108,17 @@
         <button id="mapbanner-fine">Fine</button>
       </div>
 
+      <!-- barra DISEGNO DELLA LINEA DI TRACCIAMENTO -->
+      <div id="trbanner">
+        <div class="tx">
+          <div class="a">Disegna la linea</div>
+          <div class="b" id="trbanner-sub">tocca sulla mappa i punti del percorso</div>
+        </div>
+        <button id="trbanner-annulla" class="no">Indietro</button>
+        <button id="trbanner-ok" disabled>Salva</button>
+        <button id="trbanner-esci" class="no">✕</button>
+      </div>
+
       <!-- barra SCELTA DEL PUNTO DI RITROVO (tocca sulla mappa) -->
       <div id="rtbanner">
         <div class="tx">
@@ -1414,6 +1437,7 @@
     <p class="hint" id="ma-meta">—</p>
     <button class="btn primary" id="ma-apri" style="margin-bottom:8px">👁 Apri area · vedi le poste</button>
     <button class="btn line" id="ma-percorso" style="margin-bottom:8px; background:#4a3560; border-color:#7B5EA7; color:#c9b3e0">🐾 Segui il percorso</button>
+    <button class="btn line" id="ma-tracce" style="margin-bottom:8px">〰️ Linee di tracciamento</button>
     <button class="btn line" id="ma-mappatura" style="margin-bottom:8px">⊕ Inserisci o sposta poste</button>
     <button class="btn line" id="ma-modifica" style="margin-bottom:8px">✎ Modifica nome e comune</button>
     <button class="btn line" id="ma-chiudi">Annulla</button>
@@ -1599,6 +1623,19 @@
   </div>
 </div>
 
+<!-- MODALE: le linee di tracciamento di una mappa -->
+<div class="modal" id="m-tracce">
+  <div class="sheet">
+    <h3 id="m-tracce-tit">Linee di tracciamento</h3>
+    <p class="hint">Il giro che fa il tracciatore. Passa vicino alle poste senza toccarle: puoi averne pi&ugrave; di una per la stessa mappa.</p>
+    <div id="m-tracce-lista" style="max-height:44vh; overflow-y:auto"></div>
+    <div id="m-tracce-crea"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="m-tracce-chiudi">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: da dove vengono i punti -->
 <div class="modal" id="m-punti">
   <div class="sheet">
@@ -1657,7 +1694,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.43";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.44";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -1892,6 +1929,7 @@
     await caricaAree();
     await caricaMembriSilenzioso();   // servono per le battute
     await caricaRitrovi();
+    caricaTracce();           // le linee dei tracciatori
     caricaGiornataDiOggi();   // c'e' battuta oggi? devo chiedergli la presenza?
     aggiornaBadgeMedaglie();  // il pallino d'oro sulla barra in alto
     // le battute servono alla cassa (quote di giornata)
@@ -2335,6 +2373,7 @@
     // il tocco sulla mappa serve SOLO mentre si sceglie un punto di ritrovo:
     // fuori da quella modalita' non fa assolutamente nulla
     map.on("click", function(e){
+      if(disegnoTraccia){ aggiungiPuntoTraccia(e.latlng.lat, e.latlng.lng); return; }
       if(!pickRitrovo) return;
       segnaPuntoRitrovo(e.latlng.lat, e.latlng.lng);
     });
@@ -2894,6 +2933,12 @@
     document.getElementById("ma-mappatura").style.display = puoMappare() ? "block" : "none";
     document.getElementById("ma-modifica").style.display = puoMappare() ? "block" : "none";
     // il percorso: lo può seguire chi vede l'area
+    var bt = document.getElementById("ma-tracce");
+    if(bt){
+      var nl = tracceDi(a.id).length;
+      bt.style.display = (puoVedereAree() || puoMappare()) ? "block" : "none";
+      bt.innerHTML = nl ? ("〰️ Linee di tracciamento · " + nl) : "〰️ Linee di tracciamento";
+    }
     var hp = a.percorso && a.percorso.punti && a.percorso.punti.length > 4;
     var bp = document.getElementById("ma-percorso");
     bp.style.display = (hp && puoVedereAree()) ? "block" : "none";
@@ -2950,6 +2995,7 @@
   function showView(v){
     // se stavo scegliendo un ritrovo e me ne vado dalla mappa, la scelta decade
     if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
+    if(typeof disegnoTraccia!=="undefined" && disegnoTraccia && v!=="mappa") chiudiDisegnoTraccia();
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
     // il GPS si accende solo dove serve
@@ -4227,25 +4273,38 @@
         h+='<span class="box"></span><span class="tx">Sì, vado a tracciare all\'alba</span></button>';
         if(mia.tracciatore){
           var ar2=aree.find(function(x){return x.id===mia.area_tracciata;});
-          h+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'+
-             (ar2 ? 'Assegnato a: <b style="color:var(--gold)">'+esc(ar2.nome)+'</b>'
-                  : (areeSeg.length ? 'Il capocaccia ti assegnerà a un\'area.'
-                                    : 'Il capocaccia deciderà le aree e ti assegnerà.'))+'</div>';
-          // se l'area ha un percorso registrato, glielo offro
-          if(ar2 && ar2.percorso && ar2.percorso.punti && ar2.percorso.punti.length>4){
-            var kmt=(ar2.percorso.distanza/1000).toFixed(2);
-            var mnt=Math.round((ar2.percorso.durata||0)/60);
-            var dst=Math.round(ar2.percorso.dislivello||0);
-            h+='<div style="margin-top:10px; background:#4a3560; border-radius:10px; padding:11px">';
-            h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin-bottom:7px">IL GIRO CHE TI ASPETTA</div>';
-            h+='<div style="display:flex; gap:14px; margin-bottom:9px">';
-            h+='<div><span style="font-size:17px; font-weight:700; color:#fff">'+kmt+'</span><span style="font-size:10px; color:#c9b3e0"> km</span></div>';
-            h+='<div><span style="font-size:17px; font-weight:700; color:#fff">~'+mnt+'</span><span style="font-size:10px; color:#c9b3e0"> min</span></div>';
-            h+='<div><span style="font-size:17px; font-weight:700; color:#fff">↗'+dst+'</span><span style="font-size:10px; color:#c9b3e0"> m</span></div>';
+          // L'ASSEGNAZIONE DEL TRACCIATORE: grande e con la sua linea dentro
+          if(ar2){
+            var lineeMie = tracceDi(ar2.id);
+            h+='<div style="margin-top:11px; background:#4a3560; border:1px solid #7B5EA7; border-radius:12px; padding:13px">';
+            h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.6px; margin-bottom:5px">SEI ASSEGNATO A</div>';
+            h+='<div style="font-size:19px; font-weight:700; color:#fff; line-height:1.2; margin-bottom:3px">'+esc(ar2.nome)+'</div>';
+            if(ar2.comune) h+='<div style="font-size:11px; color:#c9b3e0; margin-bottom:9px">'+esc(ar2.comune)+'</div>';
+            if(lineeMie.length){
+              h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
+              lineeMie.forEach(function(t){
+                var kmt=(Number(t.distanza||0)/1000).toFixed(2);
+                h+='<button class="btn" data-gitr="'+t.id+'" style="background:#7B5EA7; color:#fff; width:100%; margin-bottom:6px; text-align:left; padding:12px 13px">';
+                h+='<div style="font-size:14px; font-weight:700">〰️ '+esc(t.nome)+'</div>';
+                h+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'+kmt+' km · tocca e ti porto sulla traccia</div>';
+                h+='</button>';
+              });
+            }else if(ar2.percorso && ar2.percorso.punti && ar2.percorso.punti.length>4){
+              var kmt2=(ar2.percorso.distanza/1000).toFixed(2);
+              var mnt2=Math.round((ar2.percorso.durata||0)/60);
+              h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
+              h+='<button class="btn" id="gi-segui" style="background:#7B5EA7; color:#fff; width:100%; text-align:left; padding:12px 13px">';
+              h+='<div style="font-size:14px; font-weight:700">🐾 Segui il percorso</div>';
+              h+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'+kmt2+' km · ~'+mnt2+' min a passo di mappatura</div>';
+              h+='</button>';
+            }else{
+              h+='<div style="font-size:11px; color:#c9b3e0; line-height:1.5; margin-top:8px">Questa mappa non ha ancora una linea di tracciamento. Chiedi al capocaccia di disegnarla.</div>';
+            }
             h+='</div>';
-            h+='<div style="font-size:9.5px; color:rgba(255,255,255,.55); line-height:1.4; margin-bottom:9px">Tempi a passo di mappatura. All\'alba, spedito, ci metterai meno.</div>';
-            h+='<button class="btn" id="gi-segui" style="background:#7B5EA7; color:#fff; width:100%">🐾 Segui il percorso</button>';
-            h+='</div>';
+          }else{
+            h+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'+
+               (areeSeg.length ? 'Il capocaccia ti assegnerà a un\'area.'
+                               : 'Il capocaccia deciderà le aree e ti assegnerà.')+'</div>';
           }
         }
       }
@@ -4370,6 +4429,12 @@
     if(gp) gp.onclick=apriPresenze;
     var gc=root.querySelector("#gi-concludi");
     if(gc) gc.onclick=concludiGiornata;
+    root.querySelectorAll("[data-gitr]").forEach(function(b){
+      b.onclick=function(){
+        var t=tracce.find(function(x){ return x.id===b.dataset.gitr; });
+        if(t) seguiTraccia(t);
+      };
+    });
     var rr=root.querySelector("#gi-ritrovo");
     if(rr) rr.onclick=scegliRitrovo;
     var gd=root.querySelector("#gi-delega");
@@ -4936,6 +5001,253 @@
     }
   }
 
+  /* ===== LINEE DI TRACCIAMENTO =====
+     Sono un'altra cosa dalle poste: le poste stanno sul bordo, la linea del
+     tracciatore passa DENTRO e ci va vicino senza toccarle. Una mappa puo'
+     averne piu' di una (il giro completo, un lato solo...), ognuna col nome.
+     Si creano in due modi: disegnandole a dito sul satellite da casa, oppure
+     registrandole camminando. */
+  var tracce = [];              // le linee di tutte le mappe
+  var disegnoTraccia = null;    // {areaId, punti:[], linea, marker:[]}
+  var registroTraccia = null;   // nome della linea che sto registrando camminando
+  var traccaAperta = null;      // l'area di cui sto guardando le linee
+
+  async function caricaTracce(){
+    try{
+      var r = await sb.from("hn_tracce").select("*").eq("squadra_id", me.squadra_id);
+      if(r.error) throw r.error;
+      tracce = r.data || [];
+      try{ localStorage.setItem("hunter_cache_tracce", JSON.stringify(tracce)); }catch(e){}
+    }catch(e){
+      try{
+        var c = JSON.parse(localStorage.getItem("hunter_cache_tracce"));
+        if(c) tracce = c;
+      }catch(e2){}
+    }
+  }
+  function tracceDi(areaId){
+    return tracce.filter(function(t){ return t.area_id === areaId; });
+  }
+
+  /* --- l'elenco delle linee di una mappa --- */
+  async function apriTracce(){
+    var a = areaAttiva();
+    if(!a) return;
+    traccaAperta = a.id;
+    document.getElementById("m-areapop").classList.remove("show");
+    document.getElementById("m-tracce-tit").textContent = "Linee · " + a.nome;
+    document.getElementById("m-tracce-lista").innerHTML = '<div class="loading">Carico…</div>';
+    document.getElementById("m-tracce").classList.add("show");
+    if(!tracce.length) await caricaTracce();
+    renderTracce();
+  }
+
+  function renderTracce(){
+    var a = aree.find(function(x){ return x.id === traccaAperta; });
+    var mie = tracceDi(traccaAperta);
+    var h = "";
+    if(!mie.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
+         + 'Nessuna linea per questa mappa.</div>';
+    }
+    mie.forEach(function(t){
+      var km = (Number(t.distanza || 0) / 1000).toFixed(2);
+      h += '<div class="card" style="margin-bottom:7px">';
+      h += '<div style="display:flex; align-items:center; gap:9px">';
+      h += '<span style="font-size:17px">〰️</span>';
+      h += '<div style="flex:1; min-width:0">';
+      h += '<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(t.nome)+'</div>';
+      h += '<div style="font-size:10px; color:var(--muted)">'+km+' km · '
+         + (t.origine === "camminata" ? "camminata" : "disegnata")
+         + (t.punti && t.punti.length ? ' · '+t.punti.length+' punti' : '')+'</div>';
+      h += '</div></div>';
+      h += '<div class="btnrow" style="margin-top:9px">';
+      h += '<button class="btn line" data-trsegui="'+t.id+'" style="font-size:12px; padding:9px">🐾 Seguila</button>';
+      if(puoMappare()) h += '<button class="btn line" data-trdel="'+t.id+'" style="font-size:12px; padding:9px; flex:0 0 46px">🗑</button>';
+      h += '</div></div>';
+    });
+    document.getElementById("m-tracce-lista").innerHTML = h;
+
+    var c = "";
+    if(puoMappare()){
+      c += '<button class="btn primary" id="tr-disegna" style="margin-top:10px">✏️ Disegna una linea</button>';
+      c += '<button class="btn line" id="tr-cammina" style="margin-top:7px">🥾 Registrala camminando</button>';
+    }
+    document.getElementById("m-tracce-crea").innerHTML = c;
+    bindTracce();
+  }
+
+  function bindTracce(){
+    var m = document.getElementById("m-tracce");
+    m.querySelectorAll("[data-trsegui]").forEach(function(b){
+      b.onclick = function(){
+        var t = tracce.find(function(x){ return x.id === b.dataset.trsegui; });
+        if(t) seguiTraccia(t);
+      };
+    });
+    m.querySelectorAll("[data-trdel]").forEach(function(b){
+      b.onclick = function(){ eliminaTraccia(b.dataset.trdel); };
+    });
+    var d = document.getElementById("tr-disegna");
+    if(d) d.onclick = iniziaDisegnoTraccia;
+    var w = document.getElementById("tr-cammina");
+    if(w) w.onclick = registraTracciaCamminando;
+  }
+
+  /* --- disegno a dito sul satellite --- */
+  function iniziaDisegnoTraccia(){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    var a = aree.find(function(x){ return x.id === traccaAperta; });
+    if(!a) return;
+    document.getElementById("m-tracce").classList.remove("show");
+    disegnoTraccia = {areaId:a.id, punti:[], linea:null, segni:[]};
+    areaAttivaId = a.id;
+    document.getElementById("trbanner-sub").textContent = "tocca sulla mappa i punti del percorso";
+    document.getElementById("trbanner-ok").disabled = true;
+    document.getElementById("trbanner").classList.add("show");
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      renderAreePoligoni();
+      fitArea();
+    }, 250);
+    toast("Tocca i punti uno dopo l'altro");
+  }
+
+  function aggiungiPuntoTraccia(lat, lng){
+    if(!disegnoTraccia || !map) return;
+    disegnoTraccia.punti.push({lat:lat, lng:lng});
+    ridisegnaTraccia();
+  }
+
+  function ridisegnaTraccia(){
+    if(!disegnoTraccia || !map) return;
+    if(disegnoTraccia.linea){ try{ map.removeLayer(disegnoTraccia.linea); }catch(e){} }
+    disegnoTraccia.segni.forEach(function(s){ try{ map.removeLayer(s); }catch(e){} });
+    disegnoTraccia.segni = [];
+    var p = disegnoTraccia.punti;
+    if(p.length > 1){
+      disegnoTraccia.linea = L.polyline(p.map(function(q){ return [q.lat,q.lng]; }),
+        {color:"#c9b3e0", weight:4, dashArray:"9 6"}).addTo(map);
+    }else{
+      disegnoTraccia.linea = null;
+    }
+    p.forEach(function(q){
+      disegnoTraccia.segni.push(L.circleMarker([q.lat,q.lng],
+        {radius:5, color:"#4a3560", fillColor:"#c9b3e0", fillOpacity:1, weight:2}).addTo(map));
+    });
+    var d = p.length > 1 ? distanzaTotale(p) : 0;
+    document.getElementById("trbanner-sub").textContent =
+      p.length + (p.length===1?" punto":" punti") + (d ? " · "+(d/1000).toFixed(2)+" km" : "");
+    document.getElementById("trbanner-ok").disabled = (p.length < 2);
+  }
+
+  function annullaUltimoPunto(){
+    if(!disegnoTraccia || !disegnoTraccia.punti.length) return;
+    disegnoTraccia.punti.pop();
+    ridisegnaTraccia();
+  }
+
+  function chiudiDisegnoTraccia(){
+    if(disegnoTraccia && map){
+      if(disegnoTraccia.linea){ try{ map.removeLayer(disegnoTraccia.linea); }catch(e){} }
+      disegnoTraccia.segni.forEach(function(s){ try{ map.removeLayer(s); }catch(e){} });
+    }
+    disegnoTraccia = null;
+    var b = document.getElementById("trbanner");
+    if(b) b.classList.remove("show");
+  }
+
+  async function salvaDisegnoTraccia(){
+    if(!disegnoTraccia || disegnoTraccia.punti.length < 2){ toast("Servono almeno due punti"); return; }
+    var nome = prompt("Nome della linea\n(es. Giro completo, Lato est)");
+    if(!nome) return;
+    nome = nome.trim();
+    if(!nome) return;
+    if(!navigator.onLine){ toast("Serve la rete per salvare la linea"); return; }
+    var areaId = disegnoTraccia.areaId;
+    var punti = disegnoTraccia.punti.slice();
+    try{
+      var r = await sb.from("hn_tracce").insert({
+        squadra_id:me.squadra_id, area_id:areaId, nome:nome,
+        origine:"disegnata", punti:punti,
+        distanza:Math.round(distanzaTotale(punti)), creata_da:me.membro_id
+      }).select().single();
+      if(r.error) throw r.error;
+      tracce.push(r.data);
+      chiudiDisegnoTraccia();
+      toast("Linea salvata: " + nome);
+      traccaAperta = areaId;
+      document.getElementById("m-tracce").classList.add("show");
+      renderTracce();
+    }catch(e){ toast("Non sono riuscito a salvare"); }
+  }
+
+  /* --- registrazione camminando: riusa il percorso, cambia solo dove finisce --- */
+  function registraTracciaCamminando(){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    var a = aree.find(function(x){ return x.id === traccaAperta; });
+    if(!a) return;
+    var nome = prompt("Nome della linea che stai per camminare\n(es. Giro completo)");
+    if(!nome || !nome.trim()) return;
+    registroTraccia = nome.trim();
+    document.getElementById("m-tracce").classList.remove("show");
+    entraMappatura(a.id, false);
+    toast("Cammina: alla fine premi Fine e la salvo come linea");
+  }
+
+  async function salvaTracciaCamminata(dati, areaId){
+    try{
+      var r = await sb.from("hn_tracce").insert({
+        squadra_id:me.squadra_id, area_id:areaId, nome:registroTraccia,
+        origine:"camminata", punti:dati.punti,
+        distanza:Math.round(dati.distanza||0), creata_da:me.membro_id
+      }).select().single();
+      if(r.error) throw r.error;
+      tracce.push(r.data);
+      toast("Linea salvata: " + registroTraccia);
+      return true;
+    }catch(e){
+      toast("Serve la rete per salvare la linea");
+      return false;
+    }
+  }
+
+  async function eliminaTraccia(id){
+    if(!puoMappare()) return;
+    var t = tracce.find(function(x){ return x.id === id; });
+    if(!t) return;
+    if(!confirm("Eliminare la linea \""+t.nome+"\"?")) return;
+    try{
+      var r = await sb.from("hn_tracce").delete().eq("id", id);
+      if(r.error) throw r.error;
+      tracce = tracce.filter(function(x){ return x.id !== id; });
+      renderTracce();
+      toast("Linea eliminata");
+    }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* --- seguire una linea: stessa guida del percorso --- */
+  function seguiTraccia(t){
+    if(!t || !t.punti || t.punti.length < 2){ toast("Linea incompleta"); return; }
+    document.getElementById("m-tracce").classList.remove("show");
+    seguoPercorso = {punti:t.punti, distanza:Number(t.distanza||0), da:t.nome};
+    areaAttivaId = t.area_id;
+    areaApertaInMappa = true;
+    aggiornaPills();
+    serveGPS("percorso");
+    tieniSchermoAcceso();       // seguire una linea richiede il display: non deve spegnersi
+    showView("mappa");
+    document.getElementById("guidabar").classList.add("show");
+    setTimeout(function(){
+      renderPoste();
+      disegnaPercorso();
+      if(lineaPercorso && map) map.fitBounds(lineaPercorso.getBounds().pad(0.2));
+      aggiornaGuida();
+    }, 250);
+    toast("Segui: " + t.nome);
+  }
+
   /* ===== CLASSIFICA E SERGENTE MARIO =====
      REGOLA MADRE: esiste UNA sola verita' per i numeri.
        presenze e tracciate  -> si leggono dalle adesioni delle giornate CONCLUSE
@@ -5126,6 +5438,10 @@
            + (r.medaglie.length ? ' · '+r.medaglie.length+' medagli'+(r.medaglie.length===1?'a':'e') : '')
            + '</div></div>';
         h += '<div class="pt">'+(clSub==="generale" ? numPulito(r.punti) : r[chiave])+'</div>';
+        // la medaglietta si tocca e porta al muro: senza icona nessuno lo trova
+        h += '<button class="inf" data-clmuro="'+r.membro_id+'" title="Medagliere" '
+           + 'style="border-color:'+(r.medaglie.length?'var(--gold)':'var(--dark3)')+'; '
+           + 'color:'+(r.medaglie.length?'var(--gold)':'var(--muted)')+'">🎖</button>';
         h += '<button class="inf" data-clinfo="'+r.membro_id+'">i</button>';
         h += '</div>';
       });
@@ -5173,6 +5489,9 @@
     });
     root.querySelectorAll("[data-clinfo]").forEach(function(b){
       b.onclick = function(){ apriDettaglioPunti(b.dataset.clinfo); };
+    });
+    root.querySelectorAll("[data-clmuro]").forEach(function(b){
+      b.onclick = function(){ apriMedagliere(b.dataset.clmuro); };
     });
     var bb = root.querySelector("#cl-barema");
     if(bb) bb.onclick = apriBarema;
@@ -5373,8 +5692,7 @@
         });
     }else{
       h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
-         + 'Le medaglie le assegnano il sergente e il capocaccia a fine giornata. '
-         + 'Le sagome scure sono quelle che puoi ancora prendere.</div>';
+         + 'Le medaglie le assegnano il sergente e il capocaccia a fine giornata.</div>';
     }
 
     root.innerHTML = h;
@@ -7445,6 +7763,21 @@
       da: me.nome,
       quando: iso(new Date())
     };
+    // se stavo registrando una LINEA DI TRACCIAMENTO finisce li', non sull'area
+    if(registroTraccia){
+      var nomeLinea = registroTraccia;
+      var ok = await salvaTracciaCamminata(dati, a.id);
+      if(ok){
+        registroTraccia = null;
+        chiudiPercorso();
+        document.getElementById("m-percorso").classList.remove("show");
+        aggiornaCruscotto();
+        renderAree();
+        return;
+      }
+      registroTraccia = nomeLinea;   // non ha salvato: riprova quando vuole
+      return;
+    }
     // il percorso entra SUBITO nella copia locale: da qui non si perde piu'
     var i = aree.findIndex(function(x){ return x.id === a.id; });
     if(i >= 0){ aree[i].percorso = dati; }
@@ -7865,6 +8198,13 @@
     document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
     document.getElementById("m-rt-mappa").onclick=function(){ iniziaPickRitrovo("battuta"); };
     document.getElementById("h-med").onclick=function(){ apriMedagliere(null); };
+    document.getElementById("ma-tracce").onclick=apriTracce;
+    document.getElementById("m-tracce-chiudi").onclick=function(){ document.getElementById("m-tracce").classList.remove("show"); };
+    document.getElementById("trbanner-ok").onclick=salvaDisegnoTraccia;
+    document.getElementById("trbanner-annulla").onclick=annullaUltimoPunto;
+    document.getElementById("trbanner-esci").onclick=function(){
+      chiudiDisegnoTraccia(); showView("aree"); renderAree();
+    };
     document.getElementById("m-punti-chiudi").onclick=function(){ document.getElementById("m-punti").classList.remove("show"); };
     document.getElementById("m-barema-annulla").onclick=function(){ document.getElementById("m-barema").classList.remove("show"); };
     document.getElementById("m-barema-salva").onclick=salvaBarema;
