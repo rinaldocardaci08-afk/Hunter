@@ -273,6 +273,9 @@
     padding:4px; border-radius:11px; backdrop-filter:blur(4px);}
   .pill{font-size:12px; padding:7px 11px; border-radius:8px; color:var(--muted); border:none; background:transparent;}
   .pill.on{background:var(--brown); color:var(--cream);}
+  .lente{pointer-events:auto; background:rgba(44,36,24,.88); backdrop-filter:blur(4px);
+    border:none; border-radius:9px; padding:7px 10px; font-size:15px; line-height:1;
+    color:var(--cream); flex-shrink:0;}
   .areatag{margin-left:auto; pointer-events:auto; background:rgba(44,36,24,.88); backdrop-filter:blur(4px);
     padding:8px 11px; border-radius:9px; font-size:12px; color:var(--gold); max-width:46%;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
@@ -390,6 +393,12 @@
   #mapbanner .tx .b{font-size:11px; color:#fbeae3; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   #mapbanner button{background:rgba(255,255,255,.9); border:none; color:#7a2e1d;
     border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; flex-shrink:0;}
+
+  /* ---------- RICERCA DI UN LUOGO ---------- */
+  .cerca-ris{background:var(--dark2); border:1px solid var(--dark3); border-radius:10px;
+    padding:10px 11px; margin-bottom:6px; cursor:pointer;}
+  .cerca-ris .a{font-size:13px; color:var(--cream); font-weight:600;}
+  .cerca-ris .b{font-size:11px; color:var(--muted); margin-top:2px;}
 
   /* ---------- BARRA SCELTA PUNTO DI RITROVO ---------- */
   #rtbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
@@ -1002,6 +1011,7 @@
           <button class="pill on" data-mode="sat" id="pill-sat">Satellite</button>
           <button class="pill" data-mode="schema" id="pill-schema">Schema</button>
         </div>
+        <button class="lente" id="btn-cerca" title="Cerca un luogo">&#128269;</button>
         <div class="areatag" id="areatag">Mappa</div>
       </div>
 
@@ -1494,6 +1504,20 @@
   </div>
 </div>
 
+<!-- MODALE: cerca un luogo sulla mappa -->
+<div class="modal" id="m-cerca">
+  <div class="sheet">
+    <h3>Cerca un luogo</h3>
+    <p class="hint">Paese, frazione, strada. Oppure incolla delle coordinate (o un link di posizione) e ci vado subito.</p>
+    <input id="cerca-testo" type="text" autocomplete="off" placeholder="Cittanova, oppure 38.35291, 16.07994">
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="cerca-chiudi">Chiudi</button>
+      <button class="btn primary" id="cerca-vai">Cerca</button>
+    </div>
+    <div id="cerca-esito" style="margin-top:12px; max-height:44vh; overflow-y:auto"></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -1503,7 +1527,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.37";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.38";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4508,12 +4532,144 @@
     }catch(e){ toast("Serve la rete"); }
   }
 
+  /* ===== CERCA UN LUOGO SULLA MAPPA =====
+     Serve a spostare la mappa dove non si e' mai stati: si scrive il nome,
+     l'app chiede le coordinate al servizio libero di OpenStreetMap e porta
+     la vista li'. La ricerca sposta SOLO la mappa: nessun punto viene creato.
+     Se invece si incollano delle coordinate (anche prese da un link di
+     posizione ricevuto in chat), non serve nessuna rete: ci si va diretti. */
+
+  function validaCoord(la, ln){
+    if(isNaN(la) || isNaN(ln)) return null;
+    if(la < -90 || la > 90 || ln < -180 || ln > 180) return null;
+    return {lat:la, lng:ln};
+  }
+
+  // riconosce le coordinate scritte a mano o incollate da un messaggio
+  function leggiCoordinate(testo){
+    var t = String(testo || "").trim();
+    if(!t) return null;
+    var m;
+    // "38,35291 16,07994"  (virgola come decimale, spazio come separatore)
+    m = t.match(/^(-?\d{1,3},\d+)[ ;]+(-?\d{1,3},\d+)$/);
+    if(m) return validaCoord(parseFloat(m[1].replace(",",".")), parseFloat(m[2].replace(",",".")));
+    // "38.35291, 16.07994" oppure "38.35291 16.07994"
+    m = t.match(/^(-?\d{1,3}(?:\.\d+)?)[ ,;]+(-?\d{1,3}(?:\.\d+)?)$/);
+    if(m) return validaCoord(parseFloat(m[1]), parseFloat(m[2]));
+    // dentro un link o un messaggio incollato (posizione condivisa in chat)
+    m = t.match(/(-?\d{1,3}\.\d{3,})[ ,]+(-?\d{1,3}\.\d{3,})/);
+    if(m) return validaCoord(parseFloat(m[1]), parseFloat(m[2]));
+    return null;
+  }
+
+  function apriCerca(){
+    document.getElementById("cerca-testo").value = "";
+    document.getElementById("cerca-esito").innerHTML = "";
+    document.getElementById("m-cerca").classList.add("show");
+    setTimeout(function(){ try{ document.getElementById("cerca-testo").focus(); }catch(e){} }, 150);
+  }
+  function chiudiCerca(){
+    document.getElementById("m-cerca").classList.remove("show");
+  }
+
+  // porta la mappa su un punto e basta: non crea e non modifica nulla
+  function vaiSullaMappa(lat, lng, zoom){
+    chiudiCerca();
+    // se stavo per essere ricentrato sulla mia posizione, quel centraggio decade:
+    // ho appena detto io dove voglio andare
+    if(typeof pickCentraTimer!=="undefined" && pickCentraTimer){
+      clearTimeout(pickCentraTimer); pickCentraTimer=null;
+    }
+    showViewCercaSicura();
+    setTimeout(function(){
+      if(!map){ toast("La mappa non e' pronta"); return; }
+      map.setView([lat,lng], zoom || 16);
+    }, 220);
+  }
+  // se sto scegliendo un ritrovo NON devo passare da showView, che annullerebbe la scelta
+  function showViewCercaSicura(){
+    if(pickRitrovo) return;               // sono gia' sulla mappa, ci resto
+    showView("mappa");
+  }
+
+  async function eseguiCerca(){
+    var testo = document.getElementById("cerca-testo").value.trim();
+    if(!testo){ toast("Scrivi un luogo o delle coordinate"); return; }
+
+    // 1) coordinate: non serve la rete
+    var c = leggiCoordinate(testo);
+    if(c){ vaiSullaMappa(c.lat, c.lng, 17); return; }
+
+    // 2) nome di luogo: serve la rete
+    if(!navigator.onLine){
+      document.getElementById("cerca-esito").innerHTML =
+        '<div class="hint">Senza rete posso solo saltare a delle coordinate incollate, non cercare un nome.</div>';
+      return;
+    }
+    var bt = document.getElementById("cerca-vai");
+    bt.disabled = true; bt.textContent = "Cerco...";
+    document.getElementById("cerca-esito").innerHTML = '<div class="hint">Sto cercando...</div>';
+    try{
+      var url = "https://nominatim.openstreetmap.org/search?format=jsonv2&limit=6&accept-language=it&q="
+              + encodeURIComponent(testo);
+      // se so dove sono, chiedo di preferire i risultati vicini
+      var p = pos || ultimaPosNota();
+      if(p){
+        url += "&viewbox=" + (p.lng-1.2).toFixed(4) + "," + (p.lat+1.2).toFixed(4)
+             + "," + (p.lng+1.2).toFixed(4) + "," + (p.lat-1.2).toFixed(4);
+      }
+      var r = await fetch(url, {headers:{"Accept":"application/json"}});
+      if(!r.ok) throw new Error("risposta " + r.status);
+      var dati = await r.json();
+      mostraRisultatiCerca(dati);
+    }catch(e){
+      document.getElementById("cerca-esito").innerHTML =
+        '<div class="hint">Non sono riuscito a cercare adesso. Riprova fra poco, oppure incolla le coordinate.</div>';
+    }finally{
+      bt.disabled = false; bt.textContent = "Cerca";
+    }
+  }
+
+  function mostraRisultatiCerca(dati){
+    var box = document.getElementById("cerca-esito");
+    if(!dati || !dati.length){
+      box.innerHTML = '<div class="hint">Nessun luogo trovato. Le contrade piccole spesso non ci sono: '
+                    + 'prova col paese o con la strada, poi spostati col dito sul satellite.</div>';
+      return;
+    }
+    var h = "";
+    dati.forEach(function(d, i){
+      var parti = String(d.display_name || "").split(",");
+      var testa = parti.shift();
+      h += '<div class="cerca-ris" data-i="' + i + '">';
+      h += '<div class="a">' + esc(testa) + '</div>';
+      h += '<div class="b">' + esc(parti.join(",").trim()) + '</div></div>';
+    });
+    box.innerHTML = h;
+    box.querySelectorAll("[data-i]").forEach(function(el){
+      el.onclick = function(){
+        var d = dati[parseInt(el.dataset.i,10)];
+        if(!d) return;
+        var la = parseFloat(d.lat), ln = parseFloat(d.lon);
+        if(isNaN(la) || isNaN(ln)) return;
+        // il riquadro del luogo dice quanto stringere: un paese non come una via
+        var z = 16;
+        if(d.boundingbox && d.boundingbox.length === 4){
+          var dlat = Math.abs(parseFloat(d.boundingbox[1]) - parseFloat(d.boundingbox[0]));
+          z = dlat > 0.3 ? 10 : (dlat > 0.08 ? 12 : (dlat > 0.02 ? 14 : 16));
+        }
+        vaiSullaMappa(la, ln, z);
+      };
+    });
+  }
+
   /* ===== SCEGLIERE IL PUNTO DI RITROVO TOCCANDO LA MAPPA =====
      Il tasto "dove sono ora" richiede di stare fisicamente sul posto.
      Questo invece permette di prepararlo da casa: si apre la mappa,
      si tocca il punto, si da' il nome. Il ritrovo viene solo CREATO:
      poi lo si sceglie dall'elenco come tutti gli altri. */
   var pickRitrovo = null;   // {origine:"battuta"|"aree", lat, lng, marker}
+  var pickCentraTimer = null;   // il centraggio ritardato all'ingresso in modalita' scelta
 
   function iconRitrovoScelto(){
     return L.divIcon({className:"", iconSize:[36,36], iconAnchor:[18,18],
@@ -4528,7 +4684,9 @@
     document.getElementById("rtbanner-ok").disabled=true;
     document.getElementById("rtbanner").classList.add("show");
     showView("mappa");
-    setTimeout(function(){
+    if(pickCentraTimer){ clearTimeout(pickCentraTimer); }
+    pickCentraTimer = setTimeout(function(){
+      pickCentraTimer = null;
       if(!map) return;
       var p = pos || ultimaPosNota();
       if(p) map.setView([p.lat,p.lng], 15);
@@ -4546,6 +4704,7 @@
   }
 
   function chiudiPickRitrovo(){
+    if(pickCentraTimer){ clearTimeout(pickCentraTimer); pickCentraTimer=null; }
     if(pickRitrovo && pickRitrovo.marker && map){
       try{ map.removeLayer(pickRitrovo.marker); }catch(e){}
     }
@@ -6547,6 +6706,12 @@
     document.getElementById("m-del-annulla").onclick=function(){ document.getElementById("m-delega").classList.remove("show"); };
     document.getElementById("m-rt-annulla").onclick=function(){ document.getElementById("m-scegli-rt").classList.remove("show"); };
     document.getElementById("m-rt-mappa").onclick=function(){ iniziaPickRitrovo("battuta"); };
+    document.getElementById("btn-cerca").onclick=apriCerca;
+    document.getElementById("cerca-chiudi").onclick=chiudiCerca;
+    document.getElementById("cerca-vai").onclick=eseguiCerca;
+    document.getElementById("cerca-testo").addEventListener("keydown", function(e){
+      if(e.key==="Enter"){ e.preventDefault(); eseguiCerca(); }
+    });
     document.getElementById("rtbanner-ok").onclick=confermaPuntoRitrovo;
     document.getElementById("rtbanner-no").onclick=annullaPickRitrovo;
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
