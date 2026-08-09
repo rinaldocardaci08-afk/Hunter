@@ -1878,7 +1878,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.55";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.56";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4872,7 +4872,7 @@
         var nseg = segnalazioni.filter(function(x){ return x.tracciata_id===tc.id; });
         var ent = nseg.filter(function(x){ return x.tipo==="entrata"; }).length;
         var usc = nseg.filter(function(x){ return x.tipo==="uscita"; }).length;
-        h+='<div class="card" style="margin-bottom:7px"><div style="display:flex; align-items:center; gap:8px">';
+        h+='<div class="card" data-tcapri="'+tc.id+'" style="margin-bottom:7px; cursor:pointer"><div style="display:flex; align-items:center; gap:8px">';
         h+='<span style="font-size:15px">'+(tc.chiusa_il ? '\u2713' : '\u23f1')+'</span>';
         h+='<div style="flex:1; min-width:0">';
         h+='<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(nomeDi(tc.membro_id))+'</div>';
@@ -4888,6 +4888,7 @@
           if(usc) h+='<div style="font-size:11px; color:#e08a8a">\u2191 '+usc+'</div>';
           h+='</div>';
         }
+        h+='<span style="font-size:15px; color:var(--muted); flex-shrink:0">\u203a</span>';
         h+='</div>';
         if(tc.membro_id===me.membro_id){
           h+='<button class="btn line" data-segnadopo="'+tc.id+'|'+(tc.area_id||"")+'" style="margin-top:8px; font-size:11.5px; padding:8px">\ud83d\udc17 Segna cosa hai visto</button>';
@@ -4986,6 +4987,13 @@
     });
     root.querySelectorAll("[data-sin]").forEach(function(b){
       b.onclick=function(){ apriSintesi(b.dataset.sin); };
+    });
+    root.querySelectorAll("[data-tcapri]").forEach(function(c){
+      c.onclick=function(ev){
+        // i bottoni dentro la scheda fanno il loro mestiere, non aprono il dettaglio
+        if(ev && ev.target && ev.target.closest && ev.target.closest("button")) return;
+        apriDettaglioTracciata(c.dataset.tcapri);
+      };
     });
     root.querySelectorAll("[data-tcdel]").forEach(function(b){
       b.onclick=function(){ eliminaTracciata(b.dataset.tcdel); };
@@ -6396,6 +6404,9 @@
     document.getElementById("m-sin-corpo").querySelectorAll("[data-segndel]").forEach(function(b){
       b.onclick = function(){ eliminaSegnalazione(b.dataset.segndel); };
     });
+    document.getElementById("m-sin-corpo").querySelectorAll("[data-tcapri2]").forEach(function(b){
+      b.onclick = function(){ apriDettaglioTracciata(b.dataset.tcapri2); };
+    });
     document.getElementById("m-sintesi").classList.add("show");
   }
 
@@ -6474,7 +6485,9 @@
       chiTraccia.forEach(function(a){
         var tc = tcArea.find(function(x){ return x.membro_id === a.membro_id; });
         h += '<div style="padding:6px 0; border-top:1px solid var(--dark3)">';
-        h += '<div style="font-size:12.5px; color:var(--cream)">'+esc(nomeDi(a.membro_id))
+        h += '<div style="font-size:12.5px; color:var(--cream)"'
+           + (tc ? ' data-tcapri2="'+tc.id+'" style="cursor:pointer"' : '')
+           + '>'+esc(nomeDi(a.membro_id))
            + (a.area_tracciata !== idA ? ' <span style="font-size:10px; color:var(--gold)">non assegnato qui</span>' : '')
            + ' <span style="font-size:10.5px; color:var(--muted)">'
            + (tc ? (tc.dichiarata ? "\u00b7 dichiarata"
@@ -6489,6 +6502,69 @@
       h += '</div>';
     });
     return h;
+  }
+
+  /* IL DETTAGLIO DI UNA TRACCIATA: chi, quale linea, quanto ha camminato,
+     il resoconto scritto e TUTTE le sue segnalazioni. Prima si vedevano solo
+     i due contatori e non c'era modo di aprirle. */
+  function apriDettaglioTracciata(id){
+    var tc = tracciate.find(function(x){ return x.id === id; });
+    if(!tc) return;
+    var t = tracce.find(function(x){ return x.id === tc.traccia_id; });
+    var ar = aree.find(function(x){ return x.id === tc.area_id; });
+    var mie = segnalazioni.filter(function(x){ return x.tracciata_id === tc.id; })
+                .sort(function(a,b){ return (a.quando||"") > (b.quando||"") ? 1 : -1; });
+
+    var h = "";
+    h += '<div class="card" style="margin-bottom:10px">';
+    h += '<div style="font-size:11px; color:var(--muted)">'+esc(ar ? ar.nome : "zona")
+       + (t ? ' \u00b7 ' + esc(t.nome) : '')+'</div>';
+    h += '<div style="display:flex; gap:16px; margin-top:7px; flex-wrap:wrap">';
+    h += '<div style="font-size:12px; color:var(--cream)">'
+       + (tc.dichiarata ? 'dichiarata' : (tc.chiusa_il ? (Number(tc.distanza||0)/1000).toFixed(2)+' km camminati' : 'in corso'))
+       + '</div>';
+    if(tc.chiusa_il && !tc.dichiarata && tc.aperta_il){
+      var min = Math.round((new Date(tc.chiusa_il) - new Date(tc.aperta_il)) / 60000);
+      if(min > 0 && min < 1440) h += '<div style="font-size:12px; color:var(--muted)">'+min+' minuti</div>';
+    }
+    h += '</div>';
+    if(tc.note){
+      h += '<div style="margin-top:9px; padding-top:9px; border-top:1px solid var(--dark3); '
+         + 'font-size:12.5px; color:var(--cream); line-height:1.6; white-space:pre-wrap">'+esc(tc.note)+'</div>';
+    }
+    h += '</div>';
+
+    h += '<div class="sechead">Cosa ha visto</div>';
+    if(!mie.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna segnalazione in questa tracciata.</div>';
+    }
+    mie.forEach(function(x){
+      var col = (x.tipo === "entrata") ? "#7be0a8" : "#e08a8a";
+      h += '<div class="card" style="margin-bottom:6px"><div style="display:flex; gap:9px; align-items:center">';
+      h += '<span style="font-size:17px; color:'+col+'">'+(x.tipo==="entrata"?"\u2193":"\u2191")+'</span>';
+      h += '<div style="flex:1; min-width:0">';
+      h += '<div style="font-size:13px; color:var(--cream)">'
+         + (x.tipo==="entrata" ? "Entrata" : "Uscita")
+         + (x.capi ? ' \u00b7 <b style="color:'+col+'">'+x.capi+(x.capi>=6?"+":"")+'</b> cap'+(x.capi===1?'o':'i') : ' \u00b7 non contati')
+         + '</div>';
+      var ora = x.quando ? new Date(x.quando) : null;
+      h += '<div style="font-size:10.5px; color:var(--muted)">'
+         + (ora ? (String(ora.getHours()).padStart(2,"0")+":"+String(ora.getMinutes()).padStart(2,"0")) : "")
+         + (x.da_remoto ? ' \u00b7 a memoria' : ' \u00b7 col GPS')+'</div>';
+      h += '</div>';
+      if(puoGestireBattute() || x.membro_id === me.membro_id){
+        h += '<button class="inf" data-segndel="'+x.id+'" title="Elimina" '
+           + 'style="flex:0 0 auto; width:28px; height:28px; font-size:14px">\u2715</button>';
+      }
+      h += '</div></div>';
+    });
+
+    document.getElementById("m-sin-tit").textContent = nomeDi(tc.membro_id);
+    document.getElementById("m-sin-corpo").innerHTML = h;
+    document.getElementById("m-sin-corpo").querySelectorAll("[data-segndel]").forEach(function(b){
+      b.onclick = function(){ eliminaSegnalazione(b.dataset.segndel); };
+    });
+    document.getElementById("m-sintesi").classList.add("show");
   }
 
   async function eliminaTracciata(id){
@@ -6525,7 +6601,12 @@
       segnalazioni = segnalazioni.filter(function(y){ return y.id !== id; });
       disegnaSegnalazioni();
       renderGiornata();
-      apriSintesi("segnalazioni");   // resto dov'ero, con la lista aggiornata
+      // resto dov'ero: se stavo guardando una tracciata, riapro quella
+      if(x.tracciata_id && tracciate.some(function(y){ return y.id === x.tracciata_id; })){
+        apriDettaglioTracciata(x.tracciata_id);
+      }else{
+        apriSintesi("segnalazioni");
+      }
       toast("Segnalazione cancellata");
     }catch(e){ avvisaErroreTracciata(e); }
   }
