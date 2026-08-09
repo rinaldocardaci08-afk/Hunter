@@ -410,6 +410,19 @@
     border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; flex-shrink:0;}
 
   /* ---------- CLASSIFICA ---------- */
+  /* ---------- LE MAPPE A QUADRATI ---------- */
+  .mapgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:10px;}
+  .mapcubo{background:var(--dark2); border:1px solid var(--dark3); border-radius:13px;
+    padding:12px; text-align:left; color:var(--cream); min-height:104px;
+    display:flex; flex-direction:column;}
+  .mapcubo .nm{font-size:14.5px; font-weight:700; line-height:1.2; margin-bottom:2px;}
+  .mapcubo .cm{font-size:10.5px; color:var(--muted); margin-bottom:9px;}
+  .mapcubo .nums{display:flex; gap:12px; margin-top:auto; flex-wrap:wrap;}
+  .mapcubo .nums div{line-height:1.1;}
+  .mapcubo .nums .v{font-size:18px; font-weight:700; color:#fff;}
+  .mapcubo .nums .t{font-size:9.5px; color:var(--muted);}
+  .mapcubo .abb .v{color:var(--gold);}
+
   /* ---------- CUBI DI SINTESI ---------- */
   .cubi{display:flex; gap:9px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;
     -webkit-overflow-scrolling:touch;}
@@ -972,6 +985,15 @@
         <div class="ttl" id="md-titolo">Medagliere</div>
       </div>
       <div class="scroll" id="medagliere-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- SCHEDA DELLA MAPPA -->
+    <section class="view" id="v-areadett">
+      <div class="backbar">
+        <button id="ad-indietro">‹ Mappe</button>
+        <div class="ttl" id="ad-titolo">Mappa</div>
+      </div>
+      <div class="scroll" id="areadett-scroll"><div class="loading">Carico…</div></div>
     </section>
 
     <!-- AMMINISTRAZIONE -->
@@ -1941,7 +1963,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.59";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.60";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2643,7 +2665,8 @@
     areeLayer=L.layerGroup().addTo(map);    // i poligoni delle aree (sotto)
     posteLayer=L.layerGroup().addTo(map);   // le poste (sopra)
     segnLayer=L.layerGroup().addTo(map);    // le frecce di entrata e uscita
-    settLayer=L.layerGroup().addTo(map);    // i rettangoli dei settori
+    settLayer=L.layerGroup().addTo(map);    // i contorni delle sezioni
+    tracceLayer=L.layerGroup().addTo(map);  // le linee di tracciamento
     // il tocco sulla mappa serve SOLO mentre si sceglie un punto di ritrovo:
     // fuori da quella modalita' non fa assolutamente nulla
     map.on("click", function(e){
@@ -2777,6 +2800,7 @@
     });
     disegnaSegnalazioni();
     disegnaSettori();
+    disegnaTracce();
   }
   function updateUser(){
     if(!map||!pos) return;
@@ -3157,22 +3181,24 @@
     });
     Object.keys(gruppi).sort().forEach(function(comune){
       if(aree.length>1) h+='<div class="sechead" style="margin-top:14px">'+esc(comune)+'</div>';
+      h+='<div class="mapgrid">';
       gruppi[comune].forEach(function(a){
         var np=(a.poste||[]).length;
-        h+='<div class="card" data-apri="'+a.id+'" style="cursor:pointer">';
-        h+='<div class="arearow">';
-        h+='<div class="ic">🌲</div><div class="meta"><div class="n">'+esc(a.nome)+'</div>';
-        // il numero di poste lo vede solo chi è autorizzato a vederle
-        h+='<div class="c">'+(vedePoste ? (np+' post'+(np===1?"a":"e")) : 'terreno mappato');
-        h+=(a.comune?' · '+esc(a.comune):'');
-        if(a.percorso && a.percorso.punti){
-          var kmp=(a.percorso.distanza/1000).toFixed(1);
-          h+=' · <span style="color:#c9b3e0">🐾 '+kmp+' km</span>';
-        }
-        h+='</div></div>';
-        h+='<div style="color:var(--muted); font-size:18px">›</div>';
-        h+='</div></div>';
+        var ns=settoriDi(a.id).length;
+        var nl=tracceDi(a.id).length;
+        var ab=abbattimentiArea(a.id);
+        h+='<button class="mapcubo" data-apri="'+a.id+'">';
+        h+='<div class="nm">'+esc(a.nome)+'</div>';
+        h+='<div class="cm">'+(a.comune?esc(a.comune):'&nbsp;')+'</div>';
+        h+='<div class="nums">';
+        if(vedePoste) h+='<div><div class="v">'+np+'</div><div class="t">post'+(np===1?'a':'e')+'</div></div>';
+        h+='<div class="abb"><div class="v">'+ab+'</div><div class="t">abbattut'+(ab===1?'o':'i')+'</div></div>';
+        if(ns) h+='<div><div class="v">'+ns+'</div><div class="t">sezion'+(ns===1?'e':'i')+'</div></div>';
+        if(nl) h+='<div><div class="v">'+nl+'</div><div class="t">line'+(nl===1?'a':'e')+'</div></div>';
+        h+='</div>';
+        h+='</button>';
       });
+      h+='</div>';
     });
     if(puoScrivere) h+='<button class="btn primary" style="margin-top:14px" id="btn-newarea">+ Nuova mappa</button>';
 
@@ -3201,6 +3227,9 @@
       setTimeout(function(){document.getElementById("m-area-nome").focus();},120);
     };
     root.querySelectorAll("[data-apri]").forEach(function(el){
+      el.onclick=function(){ apriSchedaArea(el.dataset.apri); };
+    });
+    root.querySelectorAll("[data-apri-vecchio]").forEach(function(el){
       el.onclick=function(){ apriPopupArea(el.dataset.apri); };
     });
   }
@@ -3291,6 +3320,9 @@
     if(typeof disegnoTraccia!=="undefined" && disegnoTraccia && v!=="mappa") chiudiDisegnoTraccia();
     if(typeof segnRemota!=="undefined" && segnRemota && v!=="mappa") chiudiSegnRemota();
     if(typeof disegnoSettore!=="undefined" && disegnoSettore && v!=="mappa") chiudiDisegnoSettore();
+    if(typeof perTracciataLayer!=="undefined" && perTracciataLayer && v!=="mappa"){
+      try{ perTracciataLayer.clearLayers(); }catch(e){}
+    }
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
     // il GPS si accende solo dove serve
@@ -5662,6 +5694,233 @@
     }
   }
 
+  /* ===== LA SCHEDA DELLA MAPPA =====
+     Un posto solo dove vedere tutto di un terreno: quante poste, quante
+     sezioni, quante linee, quanti capi ci sono stati abbattuti quest'anno.
+     E da qui si accende o si spegne quello che si vuole vedere sulla mappa. */
+  var areaDett = null;
+  var NASC_KEY = "hunter_nascosti";
+  var nascosti = {settori:[], tracce:[]};
+
+  function caricaNascosti(){
+    try{
+      var c = JSON.parse(localStorage.getItem(NASC_KEY));
+      if(c && c.settori && c.tracce) nascosti = c;
+    }catch(e){}
+  }
+  function salvaNascosti(){
+    try{ localStorage.setItem(NASC_KEY, JSON.stringify(nascosti)); }catch(e){}
+  }
+  function eNascosto(tipo, id){ return (nascosti[tipo] || []).indexOf(id) >= 0; }
+  function cambiaVisibilita(tipo, id){
+    var el = nascosti[tipo] || (nascosti[tipo] = []);
+    var i = el.indexOf(id);
+    if(i >= 0) el.splice(i, 1); else el.push(id);
+    salvaNascosti();
+  }
+
+  /* i capi abbattuti in questa mappa nella stagione in corso.
+     Attribuisco la giornata a una mappa sola: quella battuta davvero, oppure
+     l'unica segnalata. Se una giornata aveva piu' mappe e nessuna scelta,
+     non la conto da nessuna parte invece di contarla due volte. */
+  function abbattimentiArea(areaId){
+    var st = stagioneCorrente();
+    var ids = battute.filter(function(b){
+      if(b.stato !== "conclusa" || stagioneDi(b.data) !== st) return false;
+      if(b.area_battuta) return b.area_battuta === areaId;
+      var seg = b.aree_segnalate || [];
+      return seg.length === 1 && seg[0] === areaId;
+    }).map(function(b){ return b.id; });
+    if(!ids.length) return 0;
+    return clFatti.filter(function(f){
+      return f.tipo === "uccisione" && ids.indexOf(f.battuta_id) >= 0;
+    }).reduce(function(t, f){ return t + Number(f.quanti || 1); }, 0);
+  }
+
+  async function apriSchedaArea(id){
+    var a = aree.find(function(x){ return x.id === id; });
+    if(!a) return;
+    areaDett = id;
+    caricaNascosti();
+    document.getElementById("ad-titolo").textContent = a.nome;
+    document.getElementById("areadett-scroll").innerHTML = '<div class="loading">Carico…</div>';
+    showView("areadett");
+    if(!settori.length) await caricaSettori();
+    if(!tracce.length) await caricaTracce();
+    // i fatti servono per gli abbattimenti
+    if(!clFatti.length){
+      try{
+        var r = await sb.from("hn_fatti").select("*").eq("squadra_id", me.squadra_id).eq("tipo","uccisione");
+        if(!r.error) clFatti = r.data || [];
+      }catch(e){}
+    }
+    renderSchedaArea();
+  }
+
+  function renderSchedaArea(){
+    var a = aree.find(function(x){ return x.id === areaDett; });
+    if(!a) return;
+    var root = document.getElementById("areadett-scroll");
+    var poste = (a.poste || []).slice().sort(function(x,y){
+      return (parseInt(x.numero,10)||0) - (parseInt(y.numero,10)||0); });
+    var sez = settoriDi(a.id);
+    var lin = tracceDi(a.id);
+    var ab = abbattimentiArea(a.id);
+    var h = "";
+
+    h += '<div class="cubi" style="margin-bottom:14px">';
+    h += '<div class="cubo"><div class="et">Poste</div><div class="rg"><span class="n">'+poste.length+'</span></div></div>';
+    h += '<div class="cubo"><div class="et">Abbattuti '+stagioneCorrente()+'</div><div class="rg"><span class="n">'+ab+'</span></div></div>';
+    h += '<div class="cubo"><div class="et">Sezioni</div><div class="rg"><span class="n">'+sez.length+'</span></div></div>';
+    h += '<div class="cubo"><div class="et">Linee</div><div class="rg"><span class="n">'+lin.length+'</span></div></div>';
+    h += '</div>';
+
+    h += '<button class="btn primary" id="ad-mappa">🗺️ Apri sulla mappa</button>';
+
+    // --- SEZIONI ---
+    h += '<div class="sechead">Sezioni</div>';
+    if(!sez.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna sezione. Le crei dalla mappa.</div>';
+    }
+    sez.forEach(function(st, i){
+      var sue = posteDelSettore(a, st);
+      var nasc = eNascosto("settori", st.id);
+      h += '<div class="card" style="margin-bottom:6px'+(nasc?'; opacity:.5':'')+'">';
+      h += '<div style="display:flex; align-items:center; gap:9px">';
+      h += '<span style="background:'+coloreSettore(i)+'; color:#fff; font-size:12px; font-weight:700; '
+         + 'width:26px; height:26px; border-radius:7px; display:flex; align-items:center; justify-content:center; flex-shrink:0">'
+         + esc(String(st.nome||"?").replace(/^\D*/, "").charAt(0) || String(st.nome||"?").slice(-1)) + '</span>';
+      h += '<div style="flex:1; min-width:0" data-sezapri="'+st.id+'">';
+      h += '<div style="font-size:13.5px; color:var(--cream); font-weight:600">'+esc(st.nome)+'</div>';
+      h += '<div style="font-size:10.5px; color:var(--muted)">'+sue.length+' post'+(sue.length===1?'a':'e')+' · tocca per vederle</div>';
+      h += '</div>';
+      h += '<button class="inf" data-vis="settori|'+st.id+'" style="width:auto; padding:0 9px; height:28px; font-size:11px">'
+         + (nasc ? "mostra" : "nascondi") + '</button>';
+      h += '</div></div>';
+    });
+
+    // --- LINEE ---
+    h += '<div class="sechead">Linee di tracciamento</div>';
+    if(!lin.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna linea su questa mappa.</div>';
+    }
+    lin.forEach(function(t){
+      var nasc = eNascosto("tracce", t.id);
+      var km = (Number(t.distanza||0)/1000).toFixed(2);
+      h += '<div class="card" style="margin-bottom:6px'+(nasc?'; opacity:.5':'')+'">';
+      h += '<div style="display:flex; align-items:center; gap:9px">';
+      h += '<span style="font-size:16px">〰️</span>';
+      h += '<div style="flex:1; min-width:0">';
+      h += '<div style="font-size:13.5px; color:var(--cream); font-weight:600">'+esc(t.nome)+'</div>';
+      h += '<div style="font-size:10.5px; color:var(--muted)">'+km+' km · '
+         + (t.origine === "camminata" ? "camminata" : "disegnata")+'</div>';
+      h += '</div>';
+      h += '<button class="inf" data-vis="tracce|'+t.id+'" style="width:auto; padding:0 9px; height:28px; font-size:11px">'
+         + (nasc ? "mostra" : "nascondi") + '</button>';
+      h += '</div></div>';
+    });
+
+    // --- POSTE ---
+    h += '<div class="sechead">Poste</div>';
+    if(!poste.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna posta segnata.</div>';
+    }
+    poste.forEach(function(p){
+      var suo = sez.find(function(st){ return postaNelSettore(p, st); });
+      h += '<div class="card" data-postaapri="'+p.id+'" style="margin-bottom:5px; cursor:pointer">';
+      h += '<div style="display:flex; align-items:center; gap:10px">';
+      h += '<span style="background:#8a2f2f; color:#fff; font-size:12px; font-weight:700; width:26px; height:26px; '
+         + 'border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0">'+(p.numero||"?")+'</span>';
+      h += '<div style="flex:1; min-width:0">';
+      h += '<div style="font-size:13px; color:var(--cream)">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</div>';
+      h += '<div style="font-size:10.5px; color:var(--muted)">'
+         + (suo ? esc(suo.nome) : "senza sezione")
+         + (p.tipo && p.tipo !== "fissa" ? ' · '+esc(p.tipo) : '')
+         + (p.da_verificare ? ' · <span style="color:var(--gold)">da verificare</span>' : '')
+         + '</div></div>';
+      h += '<span style="font-size:15px; color:var(--muted)">›</span>';
+      h += '</div></div>';
+    });
+
+    root.innerHTML = h;
+    bindSchedaArea();
+  }
+
+  function bindSchedaArea(){
+    var root = document.getElementById("areadett-scroll");
+    root.querySelectorAll("[data-vis]").forEach(function(b){
+      b.onclick = function(ev){
+        if(ev) ev.stopPropagation();
+        var p = b.dataset.vis.split("|");
+        cambiaVisibilita(p[0], p[1]);
+        renderSchedaArea();
+        disegnaSettori(); disegnaTracce();
+      };
+    });
+    root.querySelectorAll("[data-sezapri]").forEach(function(b){
+      b.onclick = function(){ mostraPosteSezione(b.dataset.sezapri); };
+    });
+    root.querySelectorAll("[data-postaapri]").forEach(function(b){
+      b.onclick = function(){
+        var a = aree.find(function(x){ return x.id === areaDett; });
+        var p = (a.poste||[]).find(function(x){ return x.id === b.dataset.postaapri; });
+        if(p) apriSchedaPosta(p);
+      };
+    });
+    var m = document.getElementById("ad-mappa");
+    if(m) m.onclick = function(){ apriAreaInMappa(areaDett); };
+  }
+
+  function mostraPosteSezione(id){
+    var st = settori.find(function(x){ return x.id === id; });
+    var a = aree.find(function(x){ return x.id === areaDett; });
+    if(!st || !a) return;
+    var sue = posteDelSettore(a, st).sort(function(x,y){
+      return (parseInt(x.numero,10)||0) - (parseInt(y.numero,10)||0); });
+    var h = "";
+    if(!sue.length) h = '<div class="hint">Nessuna posta in questa sezione.</div>';
+    sue.forEach(function(p){
+      h += '<div class="card" style="margin-bottom:5px"><div style="display:flex; align-items:center; gap:10px">';
+      h += '<span style="background:#8a2f2f; color:#fff; font-size:12px; font-weight:700; width:26px; height:26px; '
+         + 'border-radius:50%; display:flex; align-items:center; justify-content:center">'+(p.numero||"?")+'</span>';
+      h += '<div style="font-size:13px; color:var(--cream)">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</div>';
+      h += '</div></div>';
+    });
+    document.getElementById("m-sin-tit").textContent = st.nome;
+    document.getElementById("m-sin-corpo").innerHTML = h;
+    document.getElementById("m-sintesi").classList.add("show");
+  }
+
+  function apriAreaInMappa(id){
+    areaAttivaId = id;
+    areaApertaInMappa = true;
+    aggiornaPills();
+    showView("mappa");
+    setTimeout(function(){
+      renderPoste();
+      disegnaSettori();
+      disegnaTracce();
+      fitArea();
+    }, 250);
+  }
+
+  /* le linee sulla mappa, con l'interruttore di visibilita' */
+  var tracceLayer = null;
+  function disegnaTracce(){
+    if(!tracceLayer) return;
+    tracceLayer.clearLayers();
+    if(!areaApertaInMappa) return;
+    var a = areaAttiva();
+    if(!a) return;
+    caricaNascosti();
+    tracceDi(a.id).forEach(function(t){
+      if(eNascosto("tracce", t.id)) return;
+      if(!t.punti || t.punti.length < 2) return;
+      L.polyline(t.punti.map(function(p){ return [p.lat, p.lng]; }),
+        {color:"#c9b3e0", weight:3, dashArray:"9 6", opacity:.9}).addTo(tracceLayer);
+    });
+  }
+
   /* ===== I SETTORI =====
      Un rettangolo sulla mappa, con un nome (A, B, C...). Le poste che ci
      cadono dentro appartengono a quel settore per GEOMETRIA: non c'e' nessun
@@ -5962,7 +6221,9 @@
     var a = areaAttiva();
     if(!a) return;
     if(!puoVedereAree() && !puoMappare()) return;
+    caricaNascosti();
     settoriDi(a.id).forEach(function(st, i){
+      if(eNascosto("settori", st.id)) return;
       var col = coloreSettore(i);
       var sue = posteDelSettore(a, st);
       var c = contornoDi(sue);
@@ -6695,12 +6956,54 @@
       h += '</div></div>';
     });
 
+    h = '<button class="btn primary" id="tc-vaimappa" style="margin-bottom:12px">\ud83d\uddfa\ufe0f Apri sulla mappa</button>' + h;
     document.getElementById("m-sin-tit").textContent = nomeDi(tc.membro_id);
     document.getElementById("m-sin-corpo").innerHTML = h;
+    var vm = document.getElementById("tc-vaimappa");
+    if(vm) vm.onclick = function(){ apriTracciataInMappa(tc.id); };
     document.getElementById("m-sin-corpo").querySelectorAll("[data-segndel]").forEach(function(b){
       b.onclick = function(){ eliminaSegnalazione(b.dataset.segndel); };
     });
     document.getElementById("m-sintesi").classList.add("show");
+  }
+
+  /* la tracciata sulla mappa: il cammino che ha fatto, le sue segnalazioni
+     e la mappa aperta attorno, cosi' il capo vede dove e' passato davvero */
+  var perTracciataLayer = null;
+
+  function apriTracciataInMappa(id){
+    var tc = tracciate.find(function(x){ return x.id === id; });
+    if(!tc) return;
+    document.getElementById("m-sintesi").classList.remove("show");
+    if(tc.area_id){
+      areaAttivaId = tc.area_id;
+      areaApertaInMappa = true;
+      aggiornaPills();
+    }
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      renderPoste();
+      disegnaSettori();
+      disegnaTracce();
+      if(!perTracciataLayer) perTracciataLayer = L.layerGroup().addTo(map);
+      perTracciataLayer.clearLayers();
+      var punti = (tc.percorso && tc.percorso.punti) ? tc.percorso.punti : [];
+      if(punti.length > 1){
+        var linea = L.polyline(punti.map(function(p){ return [p.lat, p.lng]; }),
+          {color:"#F2C230", weight:4, opacity:.95}).addTo(perTracciataLayer);
+        L.circleMarker([punti[0].lat, punti[0].lng],
+          {radius:7, color:"#fff", fillColor:"#1D9E75", fillOpacity:1, weight:2}).addTo(perTracciataLayer);
+        var u = punti[punti.length-1];
+        L.circleMarker([u.lat, u.lng],
+          {radius:7, color:"#fff", fillColor:"#E24B4A", fillOpacity:1, weight:2}).addTo(perTracciataLayer);
+        try{ map.fitBounds(linea.getBounds().pad(0.25)); }catch(e){ fitArea(); }
+        toast(nomeDi(tc.membro_id) + " \u00b7 " + (Number(tc.distanza||0)/1000).toFixed(2) + " km");
+      }else{
+        fitArea();
+        toast(tc.dichiarata ? "Dichiarata: nessun percorso registrato" : "Nessun percorso da mostrare");
+      }
+    }, 260);
   }
 
   async function eliminaTracciata(id){
@@ -10299,6 +10602,7 @@
     };
     document.getElementById("m-pres-annulla").onclick=function(){ document.getElementById("m-presenze").classList.remove("show"); };
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
+    document.getElementById("ad-indietro").onclick=function(){ showView("aree"); renderAree(); };
     document.getElementById("btn-cerca").onclick=apriCerca;
     document.getElementById("cerca-chiudi").onclick=chiudiCerca;
     document.getElementById("cerca-vai").onclick=eseguiCerca;
