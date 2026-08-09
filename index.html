@@ -1878,7 +1878,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.54";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.55";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2356,7 +2356,14 @@
     var note=document.getElementById("m-posta-note").value.trim();
     // il numero e' il piu' alto gia' usato + 1: cosi' non si duplica
     // dopo una cancellazione ne' se due mappano la stessa area insieme
-    var numero=prossimoNumeroPosta(a);
+    // col GPS o col tocco, il numero segue il giro: se la metto in mezzo,
+    // prende il posto che le spetta e le altre scalano
+    var numero = prossimoNumeroPosta(a);
+    var vaInMezzo = false;
+    if(navigator.onLine && String(a.id).indexOf("coda_area_") !== 0){
+      var n2 = numeroPerPosizione(a, punto);
+      if(n2 < numero){ numero = n2; vaInMezzo = true; }
+    }
 
     var dati={
       area_id:a.id, nome:nome, numero:numero,
@@ -2372,6 +2379,15 @@
     var salvata=null, inCoda=false;
     try{
       if(!navigator.onLine) throw new Error("offline");
+      // prima faccio spazio, poi inserisco: altrimenti restano due poste con lo stesso numero
+      if(vaInMezzo){
+        var spazio = await faiSpazioPerNumero(a, numero);
+        if(!spazio){
+          btn.disabled=false; btn.textContent="Salva posta";
+          alert("Non sono riuscito a rinumerare le poste esistenti.\n\nRiprova: nessuna posta nuova \u00e8 stata creata.");
+          return;
+        }
+      }
       // la mappa e' nata sul telefono e non e' ancora salita: inutile provare
       if(String(a.id).indexOf("coda_area_")===0) throw new Error("area in coda");
       var r=await sb.from("hn_poste").insert(dati).select().single();
@@ -3719,6 +3735,60 @@
     return max+1;
   }
 
+  /* IL NUMERO SEGUE IL GIRO, NON L'ORDINE IN CUI SI INSERISCE.
+     Se metto una posta fra la 3 e la 4, quella nuova diventa la 4 e le
+     successive scalano di uno: sul cerchio i numeri devono girare in fila,
+     altrimenti il postaiolo cerca la 7 e se la trova fra la 2 e la 3. */
+
+  // distanza fra un punto e il segmento fra due poste (in metri, approssimata)
+  function distDaSegmento(p, a, b){
+    var kx = 111320 * Math.cos(Number(p.lat) * Math.PI / 180);
+    var ky = 110540;
+    var px = (Number(p.lng) - Number(a.lng)) * kx, py = (Number(p.lat) - Number(a.lat)) * ky;
+    var bx = (Number(b.lng) - Number(a.lng)) * kx, by = (Number(b.lat) - Number(a.lat)) * ky;
+    var len = bx*bx + by*by;
+    var t = len ? ((px*bx + py*by) / len) : 0;
+    t = Math.max(0, Math.min(1, t));
+    var dx = px - t*bx, dy = py - t*by;
+    return Math.sqrt(dx*dx + dy*dy);
+  }
+
+  /* dove va infilata la posta nuova: cerco il tratto di cerchio piu' vicino */
+  function numeroPerPosizione(a, punto){
+    var ord = (a && a.poste ? a.poste.slice() : [])
+      .filter(function(p){ return !isNaN(parseInt(p.numero,10)); })
+      .sort(function(x,y){ return parseInt(x.numero,10) - parseInt(y.numero,10); });
+    if(ord.length < 2) return prossimoNumeroPosta(a);
+
+    var miglior = null, dMin = Infinity;
+    // i tratti fra poste consecutive, compreso quello che chiude il cerchio
+    for(var i = 0; i < ord.length; i++){
+      var A = ord[i], B = ord[(i+1) % ord.length];
+      var d = distDaSegmento(punto, A, B);
+      if(d < dMin){ dMin = d; miglior = i; }
+    }
+    // se il tratto piu' vicino e' quello di chiusura, la posta va in coda
+    if(miglior === ord.length - 1) return prossimoNumeroPosta(a);
+    return parseInt(ord[miglior + 1].numero, 10);
+  }
+
+  /* fa spazio: tutte le poste da quel numero in poi salgono di uno */
+  async function faiSpazioPerNumero(a, numero){
+    var daSpostare = (a.poste || []).filter(function(p){
+      return parseInt(p.numero,10) >= numero && String(p.id).indexOf("coda_") !== 0;
+    }).sort(function(x,y){ return parseInt(y.numero,10) - parseInt(x.numero,10); });
+    if(!daSpostare.length) return true;
+    try{
+      for(var i = 0; i < daSpostare.length; i++){
+        var p = daSpostare[i];
+        var r = await sb.from("hn_poste").update({numero: parseInt(p.numero,10) + 1}).eq("id", p.id);
+        if(r.error) throw r.error;
+        p.numero = parseInt(p.numero,10) + 1;
+      }
+      return true;
+    }catch(e){ return false; }
+  }
+
   /* --- coda delle MAPPE --- */
   function leggiCodaAree(){
     try{ var d=JSON.parse(localStorage.getItem(CODA_AREE_KEY)); return Array.isArray(d)?d:[]; }
@@ -4822,6 +4892,9 @@
         if(tc.membro_id===me.membro_id){
           h+='<button class="btn line" data-segnadopo="'+tc.id+'|'+(tc.area_id||"")+'" style="margin-top:8px; font-size:11.5px; padding:8px">\ud83d\udc17 Segna cosa hai visto</button>';
         }
+        if(capo || tc.membro_id===me.membro_id){
+          h+='<button class="btn line" data-tcdel="'+tc.id+'" style="margin-top:6px; font-size:11.5px; padding:8px">\u2715 Cancella questa tracciata</button>';
+        }
         if(tc.note){
           h+='<div style="margin-top:7px; padding-top:7px; border-top:1px solid var(--dark3); font-size:12px; color:var(--cream); line-height:1.5; white-space:pre-wrap">'+esc(tc.note)+'</div>';
         }
@@ -4913,6 +4986,9 @@
     });
     root.querySelectorAll("[data-sin]").forEach(function(b){
       b.onclick=function(){ apriSintesi(b.dataset.sin); };
+    });
+    root.querySelectorAll("[data-tcdel]").forEach(function(b){
+      b.onclick=function(){ eliminaTracciata(b.dataset.tcdel); };
     });
     root.querySelectorAll("[data-segnadopo]").forEach(function(b){
       b.onclick=function(){
@@ -6413,6 +6489,25 @@
       h += '</div>';
     });
     return h;
+  }
+
+  async function eliminaTracciata(id){
+    var tc = tracciate.find(function(x){ return x.id === id; });
+    if(!tc) return;
+    if(!(puoGestireBattute() || tc.membro_id === me.membro_id)){ toast("Non puoi toglierla"); return; }
+    var nseg = segnalazioni.filter(function(x){ return x.tracciata_id === id; }).length;
+    if(!confirm("Cancellare la tracciata di " + nomeDi(tc.membro_id) + "?"
+        + (nseg ? "\n\nSpariscono anche le sue " + nseg + " segnalazion" + (nseg===1?"e":"i") + "." : ""))) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_tracciate").delete().eq("id", id);
+      if(r.error) throw r.error;
+      tracciate = tracciate.filter(function(x){ return x.id !== id; });
+      segnalazioni = segnalazioni.filter(function(x){ return x.tracciata_id !== id; });
+      disegnaSegnalazioni();
+      renderGiornata();
+      toast("Tracciata cancellata");
+    }catch(e){ avvisaErroreTracciata(e); }
   }
 
   async function eliminaSegnalazione(id){
