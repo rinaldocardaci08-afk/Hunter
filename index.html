@@ -459,7 +459,22 @@
     color:rgba(240,226,201,.72); font-size:12px; line-height:1.6;
     text-shadow:0 1px 4px rgba(0,0,0,.9);}
   .chiodo{position:absolute; transform:translateX(-50%); text-align:center;}
-  .chiodo .disco{position:relative; display:flex; align-items:flex-start; justify-content:center;}
+  .chiodo .disco{position:relative; display:flex; align-items:flex-start; justify-content:center;
+    perspective:800px;}
+  /* la medaglia si gira e dietro racconta come l'hai presa */
+  .chiodo .flip{position:relative; width:100%; transform-style:preserve-3d;
+    transition:transform .55s cubic-bezier(.3,.8,.3,1);}
+  .chiodo .flip.girata{transform:rotateY(180deg);}
+  .chiodo .faccia{backface-visibility:hidden; -webkit-backface-visibility:hidden;}
+  .chiodo .retro{position:absolute; inset:0; transform:rotateY(180deg);
+    background:linear-gradient(160deg,#5a4126,#3a2a18); border:2px solid var(--gold);
+    border-radius:10px; padding:7px 6px; display:flex; flex-direction:column;
+    justify-content:center; gap:3px; overflow:hidden;
+    box-shadow:0 3px 9px rgba(0,0,0,.55);}
+  .chiodo .retro .rn{font-size:9.5px; font-weight:700; color:var(--gold); line-height:1.15;}
+  .chiodo .retro .rd{font-size:9px; color:#f0e2c9; line-height:1.25;}
+  .chiodo .retro .rm{font-size:8.5px; color:#d9c9a8; line-height:1.25; font-style:italic;}
+  .chiodo .gira{font-size:8.5px; color:rgba(240,226,201,.6); margin-top:2px;}
   .chiodo .disco img{width:100%; height:auto; display:block;
     filter:drop-shadow(2px 4px 5px rgba(0,0,0,.65));}
   .chiodo .disco .em{font-size:30px; line-height:1;
@@ -1926,7 +1941,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.58";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.59";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7580,6 +7595,44 @@
     renderMedagliereMuro();
   }
 
+  /* IL RETRO DELLA MEDAGLIA: quando l'hai presa e in quale mappa.
+     Se l'hai presa piu' volte le elenca tutte, dalla piu' recente. */
+  function retroMedaglia(m, mie){
+    var h = '<div class="rn">' + esc(m.nome) + '</div>';
+    var ord = mie.slice().sort(function(a,b){
+      var ba = battute.find(function(x){ return x.id === a.battuta_id; });
+      var bb = battute.find(function(x){ return x.id === b.battuta_id; });
+      return (ba && bb) ? (ba.data < bb.data ? 1 : -1) : 0;
+    });
+    ord.slice(0, 3).forEach(function(x){
+      var b = battute.find(function(y){ return y.id === x.battuta_id; });
+      var d = b ? daIso(b.data) : null;
+      var nomeMappa = "";
+      if(b){
+        var ar = aree.find(function(y){ return y.id === b.area_battuta; });
+        if(!ar && b.aree_segnalate && b.aree_segnalate.length){
+          var nomi = b.aree_segnalate.map(function(id){
+            var a2 = aree.find(function(y){ return y.id === id; });
+            return a2 ? a2.nome : null;
+          }).filter(Boolean);
+          nomeMappa = nomi.join(", ");
+        }else if(ar){ nomeMappa = ar.nome; }
+      }
+      h += '<div class="rd">' + (d ? esc(fmtGiornoBreve(d)) : "data sconosciuta")
+         + (nomeMappa ? '<br>' + esc(nomeMappa) : '') + '</div>';
+      if(x.nota) h += '<div class="rm">' + esc(x.nota) + '</div>';
+    });
+    if(ord.length > 3) h += '<div class="rd">e altre ' + (ord.length - 3) + '</div>';
+    h += '<div class="gira">tocca per girarla</div>';
+    return h;
+  }
+
+  function fmtGiornoBreve(d){
+    if(!d) return "";
+    return String(d.getDate()).padStart(2,"0") + "/" +
+           String(d.getMonth()+1).padStart(2,"0") + "/" + d.getFullYear();
+  }
+
   function renderMedagliereMuro(){
     var root = document.getElementById("medagliere-scroll");
     // le teste dei chiodi, misurate sull'immagine muro-medaglie.jpg
@@ -7626,9 +7679,14 @@
         var incl = (seme % 7) - 3;   // pende un filo storta, ma sempre uguale
         h += '<div class="chiodo" data-mdinfo="'+m.id+'" style="left:'+ch.x+'%; top:'+ch.y+'%; width:'+LARG+'%">';
         h += '<div class="disco" style="transform:rotate('+incl+'deg); transform-origin:50% 0">';
+        h += '<div class="flip" data-flip="'+m.id+'">';
+        h += '<div class="faccia fronte">';
         if(m.immagine) h += '<img src="'+esc(m.immagine)+'" onerror="this.outerHTML=\'<span class=&quot;em&quot;>🎖️</span>\'">';
         else h += '<span class="em">🎖️</span>';
         if(mie.length > 1) h += '<span class="q">×'+mie.length+'</span>';
+        h += '</div>';
+        h += '<div class="faccia retro">' + retroMedaglia(m, mie) + '</div>';
+        h += '</div>';
         h += '</div>';
         h += '<div class="et">'+esc(m.nome)+'</div>';
         h += '</div>';
@@ -7658,12 +7716,14 @@
     }
 
     root.innerHTML = h;
-    root.querySelectorAll("[data-mdinfo]").forEach(function(el){
-      el.onclick = function(){
-        var m = medaglie.find(function(x){ return x.id === el.dataset.mdinfo; });
-        if(!m) return;
-        var mie = (vinte[m.id] || []).length;
-        toast(m.nome + (m.descrizione ? " — " + m.descrizione : "") + (mie ? " · presa "+mie+(mie===1?" volta":" volte") : " · non ancora presa"));
+    root.querySelectorAll("[data-flip]").forEach(function(el){
+      el.onclick = function(ev){
+        if(ev) ev.stopPropagation();
+        // una girata per volta: le altre tornano dritte
+        root.querySelectorAll(".flip.girata").forEach(function(x){
+          if(x !== el) x.classList.remove("girata");
+        });
+        el.classList.toggle("girata");
       };
     });
   }
