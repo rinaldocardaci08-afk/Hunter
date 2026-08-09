@@ -1171,8 +1171,8 @@
       <!-- barra DISEGNO DEL SETTORE -->
       <div id="stbanner">
         <div class="tx">
-          <div class="a">Disegna il settore</div>
-          <div class="b" id="st-sub">tocca un angolo, poi quello opposto</div>
+          <div class="a">Crea la sezione</div>
+          <div class="b" id="st-sub">tocca le poste che ne fanno parte</div>
         </div>
         <button id="st-annulla" class="no" title="Ricomincia">↺</button>
         <button id="st-ok" disabled>Salva</button>
@@ -1798,7 +1798,7 @@
 <div class="modal" id="m-settori">
   <div class="sheet">
     <h3 id="m-set-tit">Settori</h3>
-    <p class="hint">Dividi la mappa in tratti. Le poste che cadono dentro un rettangolo appartengono a quel settore: non devi elencarle.</p>
+    <p class="hint">Dividi la mappa in tratti. Tocchi le poste che ne fanno parte e il contorno lo disegno io.</p>
     <div id="m-set-lista" style="max-height:44vh; overflow-y:auto"></div>
     <div id="m-set-crea"></div>
     <div class="btnrow" style="margin-top:12px">
@@ -1878,7 +1878,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.56";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.57";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2702,7 +2702,11 @@
     var a=areaAttiva(); if(!a||!a.poste) return;
     a.poste.forEach(function(p,i){
       var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda)}).addTo(posteLayer);
-      m.on("click", function(){ apriSchedaPosta(p); });
+      m.on("click", function(){
+        // mentre creo una sezione, toccare una posta la sceglie invece di aprirla
+        if(disegnoSettore){ toccataPostaPerSettore(p); return; }
+        apriSchedaPosta(p);
+      });
     });
     disegnaSegnalazioni();
     disegnaSettori();
@@ -5621,11 +5625,46 @@
   }
   function coloreSettore(i){ return COLORI_SETT[i % COLORI_SETT.length]; }
 
-  /* la posta sta dentro il rettangolo? e' tutta qui la logica */
+  /* LA SEZIONE E' UN ELENCO DI POSTE, NON UN RETTANGOLO.
+     Il rettangolo era comodo per il codice ma scomodo per chi lo usa: dovevi
+     azzeccare due angoli e speravi che dentro ci finisse la roba giusta. Ora
+     tocchi le poste una per una e il contorno lo disegno io attorno a quelle. */
   function postaNelSettore(p, st){
+    var el = st.poste_ids;
+    if(el && el.length) return el.indexOf(p.id) >= 0;
+    // vecchie sezioni fatte col rettangolo: continuano a funzionare
+    if(st.lat1 === undefined || st.lat1 === null) return false;
     var la = Number(p.lat), ln = Number(p.lng);
     return la >= Math.min(st.lat1, st.lat2) && la <= Math.max(st.lat1, st.lat2)
         && ln >= Math.min(st.lng1, st.lng2) && ln <= Math.max(st.lng1, st.lng2);
+  }
+
+  /* il contorno attorno a un gruppo di punti (inviluppo convesso) */
+  function contornoDi(punti){
+    if(!punti || punti.length < 3) return null;
+    var p = punti.map(function(q){ return {x:Number(q.lng), y:Number(q.lat)}; })
+                 .sort(function(a,b){ return a.x - b.x || a.y - b.y; });
+    function croce(o,a,b){ return (a.x-o.x)*(b.y-o.y) - (a.y-o.y)*(b.x-o.x); }
+    var giu = [], su = [];
+    p.forEach(function(q){
+      while(giu.length >= 2 && croce(giu[giu.length-2], giu[giu.length-1], q) <= 0) giu.pop();
+      giu.push(q);
+    });
+    for(var i = p.length-1; i >= 0; i--){
+      var q = p[i];
+      while(su.length >= 2 && croce(su[su.length-2], su[su.length-1], q) <= 0) su.pop();
+      su.push(q);
+    }
+    giu.pop(); su.pop();
+    var tutto = giu.concat(su);
+    if(tutto.length < 3) return null;
+    // allargo un po' il contorno, cosi' le poste non stanno sul filo
+    var cx = 0, cy = 0;
+    tutto.forEach(function(q){ cx += q.x; cy += q.y; });
+    cx /= tutto.length; cy /= tutto.length;
+    return tutto.map(function(q){
+      return [cy + (q.y - cy) * 1.18, cx + (q.x - cx) * 1.18];
+    });
   }
   function posteDelSettore(a, st){
     if(!a || !a.poste) return [];
@@ -5683,7 +5722,7 @@
 
     var c = "";
     if(puoMappare()){
-      c += '<button class="btn primary" id="st-nuovo" style="margin-top:10px">\u25a6 Disegna un settore</button>';
+      c += '<button class="btn primary" id="st-nuovo" style="margin-top:10px">\u25a6 Crea una sezione</button>';
     }
     document.getElementById("m-set-crea").innerHTML = c;
 
@@ -5700,12 +5739,13 @@
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var a = aree.find(function(x){ return x.id === settoriAperti; });
     if(!a) return;
+    if(!a.poste || !a.poste.length){ toast("Questa mappa non ha poste"); return; }
     document.getElementById("m-settori").classList.remove("show");
-    disegnoSettore = {areaId:a.id, p1:null, p2:null, rett:null};
+    disegnoSettore = {areaId:a.id, scelte:[], forma:null, segni:[]};
     areaAttivaId = a.id;
     areaApertaInMappa = true;
     aggiornaPills();
-    document.getElementById("st-sub").textContent = "tocca un angolo, poi quello opposto";
+    document.getElementById("st-sub").textContent = "tocca le poste che ne fanno parte";
     document.getElementById("st-ok").disabled = true;
     document.getElementById("stbanner").classList.add("show");
     showView("mappa");
@@ -5715,48 +5755,65 @@
       disegnaSettori();
       fitArea();
     }, 250);
-    toast("Tocca i due angoli del rettangolo");
+    toast("Tocca le poste della sezione");
   }
 
+  /* tocco una posta: entra o esce dalla sezione */
+  function toccataPostaPerSettore(posta){
+    if(!disegnoSettore || !posta) return false;
+    var i = disegnoSettore.scelte.indexOf(posta.id);
+    if(i >= 0) disegnoSettore.scelte.splice(i, 1);
+    else disegnoSettore.scelte.push(posta.id);
+    ridisegnaSettoreInCorso();
+    return true;
+  }
+
+  /* toccando la mappa lontano dalle poste prendo la piu' vicina, entro 60 m:
+     col dito grosso non si azzecca il pallino */
   function toccatoAngoloSettore(lat, lng){
     if(!disegnoSettore) return;
-    if(!disegnoSettore.p1 || disegnoSettore.p2){
-      // primo angolo (o ricomincio da capo)
-      disegnoSettore.p1 = {lat:lat, lng:lng};
-      disegnoSettore.p2 = null;
-    }else{
-      disegnoSettore.p2 = {lat:lat, lng:lng};
-    }
-    ridisegnaSettoreInCorso();
+    var a = aree.find(function(x){ return x.id === disegnoSettore.areaId; });
+    if(!a || !a.poste) return;
+    var vicina = null, dMin = Infinity;
+    a.poste.forEach(function(p){
+      var d = distM({lat:lat, lng:lng}, p);
+      if(d < dMin){ dMin = d; vicina = p; }
+    });
+    if(vicina && dMin <= 60) toccataPostaPerSettore(vicina);
+    else toast("Tocca una posta");
   }
 
   function ridisegnaSettoreInCorso(){
     if(!disegnoSettore || !map) return;
-    if(disegnoSettore.rett){ try{ map.removeLayer(disegnoSettore.rett); }catch(e){} disegnoSettore.rett = null; }
     var d = disegnoSettore;
-    if(d.p1 && d.p2){
-      d.rett = L.polygon([
-        [d.p1.lat, d.p1.lng], [d.p1.lat, d.p2.lng],
-        [d.p2.lat, d.p2.lng], [d.p2.lat, d.p1.lng]
-      ], {color:"#4fbcd6", weight:3, fillColor:"#4fbcd6", fillOpacity:.16}).addTo(map);
-      var a = aree.find(function(x){ return x.id === d.areaId; });
-      var finto = {lat1:d.p1.lat, lng1:d.p1.lng, lat2:d.p2.lat, lng2:d.p2.lng};
-      var np = posteDelSettore(a, finto).length;
-      document.getElementById("st-sub").textContent =
-        np + " post" + (np===1?"a":"e") + " dentro \u00b7 ritocca o salva";
-      document.getElementById("st-ok").disabled = (np === 0);
-      if(np === 0) document.getElementById("st-sub").textContent = "nessuna posta dentro: allarga il rettangolo";
-    }else if(d.p1){
-      d.rett = L.circleMarker([d.p1.lat, d.p1.lng],
-        {radius:7, color:"#4fbcd6", fillColor:"#123945", fillOpacity:1, weight:3}).addTo(map);
-      document.getElementById("st-sub").textContent = "ora tocca l'angolo opposto";
-      document.getElementById("st-ok").disabled = true;
-    }
+    if(d.forma){ try{ map.removeLayer(d.forma); }catch(e){} d.forma = null; }
+    d.segni.forEach(function(x){ try{ map.removeLayer(x); }catch(e){} });
+    d.segni = [];
+
+    var a = aree.find(function(x){ return x.id === d.areaId; });
+    var scelte = (a && a.poste ? a.poste : []).filter(function(p){ return d.scelte.indexOf(p.id) >= 0; });
+
+    // le poste scelte diventano azzurre
+    scelte.forEach(function(p){
+      d.segni.push(L.circleMarker([p.lat, p.lng],
+        {radius:15, color:"#4fbcd6", fillColor:"#4fbcd6", fillOpacity:.35, weight:3}).addTo(map));
+    });
+
+    // e attorno compare il contorno, appena ce ne sono almeno tre
+    var c = contornoDi(scelte);
+    if(c) d.forma = L.polygon(c, {color:"#4fbcd6", weight:3, fillColor:"#4fbcd6", fillOpacity:.14}).addTo(map);
+
+    var n = scelte.length;
+    document.getElementById("st-sub").textContent = n === 0
+      ? "tocca le poste che ne fanno parte"
+      : (n + " post" + (n===1?"a scelta":"e scelte") + " \u00b7 tocca ancora o salva");
+    document.getElementById("st-ok").disabled = (n === 0);
   }
 
   function chiudiDisegnoSettore(){
-    if(disegnoSettore && disegnoSettore.rett && map){
-      try{ map.removeLayer(disegnoSettore.rett); }catch(e){}
+    if(disegnoSettore && map){
+      if(disegnoSettore.forma){ try{ map.removeLayer(disegnoSettore.forma); }catch(e){} }
+      (disegnoSettore.segni||[]).forEach(function(x){ try{ map.removeLayer(x); }catch(e){} });
     }
     disegnoSettore = null;
     var b = document.getElementById("stbanner");
@@ -5764,31 +5821,38 @@
   }
 
   function salvaDisegnoSettore(){
-    if(!disegnoSettore || !disegnoSettore.p1 || !disegnoSettore.p2){ toast("Tocca i due angoli"); return; }
+    if(!disegnoSettore || !disegnoSettore.scelte.length){ toast("Tocca almeno una posta"); return; }
     var a = aree.find(function(x){ return x.id === disegnoSettore.areaId; });
     var usati = settoriDi(disegnoSettore.areaId).map(function(x){ return x.nome; });
-    var proposta = "A";
+    var proposta = "Sezione A";
     ["A","B","C","D","E","F"].some(function(L2){
-      if(usati.indexOf("Settore "+L2) < 0 && usati.indexOf(L2) < 0){ proposta = "Settore "+L2; return true; }
+      if(usati.indexOf("Sezione "+L2) < 0 && usati.indexOf("Settore "+L2) < 0 && usati.indexOf(L2) < 0){
+        proposta = "Sezione "+L2; return true;
+      }
       return false;
     });
-    var finto = {lat1:disegnoSettore.p1.lat, lng1:disegnoSettore.p1.lng,
-                 lat2:disegnoSettore.p2.lat, lng2:disegnoSettore.p2.lng};
-    var np = posteDelSettore(a, finto).length;
-    chiediNomeLinea("Nome del settore",
-      "Come lo chiami? Serve al vice per riconoscere il suo tratto.",
+    var np = disegnoSettore.scelte.length;
+    chiediNomeLinea("Nome della sezione",
+      "Come la chiami? Serve al vice per riconoscere il suo tratto.",
       np + " post" + (np===1?"a":"e") + " dentro",
       proposta, scriviSettore);
   }
 
   async function scriviSettore(nome){
-    if(!disegnoSettore || !disegnoSettore.p1 || !disegnoSettore.p2) return;
+    if(!disegnoSettore || !disegnoSettore.scelte || !disegnoSettore.scelte.length) return;
     if(!navigator.onLine){ toast("Serve la rete per salvare il settore"); return; }
     var d = disegnoSettore;
+    var a = aree.find(function(x){ return x.id === d.areaId; });
+    var scelte = (a && a.poste ? a.poste : []).filter(function(p){ return d.scelte.indexOf(p.id) >= 0; });
+    // il riquadro che le contiene: serve solo a inquadrare la mappa
+    var la = scelte.map(function(p){ return Number(p.lat); });
+    var ln = scelte.map(function(p){ return Number(p.lng); });
     try{
       var r = await sb.from("hn_settori").insert({
         squadra_id:me.squadra_id, area_id:d.areaId, nome:nome,
-        lat1:d.p1.lat, lng1:d.p1.lng, lat2:d.p2.lat, lng2:d.p2.lng,
+        poste_ids: d.scelte.slice(),
+        lat1:Math.min.apply(null,la), lng1:Math.min.apply(null,ln),
+        lat2:Math.max.apply(null,la), lng2:Math.max.apply(null,ln),
         creato_da:me.membro_id
       }).select().single();
       if(r.error) throw r.error;
@@ -5832,10 +5896,14 @@
     if(!puoVedereAree() && !puoMappare()) return;
     settoriDi(a.id).forEach(function(st, i){
       var col = coloreSettore(i);
-      L.polygon([
-        [st.lat1, st.lng1], [st.lat1, st.lng2],
-        [st.lat2, st.lng2], [st.lat2, st.lng1]
-      ], {color:col, weight:2, fillColor:col, fillOpacity:.10, dashArray:"7 5"}).addTo(settLayer);
+      var sue = posteDelSettore(a, st);
+      var c = contornoDi(sue);
+      if(c){
+        L.polygon(c, {color:col, weight:2, fillColor:col, fillOpacity:.10, dashArray:"7 5"}).addTo(settLayer);
+      }else if(st.lat1 !== undefined && st.lat1 !== null){
+        L.polygon([[st.lat1, st.lng1], [st.lat1, st.lng2], [st.lat2, st.lng2], [st.lat2, st.lng1]],
+          {color:col, weight:2, fillColor:col, fillOpacity:.10, dashArray:"7 5"}).addTo(settLayer);
+      }
       var la = Math.max(st.lat1, st.lat2), ln = Math.min(st.lng1, st.lng2);
       L.marker([la, ln], {icon:L.divIcon({className:"", iconSize:[30,22], iconAnchor:[-2,-2],
         html:'<div style="background:'+col+'; color:#fff; font-size:11px; font-weight:700; '
@@ -9755,9 +9823,7 @@
     document.getElementById("m-set-chiudi").onclick=function(){ document.getElementById("m-settori").classList.remove("show"); };
     document.getElementById("st-ok").onclick=salvaDisegnoSettore;
     document.getElementById("st-annulla").onclick=function(){
-      if(disegnoSettore){ disegnoSettore.p1=null; disegnoSettore.p2=null; ridisegnaSettoreInCorso();
-        document.getElementById("st-sub").textContent="tocca un angolo, poi quello opposto";
-        document.getElementById("st-ok").disabled=true; }
+      if(disegnoSettore){ disegnoSettore.scelte=[]; ridisegnaSettoreInCorso(); }
     };
     document.getElementById("st-esci").onclick=function(){
       chiudiDisegnoSettore(); showView("aree"); renderAree();
