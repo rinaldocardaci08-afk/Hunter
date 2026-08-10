@@ -2033,7 +2033,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.65";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.66";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3352,13 +3352,14 @@
     if(!puoVederePoste()){ toast("Non sei autorizzato a vedere le poste"); return; }
     var a=areaAttiva(); if(!a) return;
     if(!(a.poste||[]).length){ toast("Questa mappa non ha ancora poste"); return; }
+    modoMappa="laboratorio";      // si arriva qui dal menu' Modifica, quindi da Mappe
     areaApertaInMappa=true;
     schemaReset(); schemaGeo=null;
     aggiornaPills();
     document.getElementById("m-areapop").classList.remove("show");
     document.getElementById("areatag").textContent="✕ "+a.nome;
     showView("mappa");
-    setTimeout(function(){ renderPoste(); fitArea(); },200);
+    setTimeout(function(){ renderPoste(); disegnaSettori(); disegnaTracce(); fitArea(); },200);
     toast("Tocca una posta per vederne le note");
   }
   /* chiude l'area: si torna alla mappa senza poste */
@@ -6042,7 +6043,7 @@
       };
     });
     var m = document.getElementById("ad-mappa");
-    if(m) m.onclick = function(){ apriAreaInMappa(areaDett); };
+    if(m) m.onclick = function(){ apriAreaInLaboratorio(areaDett); };
   }
 
   function mostraPosteSezione(id){
@@ -6084,7 +6085,12 @@
     toast(a.nome);
   }
 
-  function apriAreaInMappa(id){
+  /* ATTENZIONE: esiste gia' apriAreaInMappa() SENZA argomenti, agganciata al
+     tasto "Apri area · vedi le poste" del menu' Modifica. Chiamare cosi' anche
+     questa aveva zittito quella: in JavaScript vince l'ultima dichiarata, e il
+     tasto vecchio le passava l'evento del clic invece dell'id — quindi non
+     succedeva piu' niente, senza nemmeno un messaggio. Nomi diversi. */
+  function apriAreaInLaboratorio(id){
     modoMappa = "laboratorio";
     areaAttivaId = id;
     areaApertaInMappa = true;
