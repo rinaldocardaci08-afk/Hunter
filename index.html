@@ -2033,7 +2033,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.63";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.65";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4847,6 +4847,18 @@
      dare come tutti. */
   var vistaGiornata = "capo";   // capo | cacciatore
 
+  /* IN VISTA CAPO SI HANNO I POTERI DEL CAPOCACCIA, NON I PROPRI.
+     Serve a Rinaldo per vedere davvero cosa vede Toni: se restasse
+     amministratore anche li' dentro, proverebbe una schermata che nessuno
+     userà mai. Il capocaccia le tracciate le guarda, le apre sulla mappa e
+     le segna come viste: non le modifica e non le cancella. */
+  function comeCapo(){ return vistaGiornata === "capo" && puoGestireBattute(); }
+  function possoToccareTracciata(tc){
+    if(!tc) return false;
+    if(comeCapo()) return false;              // in vista capo si guarda e basta
+    return me && tc.membro_id === me.membro_id;   // fuori, solo le proprie
+  }
+
   function renderGiornata(){
     var root=document.getElementById("giornata-scroll");
     var b=giornataAperta;
@@ -4960,13 +4972,15 @@
         areeSeg.forEach(function(aid, i){
           var ar=aree.find(function(x){return x.id===aid;});
           var nTr=adesioni.filter(function(a){return a.viene && a.tracciatore && a.area_tracciata===aid;}).length;
-          h+='<div style="display:flex; align-items:center; gap:8px; padding:6px 0;'+(i?'border-top:1px solid #6b4a28':'')+'">';
+          h+='<div data-giarea="'+aid+'" style="display:flex; align-items:center; gap:8px; padding:8px 0; cursor:pointer;'+(i?'border-top:1px solid #6b4a28':'')+'">';
           h+='<span style="font-size:13px">🌲</span>';
           h+='<span style="flex:1; font-size:13px; color:var(--cream)">'+esc(ar?ar.nome:"area")+'</span>';
           h+='<span style="font-size:11px; color:'+(nTr?'var(--gold)':'var(--muted)')+'">'+(nTr?nTr+' tracciator'+(nTr===1?'e':'i'):'nessuno')+'</span>';
+          h+='<span style="font-size:14px; color:var(--muted)">🗺️</span>';
           h+='</div>';
         });
         h+='</div>';
+        h+='<div style="font-size:10.5px; color:var(--muted); margin:-8px 0 12px 2px">Tocca una mappa per vederla dal satellite.</div>';
       }else{
         h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna area segnalata.</div>';
       }
@@ -5012,6 +5026,7 @@
             h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.6px; margin-bottom:5px">SEI ASSEGNATO A</div>';
             h+='<div style="font-size:19px; font-weight:700; color:#fff; line-height:1.2; margin-bottom:3px">'+esc(ar2.nome)+'</div>';
             if(ar2.comune) h+='<div style="font-size:11px; color:#c9b3e0; margin-bottom:9px">'+esc(ar2.comune)+'</div>';
+            h+='<button class="btn line" data-giarea="'+ar2.id+'" style="margin-bottom:8px; font-size:12px; padding:9px">🗺️ Vedi la mappa</button>';
             if(lineeMie.length){
               h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
               var giaFatte = tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
@@ -5116,6 +5131,7 @@
         var usc = nseg.filter(function(x){ return x.tipo==="uscita"; }).length;
         h+='<div class="card" data-tcapri="'+tc.id+'" style="margin-bottom:7px; cursor:pointer"><div style="display:flex; align-items:center; gap:8px">';
         h+='<span style="font-size:15px">'+(tc.chiusa_il ? '\u2713' : '\u23f1')+'</span>';
+        if(tc.letta_il) h+='<span style="font-size:10px; color:#7be0a8; flex-shrink:0">vista</span>';
         h+='<div style="flex:1; min-width:0">';
         h+='<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(nomeDi(tc.membro_id))+'</div>';
         h+='<div style="font-size:10.5px; color:var(--muted)">'
@@ -5132,11 +5148,14 @@
         }
         h+='<span style="font-size:15px; color:var(--muted); flex-shrink:0">\u203a</span>';
         h+='</div>';
-        if(tc.membro_id===me.membro_id){
+        if(possoToccareTracciata(tc)){
           h+='<button class="btn line" data-segnadopo="'+tc.id+'|'+(tc.area_id||"")+'" style="margin-top:8px; font-size:11.5px; padding:8px">\ud83d\udc17 Segna cosa hai visto</button>';
-        }
-        if(capo || tc.membro_id===me.membro_id){
           h+='<button class="btn line" data-tcdel="'+tc.id+'" style="margin-top:6px; font-size:11.5px; padding:8px">\u2715 Cancella questa tracciata</button>';
+        }else if(comeCapo()){
+          // il capocaccia la guarda e la spunta: non la tocca
+          h+='<button class="btn line" data-tcletta="'+tc.id+'" style="margin-top:8px; font-size:11.5px; padding:8px'
+           + (tc.letta_il ? '; background:#2d5a3f; border-color:#3d7a55; color:#fff' : '')+'">'
+           + (tc.letta_il ? "\u2713 Gi\u00e0 vista" : "Segna come vista")+'</button>';
         }
         if(tc.note){
           h+='<div style="margin-top:7px; padding-top:7px; border-top:1px solid var(--dark3); font-size:12px; color:var(--cream); line-height:1.5; white-space:pre-wrap">'+esc(tc.note)+'</div>';
@@ -5230,11 +5249,23 @@
     root.querySelectorAll("[data-sin]").forEach(function(b){
       b.onclick=function(){ apriSintesi(b.dataset.sin); };
     });
+    root.querySelectorAll("[data-giarea]").forEach(function(c){
+      c.onclick=function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        apriAreaDaBattuta(c.dataset.giarea);
+      };
+    });
     root.querySelectorAll("[data-tcapri]").forEach(function(c){
       c.onclick=function(ev){
         // i bottoni dentro la scheda fanno il loro mestiere, non aprono il dettaglio
         if(ev && ev.target && ev.target.closest && ev.target.closest("button")) return;
         apriDettaglioTracciata(c.dataset.tcapri);
+      };
+    });
+    root.querySelectorAll("[data-tcletta]").forEach(function(b){
+      b.onclick=function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        segnaTracciataLetta(b.dataset.tcletta);
       };
     });
     root.querySelectorAll("[data-tcdel]").forEach(function(b){
@@ -6032,6 +6063,25 @@
     document.getElementById("m-sin-tit").textContent = st.nome;
     document.getElementById("m-sin-corpo").innerHTML = h;
     document.getElementById("m-sintesi").classList.add("show");
+  }
+
+  /* dalla battuta la mappa si apre in modalita' CAMPO: si guarda, non si tocca */
+  function apriAreaDaBattuta(id){
+    var a = aree.find(function(x){ return x.id === id; });
+    if(!a){ toast("Mappa non trovata"); return; }
+    if(!puoVedereAree() && !puoMappare()){ toast("Non hai il permesso di vedere le mappe"); return; }
+    modoMappa = "campo";
+    areaAttivaId = id;
+    areaApertaInMappa = true;
+    aggiornaPills();
+    showView("mappa");
+    setTimeout(function(){
+      renderPoste();
+      disegnaSettori();
+      disegnaTracce();
+      fitArea();
+    }, 250);
+    toast(a.nome);
   }
 
   function apriAreaInMappa(id){
@@ -7004,6 +7054,9 @@
     if(!segnLayer) return;
     segnLayer.clearLayers();
     if(!areaApertaInMappa) return;
+    // le entrate e le uscite sono roba della GIORNATA, non della mappa:
+    // in laboratorio si sistemano poste, sezioni e linee, e basta
+    if(inLaboratorio()) return;
     var a = areaAttiva();
     if(!a) return;
     var centro = centroArea(a);
@@ -7212,6 +7265,12 @@
     document.getElementById("m-sin-corpo").innerHTML = h;
     var vm = document.getElementById("tc-vaimappa");
     if(vm) vm.onclick = function(){ apriTracciataInMappa(tc.id); };
+    // in vista capo le segnalazioni si leggono e basta
+    if(comeCapo()){
+      document.getElementById("m-sin-corpo").querySelectorAll("[data-segndel]").forEach(function(b){
+        b.style.display = "none";
+      });
+    }
     document.getElementById("m-sin-corpo").querySelectorAll("[data-segndel]").forEach(function(b){
       b.onclick = function(){ eliminaSegnalazione(b.dataset.segndel); };
     });
@@ -7256,6 +7315,25 @@
         toast(tc.dichiarata ? "Dichiarata: nessun percorso registrato" : "Nessun percorso da mostrare");
       }
     }, 260);
+  }
+
+  /* il capocaccia spunta le tracciate che ha guardato: cosi' sa quali gli
+     restano da leggere, senza poterle toccare */
+  async function segnaTracciataLetta(id){
+    var tc = tracciate.find(function(x){ return x.id === id; });
+    if(!tc) return;
+    if(!puoGestireBattute()) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var ora = tc.letta_il ? null : new Date().toISOString();
+    try{
+      var r = await sb.from("hn_tracciate")
+                .update({letta_il:ora, letta_da:(ora ? me.membro_id : null)})
+                .eq("id", id).select().single();
+      if(r.error) throw r.error;
+      tc.letta_il = ora; tc.letta_da = ora ? me.membro_id : null;
+      renderGiornata();
+      toast(ora ? "Segnata come vista" : "Tolta la spunta");
+    }catch(e){ avvisaErroreTracciata(e); }
   }
 
   async function eliminaTracciata(id){
