@@ -547,6 +547,16 @@
   #trbanner button:disabled{opacity:.45;}
   #trbanner button.no{background:rgba(255,255,255,.22); color:#fff;}
 
+  #szbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
+    background:rgba(74,40,66,.96); border-radius:12px; padding:10px 12px;
+    display:none; align-items:center; gap:8px; backdrop-filter:blur(4px);}
+  #szbanner.show{display:flex;}
+  #szbanner .tx{flex:1; min-width:0;}
+  #szbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
+  #szbanner .tx .b{font-size:11px; color:#e3c6dc; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #szbanner button{background:rgba(255,255,255,.92); border:none; color:#42213a;
+    border-radius:8px; padding:8px 12px; font-size:13px; font-weight:600; flex-shrink:0;}
+
   #stbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
     background:rgba(24,58,70,.96); border-radius:12px; padding:10px 12px;
     display:none; align-items:center; gap:7px; backdrop-filter:blur(4px);}
@@ -1245,6 +1255,15 @@
           <div class="b" id="mapbanner-area">—</div>
         </div>
         <button id="mapbanner-fine">Fine</button>
+      </div>
+
+      <!-- barra ANTEPRIMA DI UNA SEZIONE -->
+      <div id="szbanner">
+        <div class="tx">
+          <div class="a" id="sz-nome">Sezione</div>
+          <div class="b" id="sz-sub">—</div>
+        </div>
+        <button id="sz-esci">Mostra tutto</button>
       </div>
 
       <!-- barra DISEGNO DEL SETTORE -->
@@ -2014,7 +2033,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.62";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.63";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2724,7 +2743,8 @@
       if(disegnoSettore){ toccatoAngoloSettore(e.latlng.lat, e.latlng.lng); return; }
       if(disegnoTraccia){ aggiungiPuntoTraccia(e.latlng.lat, e.latlng.lng); return; }
       if(segnRemota){ toccatoPuntoRemoto(e.latlng.lat, e.latlng.lng); return; }
-      if(mappatura && puoMappare()){ openPostaDaMappa(e.latlng.lat, e.latlng.lng); return; }
+      if(mappatura && puoMappare() && inLaboratorio()){ openPostaDaMappa(e.latlng.lat, e.latlng.lng); return; }
+      if(sezioneAnteprima) return;   // sto guardando una sezione: la mappa non fa altro
       if(!pickRitrovo) return;
       segnaPuntoRitrovo(e.latlng.lat, e.latlng.lng);
     });
@@ -2837,7 +2857,10 @@
     if(!areaApertaInMappa) return;
     if(!puoVederePoste()) return;
     var a=areaAttiva(); if(!a||!a.poste) return;
+    var stAnte = sezioneAnteprima ? settori.find(function(x){ return x.id === sezioneAnteprima; }) : null;
     a.poste.forEach(function(p,i){
+      // in anteprima di sezione le altre poste non si disegnano
+      if(stAnte && !postaNelSettore(p, stAnte)) return;
       var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda)}).addTo(posteLayer);
       m.on("click", function(){
         // mentre sto lavorando sulla mappa la scheda della posta non deve
@@ -3371,6 +3394,11 @@
     if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
     if(typeof disegnoTraccia!=="undefined" && disegnoTraccia && v!=="mappa") chiudiDisegnoTraccia();
     if(typeof segnRemota!=="undefined" && segnRemota && v!=="mappa") chiudiSegnRemota();
+    if(typeof sezioneAnteprima!=="undefined" && sezioneAnteprima && v!=="mappa"){
+      sezioneAnteprima = null;
+      var szb = document.getElementById("szbanner");
+      if(szb) szb.classList.remove("show");
+    }
     if(typeof disegnoSettore!=="undefined" && disegnoSettore && v!=="mappa") chiudiDisegnoSettore();
     if(typeof perTracciataLayer!=="undefined" && perTracciataLayer && v!=="mappa"){
       try{ perTracciataLayer.clearLayers(); }catch(e){}
@@ -3416,6 +3444,7 @@
   var puntoPostaRemota = null;
 
   function openNuovaPosta(){
+    if(!inLaboratorio()){ toast("Le poste si mettono da Mappe, non dalla battuta"); return; }
     if(!mappatura){ toast("Entra in modalit\u00e0 mappatura da Aree e poste"); return; }
     if(!puoMappare()){ toast("Non hai il permesso di modificare le mappe"); return; }
     var a=areaAttiva();
@@ -3429,6 +3458,7 @@
   function openPostaDaMappa(lat, lng){
     var a=areaAttiva();
     if(!a) return;
+    if(!inLaboratorio()) return;              // in campo il tocco non crea niente
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var lontano = pos ? Math.round(distM(pos, {lat:lat, lng:lng})) : null;
     if(lontano !== null && lontano < 25){
@@ -3920,7 +3950,8 @@
   function aggiornaBarraAzioni(){
     var btn=document.getElementById("btn-mark");
     if(!btn) return;
-    btn.style.display = mappatura ? "flex" : "none";
+    // in campo il tasto per segnare una posta non esiste proprio
+    btn.style.display = (mappatura && inLaboratorio()) ? "flex" : "none";
     var terr=document.getElementById("btn-territorio");
     if(terr) terr.style.display = (puoVedereAree() && !mappatura) ? "flex" : "none";
     var center=document.getElementById("btn-center");
@@ -5919,7 +5950,8 @@
       var km = (Number(t.distanza||0)/1000).toFixed(2);
       h += '<div class="card" style="margin-bottom:6px'+(nasc?'; opacity:.5':'')+'">';
       h += '<div style="display:flex; align-items:center; gap:9px">';
-      h += '<span style="font-size:16px">〰️</span>';
+      h += '<span style="width:14px; height:14px; border-radius:50%; background:'+coloreLinea(t.id)
+         + '; flex-shrink:0; box-shadow:0 0 0 2px rgba(0,0,0,.3)"></span>';
       h += '<div style="flex:1; min-width:0">';
       h += '<div style="font-size:13.5px; color:var(--cream); font-weight:600">'+esc(t.nome)+'</div>';
       h += '<div style="font-size:10.5px; color:var(--muted)">'+km+' km · '
@@ -6003,6 +6035,7 @@
   }
 
   function apriAreaInMappa(id){
+    modoMappa = "laboratorio";
     areaAttivaId = id;
     areaApertaInMappa = true;
     aggiornaPills();
@@ -6015,10 +6048,46 @@
     }, 250);
   }
 
+  /* GUARDARE UNA SEZIONE DA SOLA.
+     Un'anteprima del terreno affidato a un vice: restano accese solo le sue
+     poste, il resto si spegne. NON e' ancora la schermata del vice — quella
+     arriva col terzo pezzo, insieme alle assegnazioni. */
+  var sezioneAnteprima = null;
+
+  function chiediAnteprimaSezione(id){
+    var st = settori.find(function(x){ return x.id === id; });
+    if(!st) return;
+    if(sezioneAnteprima === id){ chiudiAnteprimaSezione(); return; }
+    if(!confirm("Vuoi vedere «" + st.nome + "» da sola?\n\nRestano accese solo le sue poste, come le vedrebbe il vice a cui la affidi.")) return;
+    sezioneAnteprima = id;
+    document.getElementById("sz-nome").textContent = st.nome;
+    var np = posteDelSettore(areaAttiva(), st).length;
+    document.getElementById("sz-sub").textContent = np + " post" + (np===1?"a":"e") + " \u00b7 il resto e' spento";
+    document.getElementById("szbanner").classList.add("show");
+    renderPoste();
+    toast("Sezione: " + st.nome);
+  }
+
+  function chiudiAnteprimaSezione(){
+    sezioneAnteprima = null;
+    var b = document.getElementById("szbanner");
+    if(b) b.classList.remove("show");
+    renderPoste();
+  }
+
   /* GLI INTERRUTTORI DELLA MAPPA.
      Diversi dal nascondi/mostra della scheda: quelli spengono UNA sezione o
      UNA linea, questi spengono tutto il gruppo con un tocco, mentre sei sul
      campo e vuoi vedere solo il satellite. */
+  /* DUE MODI DI STARE SULLA STESSA MAPPA.
+     "laboratorio": ci si arriva da Mappe, e li' si costruisce — poste, sezioni,
+     linee. "campo": ci si arriva da Battute, e li' si GUARDA soltanto (piu' la
+     scelta del punto di ritrovo). La mattina della battuta, con le mani fredde,
+     un tocco sbagliato non deve poter spostare una posta che poi qualcuno
+     cerca al buio. */
+  var modoMappa = "campo";
+  function inLaboratorio(){ return modoMappa === "laboratorio"; }
+
   var VIS_KEY = "hunter_vista_mappa";
   var vistaMappa = {sezioni:true, linee:true};
 
@@ -6041,7 +6110,7 @@
 
     var apertaUnArea = areaApertaInMappa && !!areaAttiva();
     var m = document.getElementById("mt-modifica");
-    m.style.display = (apertaUnArea && puoMappare()) ? "flex" : "none";
+    m.style.display = (apertaUnArea && puoMappare() && inLaboratorio()) ? "flex" : "none";
 
     var bs = document.getElementById("mt-sez");
     var bl = document.getElementById("mt-lin");
@@ -6075,8 +6144,15 @@
     tracceDi(a.id).forEach(function(t){
       if(eNascosto("tracce", t.id)) return;
       if(!t.punti || t.punti.length < 2) return;
+      var col = coloreLinea(t.id);
       L.polyline(t.punti.map(function(p){ return [p.lat, p.lng]; }),
-        {color:"#c9b3e0", weight:3, dashArray:"9 6", opacity:.9}).addTo(tracceLayer);
+        {color:col, weight:4, dashArray:"10 7", opacity:.95}).addTo(tracceLayer);
+      // il nome all'inizio della linea, cosi' si sa quale e' quale
+      var p0 = t.punti[0];
+      L.marker([p0.lat, p0.lng], {icon:L.divIcon({className:"", iconSize:[10,10], iconAnchor:[-4,8],
+        html:'<div style="background:'+col+'; color:#1a1610; font-size:10px; font-weight:700; '
+           + 'padding:2px 7px; border-radius:6px; white-space:nowrap; box-shadow:0 1px 4px rgba(0,0,0,.5)">'
+           + esc(t.nome) + '</div>'})}).addTo(tracceLayer);
     });
   }
 
@@ -6091,6 +6167,14 @@
   var disegnoSettore = null;   // {areaId, p1, p2, rett}
   var settoriAperti = null;    // l'area di cui sto guardando i settori
   var COLORI_SETT = ["#993556", "#185FA5", "#BA7517", "#0F6E56", "#7B5EA7", "#993C1D"];
+  /* ogni linea il suo colore, sempre lo stesso: tre linee viola uguali
+     sulla stessa mappa non si distinguono */
+  var COLORI_LINEE = ["#C9A227", "#4FBCD6", "#E0723C", "#7BD88F", "#C77DD6", "#E05C6E"];
+  function coloreLinea(id){
+    var n = 0, t = String(id||"");
+    for(var i=0;i<t.length;i++) n += t.charCodeAt(i);
+    return COLORI_LINEE[n % COLORI_LINEE.length];
+  }
 
   async function caricaSettori(){
     try{
@@ -6388,12 +6472,17 @@
       var col = coloreSettore(i);
       var sue = posteDelSettore(a, st);
       var c = contornoDi(sue);
+      var poly = null;
       if(c){
-        L.polygon(c, {color:col, weight:2, fillColor:col, fillOpacity:.10, dashArray:"7 5"}).addTo(settLayer);
+        poly = L.polygon(c, {color:col, weight:2, fillColor:col, fillOpacity:.10, dashArray:"7 5"}).addTo(settLayer);
       }else if(st.lat1 !== undefined && st.lat1 !== null){
-        L.polygon([[st.lat1, st.lng1], [st.lat1, st.lng2], [st.lat2, st.lng2], [st.lat2, st.lng1]],
+        poly = L.polygon([[st.lat1, st.lng1], [st.lat1, st.lng2], [st.lat2, st.lng2], [st.lat2, st.lng1]],
           {color:col, weight:2, fillColor:col, fillOpacity:.10, dashArray:"7 5"}).addTo(settLayer);
       }
+      // toccando il contorno si guarda la sezione con gli occhi del vice.
+      // Tengo il riferimento al poligono appena creato: prendere "l'ultimo
+      // disegnato" si romperebbe al primo cambio nell'ordine del disegno.
+      if(poly && poly.on) poly.on("click", function(){ chiediAnteprimaSezione(st.id); });
       var la = Math.max(st.lat1, st.lat2), ln = Math.min(st.lng1, st.lng2);
       L.marker([la, ln], {icon:L.divIcon({className:"", iconSize:[30,22], iconAnchor:[-2,-2],
         html:'<div style="background:'+col+'; color:#fff; font-size:11px; font-weight:700; '
@@ -6702,6 +6791,7 @@
   /* --- seguire una linea: stessa guida del percorso --- */
   function seguiTraccia(t){
     if(!t || !t.punti || t.punti.length < 2){ toast("Linea incompleta"); return; }
+    modoMappa = "campo";
     document.getElementById("m-tracce").classList.remove("show");
     seguoPercorso = {punti:t.punti, distanza:Number(t.distanza||0), da:t.nome};
     areaAttivaId = t.area_id;
@@ -7135,6 +7225,7 @@
   function apriTracciataInMappa(id){
     var tc = tracciate.find(function(x){ return x.id === id; });
     if(!tc) return;
+    modoMappa = "campo";
     document.getElementById("m-sintesi").classList.remove("show");
     if(tc.area_id){
       areaAttivaId = tc.area_id;
@@ -10765,6 +10856,7 @@
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
     document.getElementById("ad-indietro").onclick=function(){ showView("aree"); renderAree(); };
     caricaVistaMappa();
+    document.getElementById("sz-esci").onclick=chiudiAnteprimaSezione;
     document.getElementById("mt-indietro").onclick=tornaIndietroDaMappa;
     document.getElementById("mt-modifica").onclick=function(){
       if(areaAttivaId) apriPopupArea(areaAttivaId);
