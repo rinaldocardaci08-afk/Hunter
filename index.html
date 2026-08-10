@@ -373,7 +373,21 @@
   /* i comandi zoom di Leaflet stanno in alto a destra a top:56px e sono larghi
      38px: le barre devono fermarsi PRIMA, altrimenti da schermo largo ci
      finiscono sotto (era cosi' fino alla 1.50). */
-  #topstack{position:absolute; left:10px; right:58px; top:56px; z-index:660;
+  /* COLONNA COMANDI SULLA MAPPA (sinistra), speculare allo zoom (destra).
+     Sta in verticale per non mangiare larghezza: sul telefono la larghezza
+     e' la cosa piu' preziosa che c'e'. */
+  #maptools{position:absolute; left:10px; top:56px; z-index:665;
+    display:none; flex-direction:column; gap:6px;}
+  #maptools.show{display:flex;}
+  #maptools button{width:38px; height:38px; border-radius:10px; border:1px solid rgba(255,255,255,.10);
+    background:rgba(44,36,24,.92); color:var(--cream); font-size:16px; line-height:1;
+    backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,.4); padding:0;}
+  #maptools button.on{background:#4a3320; border-color:var(--gold); color:var(--gold);}
+  #maptools button.off{color:#6f665a;}
+  #maptools .sep{height:4px;}
+
+  #topstack{position:absolute; left:58px; right:58px; top:56px; z-index:660;
     display:flex; flex-direction:column; gap:6px; pointer-events:none;}
   #topstack > *{pointer-events:auto; position:static !important;
     left:auto !important; right:auto !important; top:auto !important;}
@@ -1215,6 +1229,15 @@
         <button id="navclose">✕</button>
       </div>
       <!-- barra MODALITÀ MAPPATURA (compare solo mappando) -->
+      <!-- comandi della mappa: indietro, modifica, sezioni, linee -->
+      <div id="maptools">
+        <button id="mt-indietro" title="Indietro" aria-label="Indietro">‹</button>
+        <button id="mt-modifica" title="Modifica la mappa" aria-label="Modifica">✎</button>
+        <div class="sep"></div>
+        <button id="mt-sez" title="Sezioni" aria-label="Mostra o nascondi le sezioni">▦</button>
+        <button id="mt-lin" title="Linee di tracciamento" aria-label="Mostra o nascondi le linee">〰</button>
+      </div>
+
       <div id="topstack">
       <div id="mapbanner">
         <div class="tx">
@@ -1991,7 +2014,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.61";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.62";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2829,6 +2852,7 @@
     disegnaSegnalazioni();
     disegnaSettori();
     disegnaTracce();
+    aggiornaComandiMappa();
   }
   function updateUser(){
     if(!map||!pos) return;
@@ -3379,6 +3403,7 @@
     if(v==="squadra") caricaSquadra();
     if(v==="battute") caricaBattute();
     if(v==="cassa") caricaCassa();
+    setTimeout(aggiornaComandiMappa, 30);
     if(v==="classifica") caricaClassifica();
     if(v==="admin") caricaAdmin();
     if(v==="sergente") caricaSergente();
@@ -5990,12 +6015,60 @@
     }, 250);
   }
 
+  /* GLI INTERRUTTORI DELLA MAPPA.
+     Diversi dal nascondi/mostra della scheda: quelli spengono UNA sezione o
+     UNA linea, questi spengono tutto il gruppo con un tocco, mentre sei sul
+     campo e vuoi vedere solo il satellite. */
+  var VIS_KEY = "hunter_vista_mappa";
+  var vistaMappa = {sezioni:true, linee:true};
+
+  function caricaVistaMappa(){
+    try{
+      var c = JSON.parse(localStorage.getItem(VIS_KEY));
+      if(c && typeof c.sezioni === "boolean") vistaMappa = c;
+    }catch(e){}
+  }
+  function salvaVistaMappa(){
+    try{ localStorage.setItem(VIS_KEY, JSON.stringify(vistaMappa)); }catch(e){}
+  }
+
+  function aggiornaComandiMappa(){
+    var box = document.getElementById("maptools");
+    if(!box) return;
+    var suMappa = document.getElementById("v-mappa").classList.contains("active");
+    box.classList.toggle("show", suMappa);
+    if(!suMappa) return;
+
+    var apertaUnArea = areaApertaInMappa && !!areaAttiva();
+    var m = document.getElementById("mt-modifica");
+    m.style.display = (apertaUnArea && puoMappare()) ? "flex" : "none";
+
+    var bs = document.getElementById("mt-sez");
+    var bl = document.getElementById("mt-lin");
+    var mostra = apertaUnArea && (puoVedereAree() || puoMappare());
+    bs.style.display = mostra ? "flex" : "none";
+    bl.style.display = mostra ? "flex" : "none";
+    bs.className = vistaMappa.sezioni ? "on" : "off";
+    bl.className = vistaMappa.linee ? "on" : "off";
+    bs.title = vistaMappa.sezioni ? "Sezioni: accese" : "Sezioni: spente";
+    bl.title = vistaMappa.linee ? "Linee: accese" : "Linee: spente";
+  }
+
+  function tornaIndietroDaMappa(){
+    // se ero arrivato dalla scheda di una mappa, torno li'
+    if(areaDett){ showView("areadett"); renderSchedaArea(); return; }
+    if(areaApertaInMappa){ showView("aree"); renderAree(); return; }
+    showView("home");
+  }
+
   /* le linee sulla mappa, con l'interruttore di visibilita' */
   var tracceLayer = null;
   function disegnaTracce(){
     if(!tracceLayer) return;
     tracceLayer.clearLayers();
     if(!areaApertaInMappa) return;
+    caricaVistaMappa();
+    if(!vistaMappa.linee) return;
     var a = areaAttiva();
     if(!a) return;
     caricaNascosti();
@@ -6307,6 +6380,8 @@
     var a = areaAttiva();
     if(!a) return;
     if(!puoVedereAree() && !puoMappare()) return;
+    caricaVistaMappa();
+    if(!vistaMappa.sezioni) return;
     caricaNascosti();
     settoriDi(a.id).forEach(function(st, i){
       if(eNascosto("settori", st.id)) return;
@@ -10689,6 +10764,21 @@
     document.getElementById("m-pres-annulla").onclick=function(){ document.getElementById("m-presenze").classList.remove("show"); };
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
     document.getElementById("ad-indietro").onclick=function(){ showView("aree"); renderAree(); };
+    caricaVistaMappa();
+    document.getElementById("mt-indietro").onclick=tornaIndietroDaMappa;
+    document.getElementById("mt-modifica").onclick=function(){
+      if(areaAttivaId) apriPopupArea(areaAttivaId);
+    };
+    document.getElementById("mt-sez").onclick=function(){
+      vistaMappa.sezioni = !vistaMappa.sezioni; salvaVistaMappa();
+      disegnaSettori(); aggiornaComandiMappa();
+      toast(vistaMappa.sezioni ? "Sezioni accese" : "Sezioni spente");
+    };
+    document.getElementById("mt-lin").onclick=function(){
+      vistaMappa.linee = !vistaMappa.linee; salvaVistaMappa();
+      disegnaTracce(); aggiornaComandiMappa();
+      toast(vistaMappa.linee ? "Linee accese" : "Linee spente");
+    };
     document.getElementById("mp-numero").onclick=apriNumeroPosta;
     document.getElementById("m-np-annulla").onclick=function(){ document.getElementById("m-numposta").classList.remove("show"); };
     document.getElementById("m-np-salva").onclick=function(){ salvaNumeroPosta(document.getElementById("m-np-val").value); };
