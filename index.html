@@ -466,20 +466,28 @@
   .muro{position:relative; width:100%; border-radius:12px; overflow:hidden;
     margin-bottom:14px; background:#46301e center/100% 100% no-repeat;
     box-shadow:0 3px 14px rgba(0,0,0,.5);}
+  /* sul telefono il muro deve essere piu' alto, altrimenti le medaglie
+     ci stanno dentro a stento e sembrano enormi */
   .muro::before{content:""; display:block; padding-top:54.6%;}
+  @media (max-width:620px){ .muro::before{ padding-top:78%; } }
   .muro .vuoto{position:absolute; inset:0; display:flex; align-items:center;
     justify-content:center; text-align:center; padding:0 24px;
     color:rgba(240,226,201,.72); font-size:12px; line-height:1.6;
     text-shadow:0 1px 4px rgba(0,0,0,.9);}
-  .chiodo{position:absolute; transform:translateX(-50%); text-align:center;}
+  /* LE MEDAGLIE SI MISURANO IN ALTEZZA, NON IN LARGHEZZA.
+     Prima erano larghe una percentuale fissa: una medaglia verticale diventava
+     altissima e una orizzontale un francobollo. Ora occupano tutte la stessa
+     altezza qualunque forma abbiano, e ruotando il telefono si riscalano da sole. */
+  .chiodo{position:absolute; transform:translateX(-50%); text-align:center;
+    width:34%; height:30%; display:flex; flex-direction:column; align-items:center;}
   .chiodo .disco{position:relative; display:flex; align-items:flex-start; justify-content:center;
-    perspective:800px;}
+    perspective:800px; height:76%; width:auto; max-width:100%;}
   /* la medaglia si gira e dietro racconta come l'hai presa */
   .chiodo .flip{position:relative; width:100%; transform-style:preserve-3d;
     transition:transform .55s cubic-bezier(.3,.8,.3,1);}
   .chiodo .flip.girata{transform:rotateY(180deg);}
   .chiodo .faccia{backface-visibility:hidden; -webkit-backface-visibility:hidden;}
-  .chiodo .retro{position:absolute; inset:0; transform:rotateY(180deg);
+  .chiodo .retro{position:absolute; inset:0; min-width:78px; transform:rotateY(180deg);
     background:linear-gradient(160deg,#5a4126,#3a2a18); border:2px solid var(--gold);
     border-radius:10px; padding:7px 6px; display:flex; flex-direction:column;
     justify-content:center; gap:3px; overflow:hidden;
@@ -488,8 +496,10 @@
   .chiodo .retro .rd{font-size:9px; color:#f0e2c9; line-height:1.25;}
   .chiodo .retro .rm{font-size:8.5px; color:#d9c9a8; line-height:1.25; font-style:italic;}
   .chiodo .gira{font-size:8.5px; color:rgba(240,226,201,.6); margin-top:2px;}
-  .chiodo .disco img{width:100%; height:auto; display:block;
+  .chiodo .disco img{height:100%; width:auto; max-width:100%; object-fit:contain; display:block;
     filter:drop-shadow(2px 4px 5px rgba(0,0,0,.65));}
+  .chiodo .flip{height:100%;}
+  .chiodo .faccia.fronte{height:100%; display:flex; align-items:flex-start; justify-content:center;}
   .chiodo .disco .em{font-size:30px; line-height:1;
     filter:drop-shadow(2px 4px 5px rgba(0,0,0,.65));}
   .chiodo .et{font-size:9.5px; margin-top:3px; line-height:1.2; color:#f0e2c9;
@@ -1616,10 +1626,28 @@
       <div id="mp-note" style="font-size:13px; color:var(--cream); line-height:1.5;">—</div>
     </div>
 
+    <div class="btnrow" style="margin-bottom:8px">
+      <button class="btn line" id="mp-numero">🔢 Cambia numero</button>
+    </div>
     <div class="btnrow">
       <button class="btn line" id="mp-modifica">✎ Modifica note</button>
       <button class="btn line" id="mp-vista" style="background:#1d3a5a; border-color:#2a4d6e; color:#9fc8ed;">👁 Vista postaiolo</button>
     </div>
+  </div>
+</div>
+
+<!-- MODALE: cambia il numero della posta -->
+<div class="modal" id="m-numposta">
+  <div class="sheet">
+    <h3>Numero della posta</h3>
+    <p class="hint" id="m-np-hint">Se il numero è già di un'altra posta, quella resta senza numero e la ritrovi sulla mappa con un punto interrogativo: la tocchi e gliene dai uno.</p>
+    <input id="m-np-val" type="number" min="1" step="1" placeholder="4">
+    <div id="m-np-avviso" style="margin-top:9px; font-size:12px; color:var(--gold); line-height:1.5"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-np-annulla">Annulla</button>
+      <button class="btn primary" id="m-np-salva">Salva</button>
+    </div>
+    <button class="btn line" id="m-np-togli" style="margin-top:8px">Lascia senza numero</button>
   </div>
 </div>
 
@@ -1963,7 +1991,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.60";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.61";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3441,6 +3469,60 @@
       disegnaMiniSchema("mp-schema", p, false);
       initMiniTouch("mp-schema", p, false);
     }, 90);
+  }
+
+  /* IL NUMERO SI CAMBIA A MANO.
+     Se il numero scelto e' gia' di un'altra posta, quella resta SENZA numero
+     invece di crearne due uguali: si vede col punto interrogativo e le si
+     assegna quello giusto. Meglio un buco visibile di un doppione nascosto. */
+  function apriNumeroPosta(){
+    if(!postaAperta) return;
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    document.getElementById("m-np-val").value = postaAperta.numero || "";
+    document.getElementById("m-np-avviso").textContent = "";
+    document.getElementById("m-numposta").classList.add("show");
+    var inp = document.getElementById("m-np-val");
+    inp.oninput = function(){
+      var n = parseInt(inp.value, 10);
+      var a = areaAttiva();
+      var altra = (a && a.poste ? a.poste : []).find(function(p){
+        return p.id !== postaAperta.id && parseInt(p.numero,10) === n;
+      });
+      document.getElementById("m-np-avviso").textContent = altra
+        ? ("Il numero " + n + " è di «" + (altra.nome || ("Posta "+n)) + "»: se salvi, quella resta senza numero.")
+        : "";
+    };
+  }
+
+  async function salvaNumeroPosta(nuovo){
+    if(!postaAperta) return;
+    var a = areaAttiva();
+    if(!a) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var n = (nuovo === null) ? null : parseInt(nuovo, 10);
+    if(nuovo !== null && (isNaN(n) || n < 1)){ toast("Scrivi un numero"); return; }
+    var altra = n === null ? null : (a.poste||[]).find(function(p){
+      return p.id !== postaAperta.id && parseInt(p.numero,10) === n;
+    });
+    try{
+      if(altra){
+        var r0 = await sb.from("hn_poste").update({numero:null}).eq("id", altra.id);
+        if(r0.error) throw r0.error;
+        altra.numero = null;
+      }
+      var r = await sb.from("hn_poste").update({numero:n}).eq("id", postaAperta.id);
+      if(r.error) throw r.error;
+      postaAperta.numero = n;
+      document.getElementById("m-numposta").classList.remove("show");
+      document.getElementById("mp-num").textContent = n || "?";
+      renderPoste();
+      if(areaDett) renderSchedaArea();
+      toast(altra ? ("Fatto. «"+(altra.nome||"L'altra posta")+"» è rimasta senza numero")
+                  : (n === null ? "Numero tolto" : "Numero cambiato"));
+    }catch(e){
+      alert("Non sono riuscito a cambiare il numero.\n\nIl database ha risposto:\n" +
+            ((e && e.message) ? e.message : "errore sconosciuto"));
+    }
   }
 
   // disegna una posta con i suoi vicini. conNomi = mostra i nomi dei vicini
@@ -5762,7 +5844,10 @@
     if(!a) return;
     var root = document.getElementById("areadett-scroll");
     var poste = (a.poste || []).slice().sort(function(x,y){
-      return (parseInt(x.numero,10)||0) - (parseInt(y.numero,10)||0); });
+      var nx = parseInt(x.numero,10), ny = parseInt(y.numero,10);
+      if(isNaN(nx) && !isNaN(ny)) return -1;   // quelle senza numero in cima: vanno sistemate
+      if(!isNaN(nx) && isNaN(ny)) return 1;
+      return (nx||0) - (ny||0); });
     var sez = settoriDi(a.id);
     var lin = tracceDi(a.id);
     var ab = abbattimentiArea(a.id);
@@ -5829,10 +5914,11 @@
       var suo = sez.find(function(st){ return postaNelSettore(p, st); });
       h += '<div class="card" data-postaapri="'+p.id+'" style="margin-bottom:5px; cursor:pointer">';
       h += '<div style="display:flex; align-items:center; gap:10px">';
-      h += '<span style="background:#8a2f2f; color:#fff; font-size:12px; font-weight:700; width:26px; height:26px; '
+      h += '<span style="background:'+(p.numero?'#8a2f2f':'#6b5a2a')+'; color:#fff; font-size:12px; font-weight:700; width:26px; height:26px; '
          + 'border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0">'+(p.numero||"?")+'</span>';
       h += '<div style="flex:1; min-width:0">';
-      h += '<div style="font-size:13px; color:var(--cream)">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</div>';
+      h += '<div style="font-size:13px; color:'+(p.numero?'var(--cream)':'var(--gold)')+'">'
+         + esc(p.nome || ("Posta "+(p.numero||"")))+(p.numero?'':' — senza numero')+'</div>';
       h += '<div style="font-size:10.5px; color:var(--muted)">'
          + (suo ? esc(suo.nome) : "senza sezione")
          + (p.tipo && p.tipo !== "fissa" ? ' · '+esc(p.tipo) : '')
@@ -7948,7 +8034,7 @@
     var USATI = stretto
       ? [CHIODI[0], CHIODI[2], CHIODI[4], CHIODI[5], CHIODI[7], CHIODI[9]]
       : CHIODI;
-    var LARG = stretto ? 26 : 15;   // larghezza della medaglia, in % del muro
+    // l'altezza la decide il CSS: qui resta solo quanti chiodi usare
 
     var attive = medaglie.filter(function(m){ return m.attiva !== false; });
     var vinte = {};
@@ -7980,7 +8066,7 @@
         var seme = 0;
         for(var k=0;k<String(m.id).length;k++) seme += String(m.id).charCodeAt(k);
         var incl = (seme % 7) - 3;   // pende un filo storta, ma sempre uguale
-        h += '<div class="chiodo" data-mdinfo="'+m.id+'" style="left:'+ch.x+'%; top:'+ch.y+'%; width:'+LARG+'%">';
+        h += '<div class="chiodo" data-mdinfo="'+m.id+'" style="left:'+ch.x+'%; top:'+ch.y+'%">';
         h += '<div class="disco" style="transform:rotate('+incl+'deg); transform-origin:50% 0">';
         h += '<div class="flip" data-flip="'+m.id+'">';
         h += '<div class="faccia fronte">';
@@ -10603,6 +10689,10 @@
     document.getElementById("m-pres-annulla").onclick=function(){ document.getElementById("m-presenze").classList.remove("show"); };
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
     document.getElementById("ad-indietro").onclick=function(){ showView("aree"); renderAree(); };
+    document.getElementById("mp-numero").onclick=apriNumeroPosta;
+    document.getElementById("m-np-annulla").onclick=function(){ document.getElementById("m-numposta").classList.remove("show"); };
+    document.getElementById("m-np-salva").onclick=function(){ salvaNumeroPosta(document.getElementById("m-np-val").value); };
+    document.getElementById("m-np-togli").onclick=function(){ salvaNumeroPosta(null); };
     document.getElementById("btn-cerca").onclick=apriCerca;
     document.getElementById("cerca-chiudi").onclick=chiudiCerca;
     document.getElementById("cerca-vai").onclick=eseguiCerca;
