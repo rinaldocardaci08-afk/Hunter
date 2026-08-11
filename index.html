@@ -385,6 +385,7 @@
     box-shadow:0 2px 6px rgba(0,0,0,.4); padding:0;}
   #maptools button.on{background:#4a3320; border-color:var(--gold); color:var(--gold);}
   #maptools button.off{color:#6f665a;}
+  #maptools button.azione{background:#4a3560; border-color:#7B5EA7; color:#c9b3e0;}
   #maptools .sep{height:4px;}
 
   #topstack{position:absolute; left:58px; right:58px; top:56px; z-index:660;
@@ -1246,6 +1247,7 @@
         <div class="sep"></div>
         <button id="mt-sez" title="Sezioni" aria-label="Mostra o nascondi le sezioni">▦</button>
         <button id="mt-lin" title="Linee di tracciamento" aria-label="Mostra o nascondi le linee">〰</button>
+        <button id="mt-azioni" class="azione" title="Cosa fare con le linee" aria-label="Azioni sulle linee">🐾</button>
       </div>
 
       <div id="topstack">
@@ -1966,7 +1968,7 @@
 <div class="modal" id="m-tracce">
   <div class="sheet">
     <h3 id="m-tracce-tit">Linee di tracciamento</h3>
-    <p class="hint">Il giro che fa il tracciatore. Passa vicino alle poste senza toccarle: puoi averne pi&ugrave; di una per la stessa mappa.</p>
+    <p class="hint" id="m-tracce-hint">Il giro che fa il tracciatore. Passa vicino alle poste senza toccarle: puoi averne pi&ugrave; di una per la stessa mappa.</p>
     <div id="m-tracce-lista" style="max-height:44vh; overflow-y:auto"></div>
     <div id="m-tracce-crea"></div>
     <div class="btnrow" style="margin-top:12px">
@@ -2033,7 +2035,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.66";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.67";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3321,6 +3323,10 @@
       (a.comune?" · "+a.comune:"");
     // i pulsanti compaiono secondo il permesso
     document.getElementById("ma-apri").style.display = (puoVederePoste() && np) ? "block" : "none";
+    // "Segui il percorso" e' un'azione di CACCIA: qui si impostano le mappe,
+    // non si va a tracciare. Quel tasto vive nella giornata di battuta.
+    var bp0 = document.getElementById("ma-percorso");
+    if(bp0) bp0.style.display = "none";
     document.getElementById("ma-mappatura").style.display = puoMappare() ? "block" : "none";
     document.getElementById("ma-modifica").style.display = puoMappare() ? "block" : "none";
     // il percorso: lo può seguire chi vede l'area
@@ -3336,9 +3342,11 @@
       bs.style.display = (puoVedereAree() || puoMappare()) ? "block" : "none";
       bs.innerHTML = ns ? ("\u25a6 Settori \u00b7 " + ns) : "\u25a6 Settori";
     }
+    // il vecchio percorso della mappa: qui NON si segue, si impostano le mappe.
+    // Il riepilogo pero' serve, per sapere se il giro e' stato registrato.
     var hp = a.percorso && a.percorso.punti && a.percorso.punti.length > 4;
     var bp = document.getElementById("ma-percorso");
-    bp.style.display = (hp && puoVedereAree()) ? "block" : "none";
+    bp.style.display = "none";
     if(hp){
       var km = (a.percorso.distanza/1000).toFixed(2);
       var mn = Math.round((a.percorso.durata||0)/60);
@@ -6173,6 +6181,12 @@
     var mostra = apertaUnArea && (puoVedereAree() || puoMappare());
     bs.style.display = mostra ? "flex" : "none";
     bl.style.display = mostra ? "flex" : "none";
+    // in battuta il tasto delle azioni: vedi, segui, l'ho gia' fatta
+    var ba = document.getElementById("mt-azioni");
+    if(ba){
+      var lin = apertaUnArea ? tracceDi(areaAttivaId).length : 0;
+      ba.style.display = (!inLaboratorio() && lin) ? "flex" : "none";
+    }
     bs.className = vistaMappa.sezioni ? "on" : "off";
     bl.className = vistaMappa.linee ? "on" : "off";
     bs.title = vistaMappa.sezioni ? "Sezioni: accese" : "Sezioni: spente";
@@ -6588,6 +6602,18 @@
     renderTracce();
   }
 
+  /* l'elenco delle linee aperto dalla mappa, senza passare dal menu' Modifica */
+  async function apriTracceDaMappa(){
+    var a = areaAttiva();
+    if(!a) return;
+    traccaAperta = a.id;
+    document.getElementById("m-tracce-tit").textContent = "Linee \u00b7 " + a.nome;
+    document.getElementById("m-tracce-lista").innerHTML = '<div class="loading">Carico\u2026</div>';
+    document.getElementById("m-tracce").classList.add("show");
+    if(!tracce.length) await caricaTracce();
+    renderTracce();
+  }
+
   function renderTracce(){
     var a = aree.find(function(x){ return x.id === traccaAperta; });
     var mie = tracceDi(traccaAperta);
@@ -6608,14 +6634,27 @@
          + (t.punti && t.punti.length ? ' · '+t.punti.length+' punti' : '')+'</div>';
       h += '</div></div>';
       h += '<div class="btnrow" style="margin-top:9px">';
-      h += '<button class="btn line" data-trsegui="'+t.id+'" style="font-size:12px; padding:9px">🐾 Seguila</button>';
-      if(puoMappare()) h += '<button class="btn line" data-trdel="'+t.id+'" style="font-size:12px; padding:9px; flex:0 0 46px">🗑</button>';
-      h += '</div></div>';
+      if(inLaboratorio()){
+        // impostazione: si guarda dove passa e semmai si cancella
+        h += '<button class="btn line" data-trvedi="'+t.id+'" style="font-size:12px; padding:9px">👁 Vedi dove passa</button>';
+        if(puoMappare()) h += '<button class="btn line" data-trdel="'+t.id+'" style="font-size:12px; padding:9px; flex:0 0 46px">🗑</button>';
+      }else{
+        h += '<button class="btn line" data-trvedi="'+t.id+'" style="font-size:12px; padding:9px">👁 Vedi</button>';
+        h += '<button class="btn primary" data-trsegui="'+t.id+'" style="font-size:12px; padding:9px">🐾 Segui</button>';
+      }
+      h += '</div>';
+      if(!inLaboratorio()){
+        h += '<button class="btn line" data-trfatta="'+t.id+'" style="margin-top:6px; font-size:11.5px; padding:8px">✓ L\'ho già fatta · segno cosa ho visto</button>';
+      }
+      h += '</div>';
     });
+    document.getElementById("m-tracce-hint").textContent = inLaboratorio()
+      ? "Il giro che fa il tracciatore. Qui si disegnano e si sistemano."
+      : "Scegli la linea da fare. Se l'hai gi\u00e0 fatta senza telefono, segnala e racconta cosa hai visto.";
     document.getElementById("m-tracce-lista").innerHTML = h;
 
     var c = "";
-    if(puoMappare()){
+    if(puoMappare() && inLaboratorio()){
       c += '<button class="btn primary" id="tr-disegna" style="margin-top:10px">✏️ Disegna una linea</button>';
       c += '<button class="btn line" id="tr-cammina" style="margin-top:7px">🥾 Registrala camminando</button>';
     }
@@ -6629,6 +6668,18 @@
       b.onclick = function(){
         var t = tracce.find(function(x){ return x.id === b.dataset.trsegui; });
         if(t) seguiTraccia(t);
+      };
+    });
+    m.querySelectorAll("[data-trvedi]").forEach(function(b){
+      b.onclick = function(){ vediLineaSuMappa(b.dataset.trvedi); };
+    });
+    m.querySelectorAll("[data-trfatta]").forEach(function(b){
+      b.onclick = function(){
+        var t = tracce.find(function(x){ return x.id === b.dataset.trfatta; });
+        if(t){
+          document.getElementById("m-tracce").classList.remove("show");
+          dichiaraTracciata(t, t.area_id);
+        }
       };
     });
     m.querySelectorAll("[data-trdel]").forEach(function(b){
@@ -6842,6 +6893,37 @@
       renderTracce();
       toast("Linea eliminata");
     }catch(e){ toast("Serve la rete"); }
+  }
+
+  /* GUARDARE DOVE PASSA UNA LINEA, senza mettersi in cammino.
+     Serve sia in laboratorio (l'ho disegnata bene?) sia in battuta
+     (da che parte gira, prima di decidere se prenderla). */
+  function vediLineaSuMappa(id){
+    var t = tracce.find(function(x){ return x.id === id; });
+    if(!t || !t.punti || t.punti.length < 2){ toast("Linea incompleta"); return; }
+    document.getElementById("m-tracce").classList.remove("show");
+    areaAttivaId = t.area_id;
+    areaApertaInMappa = true;
+    aggiornaPills();
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      renderPoste();
+      disegnaSettori();
+      disegnaTracce();
+      if(!perTracciataLayer) perTracciataLayer = L.layerGroup().addTo(map);
+      perTracciataLayer.clearLayers();
+      var col = coloreLinea(t.id);
+      var linea = L.polyline(t.punti.map(function(p){ return [p.lat, p.lng]; }),
+        {color:col, weight:6, opacity:1}).addTo(perTracciataLayer);
+      L.circleMarker([t.punti[0].lat, t.punti[0].lng],
+        {radius:8, color:"#fff", fillColor:"#1D9E75", fillOpacity:1, weight:3}).addTo(perTracciataLayer);
+      var u = t.punti[t.punti.length-1];
+      L.circleMarker([u.lat, u.lng],
+        {radius:8, color:"#fff", fillColor:"#E24B4A", fillOpacity:1, weight:3}).addTo(perTracciataLayer);
+      try{ map.fitBounds(linea.getBounds().pad(0.25)); }catch(e){ fitArea(); }
+    }, 260);
+    toast(t.nome + " \u00b7 " + (Number(t.distanza||0)/1000).toFixed(2) + " km");
   }
 
   /* --- seguire una linea: stessa guida del percorso --- */
@@ -10941,6 +11023,9 @@
     document.getElementById("ad-indietro").onclick=function(){ showView("aree"); renderAree(); };
     caricaVistaMappa();
     document.getElementById("sz-esci").onclick=chiudiAnteprimaSezione;
+    document.getElementById("mt-azioni").onclick=function(){
+      if(areaAttivaId){ settoriAperti = null; traccaAperta = areaAttivaId; apriTracceDaMappa(); }
+    };
     document.getElementById("mt-indietro").onclick=tornaIndietroDaMappa;
     document.getElementById("mt-modifica").onclick=function(){
       if(areaAttivaId) apriPopupArea(areaAttivaId);
