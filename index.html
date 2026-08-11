@@ -2073,7 +2073,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.68";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.69";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4892,6 +4892,7 @@
     showView("giornata");
     await caricaTracciate();      // chi ha gia' fatto la sua tracciata
     caricaSegnalazioni();
+    await caricaBattuteSvolte();  // le battute gia' aperte oggi
     caricaAssegnazioni();
     await caricaAdesioni();
   }
@@ -5020,22 +5021,53 @@
 
       h+='</div>';
 
-      // le mappe scelte per oggi, con quanto sono coperte
+      /* LE BATTUTE DI OGGI.
+         Le mappe candidate restano tutte disponibili: se la prima battuta
+         finisce presto o non si trova niente, la seconda si fa su un'altra. */
+      var inCorso0 = battutaInCorso();
       var mieAree = (b.aree_segnalate || []);
+
+      if(battuteSvolte.length){
+        h+='<div class="sechead">Battute di oggi</div>';
+        battuteSvolte.forEach(function(bs){
+          var arB = aree.find(function(x){ return x.id === bs.area_id; });
+          var cp = coperturaBattuta(bs);
+          var inc = incarichiDi(bs.id).length;
+          var viva = !bs.chiusa_il;
+          h+='<div class="card" data-bsapri="'+bs.id+'" style="margin-bottom:7px; cursor:pointer'
+            +(viva?'; border:1px solid var(--gold)':'')+'">';
+          h+='<div style="display:flex; align-items:center; gap:10px">';
+          h+='<span style="font-size:17px">'+(viva?'\u23f1':'\u2713')+'</span>';
+          h+='<div style="flex:1; min-width:0">';
+          h+='<div style="font-size:13.5px; color:var(--cream); font-weight:600">'
+            +(bs.numero?bs.numero+'ª · ':'')+esc(arB?arB.nome:'mappa')+'</div>';
+          h+='<div style="font-size:10.5px; color:var(--muted)">'
+            +(viva?'in corso':'chiusa')+' \u00b7 '+inc+' incarich'+(inc===1?'io':'i')
+            +' \u00b7 '+cp.perc+'% delle poste</div>';
+          h+='</div>';
+          h+='<span style="font-size:15px; color:var(--muted)">\u203a</span>';
+          h+='</div></div>';
+        });
+      }
+
       if(mieAree.length){
+        h+='<div class="sechead">'+(battuteSvolte.length?'Apri un\'altra battuta':'Su quale mappa si batte')+'</div>';
         h+='<div class="cubi" style="margin-top:2px">';
         mieAree.forEach(function(idA){
           var arC = aree.find(function(x){ return x.id === idA; });
           if(!arC) return;
-          var cp = coperturaArea(idA);
-          h+='<button class="cubo" data-gipos="'+idA+'" style="min-width:150px">';
+          var fatte = battuteSvolte.filter(function(x){ return x.area_id === idA; }).length;
+          h+='<button class="cubo'+(fatte?' spento':'')+'" data-gibat="'+idA+'" style="min-width:150px">';
           h+='<div class="et">'+esc(arC.nome)+'</div>';
-          h+='<div class="rg"><span class="n" style="color:'+coloreCopertura(cp.perc)+'">'+cp.perc+'%</span>'
-            +'<span class="t">coperta</span></div>';
-          h+='<div class="rg"><span class="n">'+cp.assegnate+'</span><span class="t">di '+cp.poste+' poste</span></div>';
-          h+='<div class="vai">assegna \u203a</div></button>';
+          h+='<div class="rg"><span class="n">'+((arC.poste||[]).length)+'</span><span class="t">poste</span></div>';
+          if(fatte) h+='<div class="rg"><span class="t">gi\u00e0 battuta '+(fatte>1?fatte+' volte':'')+'</span></div>';
+          h+='<div class="vai">'+(inCorso0 ? 'chiudi prima' : 'apri la battuta \u203a')+'</div></button>';
         });
         h+='</div>';
+        if(inCorso0){
+          h+='<div style="font-size:10.5px; color:var(--muted); margin:-8px 0 12px 2px">'
+            +'C\'\u00e8 una battuta in corso: chiudila prima di aprirne un\'altra.</div>';
+        }
       }
     }
 
@@ -5079,9 +5111,20 @@
       if(capo) h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">🌲 Scegli le aree da segnalare</button>';
     }
 
-    // --- LA MIA POSTA (per tutti, appena assegnata) ---
+    // --- IL MIO INCARICO (per tutti, appena assegnato) ---
     var mia0 = laMiaPosta();
-    if(mia0){
+    if(mia0 && !mia0.posta_id){
+      // battitore, canaio: niente posta, ma deve sapere cosa fa
+      var bsMio = battutaSvoltaDi(mia0.battuta_svolta_id);
+      var arMio = aree.find(function(x){ return x.id === mia0.area_id; });
+      h+='<div class="sechead">Il tuo incarico</div>';
+      h+='<div class="card" style="background:#3a3560; border:1px solid #7B5EA7">';
+      h+='<div style="font-size:17px; color:#fff; font-weight:700">'+esc(mia0.ruolo||"incarico")+'</div>';
+      h+='<div style="font-size:11.5px; color:#c9b3e0; margin-top:3px">'
+        +esc(arMio?arMio.nome:'')+(bsMio&&bsMio.numero?(' \u00b7 '+bsMio.numero+'ª battuta'):'')+'</div>';
+      h+='</div>';
+    }
+    if(mia0 && mia0.posta_id){
       var arP = aree.find(function(x){ return x.id === mia0.area_id; });
       var pP = arP && arP.poste ? arP.poste.find(function(x){ return x.id === mia0.posta_id; }) : null;
       if(pP){
@@ -5380,8 +5423,11 @@
         apriTracciata(t, t.area_id);
       };
     });
-    root.querySelectorAll("[data-gipos]").forEach(function(b){
-      b.onclick=function(){ apriAssegnazioni(b.dataset.gipos); };
+    root.querySelectorAll("[data-gibat]").forEach(function(b){
+      b.onclick=function(){ apriBattutaSuMappa(b.dataset.gibat); };
+    });
+    root.querySelectorAll("[data-bsapri]").forEach(function(b){
+      b.onclick=function(){ apriAssegnazioni(b.dataset.bsapri); };
     });
     root.querySelectorAll("[data-sin]").forEach(function(b){
       b.onclick=function(){ apriSintesi(b.dataset.sin); };
@@ -6004,6 +6050,105 @@
      Le assegnazioni stanno PER GIORNATA in hn_assegnazioni: un campo fisso
      sulla posta perderebbe lo storico, e senza storico non si sa chi c'era
      l'ultima volta. */
+  /* LA GIORNATA CONTIENE PIU' BATTUTE.
+     Attenzione ai nomi: la tabella hn_battute e' la GIORNATA (una riga per
+     giorno: presenze, quote, tracciate). La battuta vera — la caccia su UNA
+     mappa — sta in hn_battute_svolte. In un giorno se ne possono fare due:
+     una la mattina su un terreno, una il pomeriggio su un altro.
+     I tre momenti: (1) si apre la giornata, si segnano i presenti e si
+     scelgono le mappe da valutare; (2) fatte le tracciate il capo sceglie
+     su quale mappa si batte e apre la battuta, assegna poste e ruoli, poi
+     la chiude; (3) o si apre un'altra battuta su un'altra mappa candidata,
+     oppure si chiude la giornata. */
+  var battuteSvolte = [];       // le battute della giornata aperta
+  var tutteBattuteSvolte = [];  // quelle di tutta la squadra, per gli abbattimenti
+  var bsAperta = null;          // la battuta su cui sto distribuendo le poste
+
+  async function caricaBattuteSvolte(){
+    if(!giornataAperta) return;
+    try{
+      var r = await sb.from("hn_battute_svolte").select("*")
+                .eq("giornata_id", giornataAperta.id).order("numero");
+      if(!r.error) battuteSvolte = r.data || [];
+    }catch(e){ battuteSvolte = []; }
+  }
+
+  function battutaSvoltaDi(id){
+    return battuteSvolte.find(function(x){ return x.id === id; }) || null;
+  }
+  function battutaInCorso(){
+    return battuteSvolte.find(function(x){ return !x.chiusa_il; }) || null;
+  }
+  function battutaSuArea(areaId){
+    return battuteSvolte.find(function(x){ return x.area_id === areaId && !x.chiusa_il; }) || null;
+  }
+  function nomeBattuta(bs){
+    if(!bs) return "";
+    var a = aree.find(function(x){ return x.id === bs.area_id; });
+    return (bs.numero ? (bs.numero + "ª · ") : "") + (a ? a.nome : "mappa");
+  }
+
+  async function apriBattutaSuMappa(areaId){
+    if(!giornataAperta){ toast("Serve una giornata aperta"); return; }
+    if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
+    var gia = battutaInCorso();
+    if(gia){
+      toast("C'\u00e8 gi\u00e0 una battuta aperta: chiudila prima");
+      return;
+    }
+    var a = aree.find(function(x){ return x.id === areaId; });
+    if(!a) return;
+    if(!confirm("Aprire la battuta su \u00ab" + a.nome + "\u00bb?\n\nDa qui assegni le poste e i ruoli. Le altre mappe restano candidate per una battuta successiva.")) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_battute_svolte").insert({
+        squadra_id:me.squadra_id, giornata_id:giornataAperta.id, area_id:areaId,
+        numero:(battuteSvolte.length + 1), aperta_da:me.membro_id
+      }).select().single();
+      if(r.error) throw r.error;
+      battuteSvolte.push(r.data);
+      renderGiornata();
+      apriAssegnazioni(r.data.id);
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  async function chiudiBattutaSvolta(id){
+    var bs = battutaSvoltaDi(id);
+    if(!bs || bs.chiusa_il) return;
+    if(!puoGestireBattute()) return;
+    var na = assegnazioni.filter(function(x){ return x.battuta_svolta_id === id; }).length;
+    if(!confirm("Chiudere la battuta su \u00ab" + nomeBattuta(bs) + "\u00bb?\n\n"
+        + na + (na===1 ? " incarico assegnato" : " incarichi assegnati")
+        + ".\nPotrai aprirne un'altra su un'altra mappa.")) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_battute_svolte")
+                .update({chiusa_il:new Date().toISOString()}).eq("id", id).select().single();
+      if(r.error) throw r.error;
+      var k = battuteSvolte.findIndex(function(x){ return x.id === id; });
+      if(k>=0) battuteSvolte[k] = r.data;
+      if(bsAperta === id) bsAperta = null;
+      showView("giornata");
+      renderGiornata();
+      toast("Battuta chiusa");
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  async function eliminaBattutaSvolta(id){
+    var bs = battutaSvoltaDi(id);
+    if(!bs || !puoGestireBattute()) return;
+    if(!confirm("Eliminare questa battuta?\n\nSpariscono anche le sue assegnazioni. Serve solo se l'hai aperta per sbaglio.")) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_battute_svolte").delete().eq("id", id);
+      if(r.error) throw r.error;
+      battuteSvolte = battuteSvolte.filter(function(x){ return x.id !== id; });
+      assegnazioni = assegnazioni.filter(function(x){ return x.battuta_svolta_id !== id; });
+      renderGiornata();
+      toast("Battuta eliminata");
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
   var assegnazioni = [];        // quelle della giornata aperta
   var storicoPoste = [];        // chi c'era le volte scorse, per "ultimo qui"
   var apAreaId = null;          // la mappa che sto distribuendo
@@ -6022,11 +6167,20 @@
     }catch(e){ assegnazioni = []; }
   }
 
-  function assegnazioneDi(postaId){
-    return assegnazioni.find(function(x){ return x.posta_id === postaId; }) || null;
+  /* tutto filtrato sulla battuta in corso: la mattina uno sta sulla 3 di
+     Torre, il pomeriggio sulla 7 del Vallone, e sono due cose diverse */
+  function assegnazioneDi(postaId, bsId){
+    var b = bsId || bsAperta;
+    return assegnazioni.find(function(x){
+      return x.posta_id === postaId && x.battuta_svolta_id === b; }) || null;
   }
-  function postaDi(membroId){
-    return assegnazioni.find(function(x){ return x.membro_id === membroId; }) || null;
+  function postaDi(membroId, bsId){
+    var b = bsId || bsAperta;
+    return assegnazioni.find(function(x){
+      return x.membro_id === membroId && x.battuta_svolta_id === b; }) || null;
+  }
+  function incarichiDi(bsId){
+    return assegnazioni.filter(function(x){ return x.battuta_svolta_id === bsId; });
   }
   function ultimoQui(postaId){
     var v = storicoPoste.find(function(x){
@@ -6035,20 +6189,18 @@
     return v ? v.membro_id : null;
   }
 
-  /* CHI VA IN POSTA: i presenti, tolti tracciatori e chi ha un altro compito
-     quel giorno. Contare tutti i presenti darebbe una copertura bugiarda. */
+  /* TUTTI i presenti sono assegnabili, tracciatori compresi: che uno sia in
+     giro a tracciare non toglie che debba sapere dove andra' dopo. */
   function daMettereInPosta(){
-    return adesioni.filter(function(a){
-      if(!a.presente) return false;
-      if(a.tracciatore) return false;
-      return true;
-    });
+    return adesioni.filter(function(a){ return a.presente; });
   }
 
-  function coperturaArea(areaId){
-    var a = aree.find(function(x){ return x.id === areaId; });
+  function coperturaBattuta(bs){
+    if(!bs) return {poste:0, assegnate:0, perc:0};
+    var a = aree.find(function(x){ return x.id === bs.area_id; });
     var np = a && a.poste ? a.poste.length : 0;
-    var ass = assegnazioni.filter(function(x){ return x.area_id === areaId; }).length;
+    var ass = assegnazioni.filter(function(x){
+      return x.battuta_svolta_id === bs.id && x.posta_id; }).length;
     return {poste:np, assegnate:ass, perc: np ? Math.round(100*ass/np) : 0};
   }
   function coloreCopertura(p){
@@ -6056,11 +6208,14 @@
   }
 
   /* --- la schermata --- */
-  async function apriAssegnazioni(areaId){
+  async function apriAssegnazioni(bsId){
     if(!giornataAperta){ toast("Serve una giornata di battuta"); return; }
-    apAreaId = areaId;
+    var bs = battutaSvoltaDi(bsId);
+    if(!bs){ toast("Battuta non trovata"); return; }
+    bsAperta = bsId;
+    apAreaId = bs.area_id;
     scambioDa = null;
-    var a = aree.find(function(x){ return x.id === areaId; });
+    var a = aree.find(function(x){ return x.id === bs.area_id; });
     document.getElementById("ap-titolo").textContent = a ? a.nome : "Poste";
     document.getElementById("poste-scroll").innerHTML = '<div class="loading">Carico…</div>';
     showView("poste");
@@ -6070,25 +6225,53 @@
   }
 
   function renderAssegnazioni(){
+    var bs = battutaSvoltaDi(bsAperta);
     var a = aree.find(function(x){ return x.id === apAreaId; });
-    if(!a){ return; }
+    if(!a || !bs){ return; }
     var root = document.getElementById("poste-scroll");
-    var cop = coperturaArea(apAreaId);
-    var liberi = daMettereInPosta().filter(function(x){ return !postaDi(x.membro_id); });
+    var cop = coperturaBattuta(bs);
+    var mieAss = incarichiDi(bs.id);
+    var senza = daMettereInPosta().filter(function(x){
+      return !mieAss.some(function(y){ return y.membro_id === x.membro_id; }); });
+    var chiusa = !!bs.chiusa_il;
     var h = "";
 
     h += '<div class="card" style="margin-bottom:12px">';
+    h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">'
+       + (bs.numero ? bs.numero+'ª battuta di oggi' : 'battuta')
+       + (chiusa ? ' \u00b7 <span style="color:#7be0a8">chiusa</span>' : ' \u00b7 in corso')+'</div>';
     h += '<div style="display:flex; align-items:baseline; gap:9px">';
     h += '<span style="font-size:26px; font-weight:700; color:'+coloreCopertura(cop.perc)+'">'+cop.perc+'%</span>';
     h += '<span style="font-size:12px; color:var(--muted)">'+cop.assegnate+' di '+cop.poste+' poste coperte</span>';
     h += '</div>';
     h += '<div class="barrapos"><i style="width:'+Math.min(100,cop.perc)+'%; background:'+coloreCopertura(cop.perc)+'"></i></div>';
     h += '<div style="font-size:11px; color:var(--muted); line-height:1.5; margin-top:6px">'
-       + (liberi.length ? liberi.length+' present'+(liberi.length===1?'e ancora senza posta':'i ancora senza posta')
-                        : 'Tutti i presenti hanno una posta')
+       + (senza.length ? senza.length+' present'+(senza.length===1?'e senza incarico':'i senza incarico')
+                       : 'Tutti i presenti hanno un incarico')
        + '</div>';
-    h += '<button class="btn line" id="ap-mappa" style="margin-top:10px; font-size:12px; padding:9px">🗺️ Vedi sulla mappa</button>';
+    h += '<div class="btnrow" style="margin-top:10px">';
+    h += '<button class="btn line" id="ap-mappa" style="font-size:12px; padding:9px">🗺️ Mappa</button>';
+    if(!chiusa && puoGestireBattute()){
+      h += '<button class="btn line" id="ap-ruoli" style="font-size:12px; padding:9px">🐕 Battitori e canai</button>';
+    }
     h += '</div>';
+    if(!chiusa && puoGestireBattute()){
+      h += '<button class="btn primary" id="ap-chiudi" style="margin-top:8px">🏁 Chiudi questa battuta</button>';
+    }
+    h += '</div>';
+
+    // chi non e' in posta ma ha un ruolo
+    var senzaPosta = mieAss.filter(function(x){ return !x.posta_id; });
+    if(senzaPosta.length){
+      h += '<div class="sechead">Senza posta</div>';
+      senzaPosta.forEach(function(x){
+        h += '<div class="posriga presa" data-ruolo="'+x.id+'">';
+        h += '<span class="pallino" style="background:#4a3560; border-color:#7B5EA7">'+(x.ruolo==="canaio"?"\ud83d\udc15":"\ud83e\udd4a")+'</span>';
+        h += '<div class="chi"><div class="n">'+esc(nomeDi(x.membro_id))+'</div>';
+        h += '<div class="s">'+esc(x.ruolo || "senza posta")+'</div></div>';
+        h += '<span style="font-size:15px; color:var(--muted)">\u203a</span></div>';
+      });
+    }
 
     if(scambioDa){
       var pd = (a.poste||[]).find(function(p){ return p.id === scambioDa; });
@@ -6131,7 +6314,7 @@
   }
 
   function rigaPosta(p){
-    var as = assegnazioneDi(p.id);
+    var as = assegnazioneDi(p.id, bsAperta);
     var sc = (scambioDa === p.id);
     var h = '<div class="posriga '+(as?"presa":"")+(sc?" scelta":"")+'" data-posta="'+p.id+'">';
     h += '<span class="pallino">'+(p.numero||"?")+'</span>';
@@ -6160,6 +6343,13 @@
     if(bm) bm.onclick = function(){ apriAreaDaBattuta(apAreaId); };
     var ba = document.getElementById("ap-annullascambio");
     if(ba) ba.onclick = function(){ scambioDa = null; renderAssegnazioni(); };
+    var bc = document.getElementById("ap-chiudi");
+    if(bc) bc.onclick = function(){ chiudiBattutaSvolta(bsAperta); };
+    var br = document.getElementById("ap-ruoli");
+    if(br) br.onclick = apriRuoliSenzaPosta;
+    root.querySelectorAll("[data-ruolo]").forEach(function(el){
+      el.onclick = function(){ togliIncarico(el.dataset.ruolo); };
+    });
   }
 
   /* toccando una posta: se e' libera scelgo chi ci va; se e' presa e ne tocco
@@ -6200,7 +6390,7 @@
       h += '<div class="hint">Nessun presente disponibile. Segna prima chi c\'\u00e8.</div>';
     }
     cand.forEach(function(c){
-      var suo = postaDi(c.membro_id);
+      var suo = postaDi(c.membro_id, bsAperta);
       var qui = as && as.membro_id === c.membro_id;
       var m = membri.find(function(x){ return x.id === c.membro_id; });
       h += '<div class="posriga" data-scegli="'+c.membro_id+'" style="cursor:pointer'+(qui?'; border-color:var(--gold)':'')+'">';
@@ -6243,10 +6433,10 @@
   }
 
   async function assegnaPosta(postaId, membroId){
-    if(!giornataAperta) return;
+    if(!giornataAperta || !bsAperta) return;
     if(!navigator.onLine){ toast("Serve la rete"); return; }
-    var vecchia = postaDi(membroId);          // era gia' da un'altra parte?
-    var occupata = assegnazioneDi(postaId);   // qui c'era qualcun altro?
+    var vecchia = postaDi(membroId, bsAperta);          // era gia' da un'altra parte?
+    var occupata = assegnazioneDi(postaId, bsAperta);   // qui c'era qualcun altro?
     try{
       if(occupata && occupata.membro_id !== membroId){
         var rd = await sb.from("hn_assegnazioni").delete().eq("id", occupata.id);
@@ -6255,13 +6445,14 @@
       }
       if(vecchia){
         var ru = await sb.from("hn_assegnazioni")
-                   .update({posta_id:postaId, area_id:apAreaId}).eq("id", vecchia.id).select().single();
+                   .update({posta_id:postaId, area_id:apAreaId, ruolo:"posta"}).eq("id", vecchia.id).select().single();
         if(ru.error) throw ru.error;
         var k = assegnazioni.findIndex(function(x){ return x.id === vecchia.id; });
         if(k>=0) assegnazioni[k] = ru.data;
       }else{
         var ri = await sb.from("hn_assegnazioni").insert({
           squadra_id:me.squadra_id, battuta_id:giornataAperta.id,
+          battuta_svolta_id:bsAperta, ruolo:"posta",
           area_id:apAreaId, posta_id:postaId, membro_id:membroId,
           assegnata_da:me.membro_id
         }).select().single();
@@ -6276,7 +6467,7 @@
 
   async function liberaPosta(){
     if(!postaDaAssegnare) return;
-    var as = assegnazioneDi(postaDaAssegnare.id);
+    var as = assegnazioneDi(postaDaAssegnare.id, bsAperta);
     if(!as) return;
     if(!navigator.onLine){ toast("Serve la rete"); return; }
     try{
@@ -6290,7 +6481,7 @@
   }
 
   async function eseguiScambio(postaA, postaB){
-    var a1 = assegnazioneDi(postaA), a2 = assegnazioneDi(postaB);
+    var a1 = assegnazioneDi(postaA, bsAperta), a2 = assegnazioneDi(postaB, bsAperta);
     scambioDa = null;
     if(!a1 && !a2){ renderAssegnazioni(); return; }
     if(!navigator.onLine){ toast("Serve la rete"); renderAssegnazioni(); return; }
@@ -6311,6 +6502,94 @@
         toast(nomeDi(solo.membro_id) + " spostato");
       }
       renderAssegnazioni();
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  /* BATTITORI E CANAI: stesso incarico, senza numero di posta.
+     Una tabella sola per "cosa fa questo cacciatore in questa battuta". */
+  var RUOLI_SENZA_POSTA = [
+    {k:"battitore", n:"Battitore", i:"\ud83e\udd4a"},
+    {k:"canaio",    n:"Canaio",    i:"\ud83d\udc15"},
+    {k:"tracciatore", n:"Tracciatore", i:"\ud83d\udc3e"},
+    {k:"altro",     n:"Altro incarico", i:"\u2699\ufe0f"}
+  ];
+
+  function apriRuoliSenzaPosta(){
+    if(!bsAperta) return;
+    var cand = daMettereInPosta();
+    var h = '<div class="hint" style="margin-bottom:10px">Chi non va in posta: battitori, canai, chi resta a tracciare.</div>';
+    if(!cand.length) h += '<div class="hint">Nessun presente.</div>';
+    cand.forEach(function(c){
+      var suo = postaDi(c.membro_id, bsAperta);
+      h += '<div class="posriga" style="cursor:default">';
+      h += '<div class="chi"><div class="n">'+esc(nomeDi(c.membro_id))+'</div>';
+      h += '<div class="s">'+(suo ? (suo.posta_id ? ("posta "+(postaNumero(suo.posta_id)||"")) : esc(suo.ruolo||"incarico")) : "senza incarico")+'</div></div>';
+      h += '</div>';
+      h += '<div style="display:flex; gap:5px; margin:-2px 0 9px; flex-wrap:wrap">';
+      RUOLI_SENZA_POSTA.forEach(function(r){
+        var on = suo && !suo.posta_id && suo.ruolo === r.k;
+        h += '<button class="chip '+(on?"on":"")+'" data-ruoloass="'+c.membro_id+'|'+r.k+'" '
+           + 'style="font-size:11px; padding:6px 9px">'+r.i+' '+r.n+'</button>';
+      });
+      h += '</div>';
+    });
+    document.getElementById("m-cp-tit").textContent = "Battitori e canai";
+    document.getElementById("m-cp-hint").textContent = "Tocca il ruolo per assegnarlo o toglierlo.";
+    document.getElementById("m-cp-lista").innerHTML = h;
+    document.getElementById("m-cp-libera").style.display = "none";
+    document.getElementById("m-cp-lista").querySelectorAll("[data-ruoloass]").forEach(function(b){
+      b.onclick = function(){
+        var p = b.dataset.ruoloass.split("|");
+        assegnaRuolo(p[0], p[1]);
+      };
+    });
+    document.getElementById("m-chiposta").classList.add("show");
+  }
+
+  async function assegnaRuolo(membroId, ruolo){
+    if(!bsAperta || !giornataAperta) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var suo = postaDi(membroId, bsAperta);
+    try{
+      // gia' con questo ruolo: lo tolgo
+      if(suo && !suo.posta_id && suo.ruolo === ruolo){
+        var rd = await sb.from("hn_assegnazioni").delete().eq("id", suo.id);
+        if(rd.error) throw rd.error;
+        assegnazioni = assegnazioni.filter(function(x){ return x.id !== suo.id; });
+        renderAssegnazioni(); apriRuoliSenzaPosta();
+        toast("Incarico tolto"); return;
+      }
+      var r;
+      if(suo){
+        r = await sb.from("hn_assegnazioni")
+              .update({posta_id:null, ruolo:ruolo}).eq("id", suo.id).select().single();
+      }else{
+        r = await sb.from("hn_assegnazioni").insert({
+              squadra_id:me.squadra_id, battuta_id:giornataAperta.id,
+              battuta_svolta_id:bsAperta, area_id:apAreaId,
+              posta_id:null, ruolo:ruolo, membro_id:membroId,
+              assegnata_da:me.membro_id
+            }).select().single();
+      }
+      if(r.error) throw r.error;
+      var k = assegnazioni.findIndex(function(x){ return x.id === r.data.id; });
+      if(k>=0) assegnazioni[k] = r.data; else assegnazioni.push(r.data);
+      renderAssegnazioni(); apriRuoliSenzaPosta();
+      toast(nomeDi(membroId) + ": " + ruolo);
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  async function togliIncarico(id){
+    var x = assegnazioni.find(function(y){ return y.id === id; });
+    if(!x || !puoGestireBattute()) return;
+    if(!confirm("Togliere l'incarico a " + nomeDi(x.membro_id) + "?")) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_assegnazioni").delete().eq("id", id);
+      if(r.error) throw r.error;
+      assegnazioni = assegnazioni.filter(function(y){ return y.id !== id; });
+      renderAssegnazioni();
+      toast("Incarico tolto");
     }catch(e){ avvisaErroreAssegnazione(e); }
   }
 
@@ -6356,9 +6635,23 @@
     toast(p ? ("Posta " + (p.numero||"") + " \u00b7 tocca per le note") : "La tua posta");
   }
 
+  /* la mia posta e' quella della battuta IN CORSO; se non ce n'e' una aperta
+     prendo l'ultima, cosi' a fine battuta resta scritto dov'ero */
   function laMiaPosta(){
     if(!me || !assegnazioni.length) return null;
-    return assegnazioni.find(function(x){ return x.membro_id === me.membro_id; }) || null;
+    var mie = assegnazioni.filter(function(x){ return x.membro_id === me.membro_id; });
+    if(!mie.length) return null;
+    var inCorso = battutaInCorso();
+    if(inCorso){
+      var q = mie.find(function(x){ return x.battuta_svolta_id === inCorso.id; });
+      if(q) return q;
+      return null;   // battuta aperta ma io non ci sono: niente posta
+    }
+    return mie[mie.length-1];
+  }
+  function ilMioIncarico(){
+    var m = laMiaPosta();
+    return m || null;
   }
 
   /* ===== LA SCHEDA DELLA MAPPA =====
@@ -6390,18 +6683,41 @@
      Attribuisco la giornata a una mappa sola: quella battuta davvero, oppure
      l'unica segnalata. Se una giornata aveva piu' mappe e nessuna scelta,
      non la conto da nessuna parte invece di contarla due volte. */
+  /* GLI ABBATTIMENTI DI UNA MAPPA.
+     Con le battute il conto e' esatto: ogni battuta sta su UNA mappa sola.
+     Resta la vecchia stima per i dati di prima, quando la battuta non
+     esisteva: giornate concluse attribuibili a una mappa sola. */
   function abbattimentiArea(areaId){
     var st = stagioneCorrente();
+    var tot = 0;
+
+    // 1) esatto: dalle battute svolte su questa mappa
+    var bsIds = tutteBattuteSvolte.filter(function(x){
+      if(x.area_id !== areaId) return false;
+      var g = battute.find(function(b){ return b.id === x.giornata_id; });
+      return g && stagioneDi(g.data) === st;
+    }).map(function(x){ return x.id; });
+    if(bsIds.length){
+      tot += clFatti.filter(function(f){
+        return f.tipo === "uccisione" && f.battuta_svolta_id
+            && bsIds.indexOf(f.battuta_svolta_id) >= 0;
+      }).reduce(function(t, f){ return t + Number(f.quanti || 1); }, 0);
+    }
+
+    // 2) stima, solo per i fatti vecchi che non sanno di quale battuta sono
     var ids = battute.filter(function(b){
       if(b.stato !== "conclusa" || stagioneDi(b.data) !== st) return false;
       if(b.area_battuta) return b.area_battuta === areaId;
       var seg = b.aree_segnalate || [];
       return seg.length === 1 && seg[0] === areaId;
     }).map(function(b){ return b.id; });
-    if(!ids.length) return 0;
-    return clFatti.filter(function(f){
-      return f.tipo === "uccisione" && ids.indexOf(f.battuta_id) >= 0;
-    }).reduce(function(t, f){ return t + Number(f.quanti || 1); }, 0);
+    if(ids.length){
+      tot += clFatti.filter(function(f){
+        return f.tipo === "uccisione" && !f.battuta_svolta_id
+            && ids.indexOf(f.battuta_id) >= 0;
+      }).reduce(function(t, f){ return t + Number(f.quanti || 1); }, 0);
+    }
+    return tot;
   }
 
   async function apriSchedaArea(id){
@@ -6419,6 +6735,12 @@
       try{
         var r = await sb.from("hn_fatti").select("*").eq("squadra_id", me.squadra_id).eq("tipo","uccisione");
         if(!r.error) clFatti = r.data || [];
+      }catch(e){}
+    }
+    if(!tutteBattuteSvolte.length){
+      try{
+        var rb = await sb.from("hn_battute_svolte").select("*").eq("squadra_id", me.squadra_id);
+        if(!rb.error) tutteBattuteSvolte = rb.data || [];
       }catch(e){}
     }
     renderSchedaArea();
@@ -8442,6 +8764,8 @@
   var clFatti = [];           // i fatti della stagione
   var clAdesioni = [];        // le adesioni delle giornate concluse della stagione
   var smBattutaId = null;     // la giornata su cui sta lavorando Mario
+  var smBsId = null;          // e quale battuta di quella giornata
+  var smBattute = [];         // le battute della giornata scelta
   var smAdesioni = [];        // le adesioni della SOLA giornata di Mario
   var smFatti = [];           // i fatti della SOLA giornata di Mario
   var TIPI_BAREMA = [
@@ -8988,6 +9312,12 @@
         smAdesioni = (rA.error ? [] : (rA.data || []));
         var rF = await sb.from("hn_fatti").select("*").eq("battuta_id", smBattutaId);
         smFatti = (rF.error ? [] : (rF.data || []));
+        // le battute di quella giornata: l'uccisione va attribuita a una
+        var rB = await sb.from("hn_battute_svolte").select("*")
+                   .eq("giornata_id", smBattutaId).order("numero");
+        smBattute = (rB.error ? [] : (rB.data || []));
+        if(smBsId && !smBattute.some(function(x){ return x.id === smBsId; })) smBsId = null;
+        if(!smBsId && smBattute.length === 1) smBsId = smBattute[0].id;
       }
     }catch(e){ toast("Serve la rete"); }
     renderSergente();
@@ -9032,6 +9362,22 @@
          + fmtGiorno(daIso(b.data))+'</button>';
     });
     h += '</div>';
+
+    // se la giornata ha piu' battute, si sceglie a quale attribuire
+    if(smBattute.length > 1){
+      h += '<div class="sechead">Battuta</div>';
+      h += '<div style="display:flex; gap:6px; overflow-x:auto; margin-bottom:10px">';
+      smBattute.forEach(function(bs){
+        var arS = aree.find(function(x){ return x.id === bs.area_id; });
+        h += '<button class="chip '+(bs.id===smBsId?'on':'')+'" data-smbs="'+bs.id+'" style="flex-shrink:0">'
+           + (bs.numero?bs.numero+'ª · ':'')+esc(arS?arS.nome:'mappa')+'</button>';
+      });
+      h += '</div>';
+      if(!smBsId){
+        h += '<div class="card" style="background:#4a3320; border:1px solid #6b4a28; font-size:11.5px; color:var(--cream); line-height:1.5; margin-bottom:12px">'
+           + 'Scegli la battuta: cos\u00ec si sa in quale mappa \u00e8 stato abbattuto.</div>';
+      }
+    }
 
     var b = battute.find(function(x){ return x.id === smBattutaId; });
     var presenti = smAdesioni.filter(function(a){ return a.presente; });
@@ -9130,7 +9476,10 @@
   function bindSergente(){
     var root = document.getElementById("sergente-scroll");
     root.querySelectorAll("[data-smb]").forEach(function(b){
-      b.onclick = function(){ smBattutaId = b.dataset.smb; caricaSergente(); };
+      b.onclick = function(){ smBattutaId = b.dataset.smb; smBsId = null; caricaSergente(); };
+    });
+    root.querySelectorAll("[data-smbs]").forEach(function(b){
+      b.onclick = function(){ smBsId = b.dataset.smbs; renderSergente(); };
     });
     root.querySelectorAll("[data-smf]").forEach(function(b){
       b.onclick = function(){
@@ -9154,6 +9503,8 @@
 
   async function cambiaFatto(mid, tipo, delta){
     if(!puoGiudicare() || !smBattutaId) return;   // uccisioni e padelle: solo il giudice
+    // con piu' battute nella stessa giornata bisogna sapere di quale si parla
+    if(smBattute.length > 1 && !smBsId){ toast("Scegli prima la battuta"); return; }
     var f = fattoDi(mid, tipo);
     var nuovo = (f ? Number(f.quanti || 0) : 0) + delta;
     if(nuovo < 0) return;
@@ -9169,7 +9520,8 @@
         if(k>=0) smFatti[k] = ru.data;
       }else{
         var ri = await sb.from("hn_fatti").insert({
-                   squadra_id:me.squadra_id, battuta_id:smBattutaId, membro_id:mid,
+                   squadra_id:me.squadra_id, battuta_id:smBattutaId,
+                   battuta_svolta_id:(smBsId || null), membro_id:mid,
                    tipo:tipo, quanti:nuovo, assegnato_da:me.membro_id
                  }).select().single();
         if(ri.error) throw ri.error;
@@ -9428,6 +9780,26 @@
 
   /* --- conclusione della giornata: da qui in poi i presenti sono definitivi --- */
   async function concludiGiornata(){
+    var apertaOra = battutaInCorso();
+    if(apertaOra){
+      if(!confirm("C'\u00e8 ancora la battuta su \u00ab"+nomeBattuta(apertaOra)+"\u00bb aperta.\n\nChiudo prima quella e poi la giornata?")) return;
+      await chiudiBattutaSvoltaSilenziosa(apertaOra.id);
+    }
+    return concludiGiornataVera();
+  }
+
+  async function chiudiBattutaSvoltaSilenziosa(id){
+    try{
+      var r = await sb.from("hn_battute_svolte")
+                .update({chiusa_il:new Date().toISOString()}).eq("id", id).select().single();
+      if(!r.error){
+        var k = battuteSvolte.findIndex(function(x){ return x.id === id; });
+        if(k>=0) battuteSvolte[k] = r.data;
+      }
+    }catch(e){}
+  }
+
+  async function concludiGiornataVera(){
     if(!puoGestireBattute()) return;
     var b = giornataAperta;
     if(!b || !b.id) return;
