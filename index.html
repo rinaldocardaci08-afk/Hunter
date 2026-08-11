@@ -425,6 +425,22 @@
     border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; flex-shrink:0;}
 
   /* ---------- CLASSIFICA ---------- */
+  /* ---------- ASSEGNAZIONE DELLE POSTE ---------- */
+  .posriga{display:flex; align-items:center; gap:10px; background:var(--dark2);
+    border:1px solid var(--dark3); border-radius:11px; padding:10px 11px; margin-bottom:6px;}
+  .posriga.presa{border-color:#2d5a3f;}
+  .posriga.scelta{border-color:var(--gold); background:#3a2c18;}
+  .posriga .pallino{width:24px; height:24px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; color:#fff;
+    background:transparent; border:2px dashed #8a8172;}
+  .posriga.presa .pallino{background:#1D9E75; border:2px solid #F0E2C9;}
+  .posriga .chi{flex:1; min-width:0;}
+  .posriga .chi .n{font-size:13px; color:var(--cream);}
+  .posriga .chi .s{font-size:10.5px; color:var(--muted);}
+  .barrapos{height:8px; background:var(--dark2); border-radius:4px; overflow:hidden; margin:7px 0 3px;}
+  .barrapos i{display:block; height:100%; border-radius:4px;}
+
   /* ---------- LE MAPPE A QUADRATI ---------- */
   .mapgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:10px;}
   .mapcubo{background:var(--dark2); border:1px solid var(--dark3); border-radius:13px;
@@ -1020,6 +1036,15 @@
         <div class="ttl" id="md-titolo">Medagliere</div>
       </div>
       <div class="scroll" id="medagliere-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- ASSEGNAZIONE DELLE POSTE -->
+    <section class="view" id="v-poste">
+      <div class="backbar">
+        <button id="ap-indietro">‹ Giornata</button>
+        <div class="ttl" id="ap-titolo">Poste</div>
+      </div>
+      <div class="scroll" id="poste-scroll"><div class="loading">Carico…</div></div>
     </section>
 
     <!-- SCHEDA DELLA MAPPA -->
@@ -1680,6 +1705,19 @@
   </div>
 </div>
 
+<!-- MODALE: chi metto su questa posta -->
+<div class="modal" id="m-chiposta">
+  <div class="sheet">
+    <h3 id="m-cp-tit">Posta</h3>
+    <p class="hint" id="m-cp-hint">Scegli chi ci va.</p>
+    <div id="m-cp-lista" style="max-height:52vh; overflow-y:auto"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="m-cp-chiudi">Chiudi</button>
+    </div>
+    <button class="btn line" id="m-cp-libera" style="margin-top:8px; display:none">Lascia libera la posta</button>
+  </div>
+</div>
+
 <!-- MODALE: cambia il numero della posta -->
 <div class="modal" id="m-numposta">
   <div class="sheet">
@@ -2035,7 +2073,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.67";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.68";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2857,10 +2895,36 @@
     // e solo se ho il permesso di vederle (admin / autorizzati).
     // Il cacciatore normale non vede nulla finché la battuta non gli assegna una posta.
     if(!areaApertaInMappa) return;
-    if(!puoVederePoste()) return;
     var a=areaAttiva(); if(!a||!a.poste) return;
     var stAnte = sezioneAnteprima ? settori.find(function(x){ return x.id === sezioneAnteprima; }) : null;
+
+    /* CHI NON E' AUTORIZZATO A VEDERE LE POSTE non vede nulla, TRANNE la
+       propria quando gliela hanno assegnata: allora vede la SUA e le DUE PIU'
+       VICINE, per sapere chi ha a destra e a sinistra. Il terreno intero
+       resta informazione della squadra, non del singolo. */
+    var soloMie = null;
+    if(!puoVederePoste()){
+      var mp0 = laMiaPosta();
+      if(!mp0 || mp0.area_id !== a.id) return;          // nessuna posta sua qui
+      var pMia0 = a.poste.find(function(x){ return x.id === mp0.posta_id; });
+      if(!pMia0) return;
+      soloMie = {};
+      soloMie[pMia0.id] = true;
+      posteVicine(a, pMia0, 2).forEach(function(v){ soloMie[v.id] = true; });
+    }else if(!puoGestireBattute() && !puoMappare()){
+      // autorizzato a vederle ma senza comando: comunque solo il suo tratto
+      var mp1 = laMiaPosta();
+      if(mp1 && mp1.area_id === a.id){
+        var pMia1 = a.poste.find(function(x){ return x.id === mp1.posta_id; });
+        if(pMia1){
+          soloMie = {};
+          soloMie[pMia1.id] = true;
+          posteVicine(a, pMia1, 2).forEach(function(v){ soloMie[v.id] = true; });
+        }
+      }
+    }
     a.poste.forEach(function(p,i){
+      if(soloMie && !soloMie[p.id]) return;
       // in anteprima di sezione le altre poste non si disegnano
       if(stAnte && !postaNelSettore(p, stAnte)) return;
       var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda)}).addTo(posteLayer);
@@ -4828,6 +4892,7 @@
     showView("giornata");
     await caricaTracciate();      // chi ha gia' fatto la sua tracciata
     caricaSegnalazioni();
+    caricaAssegnazioni();
     await caricaAdesioni();
   }
 
@@ -4954,6 +5019,24 @@
       h+='<div class="vai">apri \u203a</div></button>';
 
       h+='</div>';
+
+      // le mappe scelte per oggi, con quanto sono coperte
+      var mieAree = (b.aree_segnalate || []);
+      if(mieAree.length){
+        h+='<div class="cubi" style="margin-top:2px">';
+        mieAree.forEach(function(idA){
+          var arC = aree.find(function(x){ return x.id === idA; });
+          if(!arC) return;
+          var cp = coperturaArea(idA);
+          h+='<button class="cubo" data-gipos="'+idA+'" style="min-width:150px">';
+          h+='<div class="et">'+esc(arC.nome)+'</div>';
+          h+='<div class="rg"><span class="n" style="color:'+coloreCopertura(cp.perc)+'">'+cp.perc+'%</span>'
+            +'<span class="t">coperta</span></div>';
+          h+='<div class="rg"><span class="n">'+cp.assegnate+'</span><span class="t">di '+cp.poste+' poste</span></div>';
+          h+='<div class="vai">assegna \u203a</div></button>';
+        });
+        h+='</div>';
+      }
     }
 
     // --- PUNTO DI RITROVO ---
@@ -4994,6 +5077,46 @@
         h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna area segnalata.</div>';
       }
       if(capo) h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">🌲 Scegli le aree da segnalare</button>';
+    }
+
+    // --- LA MIA POSTA (per tutti, appena assegnata) ---
+    var mia0 = laMiaPosta();
+    if(mia0){
+      var arP = aree.find(function(x){ return x.id === mia0.area_id; });
+      var pP = arP && arP.poste ? arP.poste.find(function(x){ return x.id === mia0.posta_id; }) : null;
+      if(pP){
+        var vic = posteVicine(arP, pP, 2);
+        h+='<div class="sechead">La tua posta</div>';
+        h+='<div class="card" style="background:#2d3a2a; border:1px solid #4d6141">';
+        h+='<div style="display:flex; align-items:center; gap:12px">';
+        h+='<span style="background:#8a2f2f; color:#fff; font-size:19px; font-weight:700; width:46px; height:46px; '
+          +'border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0; border:3px solid #F0E2C9">'
+          +(pP.numero||"?")+'</span>';
+        h+='<div style="flex:1; min-width:0">';
+        h+='<div style="font-size:16px; color:#fff; font-weight:700">'+esc(pP.nome || ("Posta "+(pP.numero||"")))+'</div>';
+        h+='<div style="font-size:11.5px; color:#b8ceb0">'+esc(arP ? arP.nome : "")+'</div>';
+        h+='</div></div>';
+        if(pP.note){
+          h+='<div style="margin-top:9px; padding-top:9px; border-top:1px solid #4d6141; font-size:12px; color:#f0e2c9; line-height:1.5">'
+            +esc(pP.note)+'</div>';
+        }
+        if(vic.length){
+          h+='<div style="margin-top:10px; padding-top:9px; border-top:1px solid #4d6141">';
+          h+='<div style="font-size:10px; color:#9db894; letter-spacing:.5px; margin-bottom:6px">CHI HAI ACCANTO</div>';
+          vic.forEach(function(v){
+            var av = assegnazioni.find(function(x){ return x.posta_id === v.id; });
+            h+='<div style="display:flex; align-items:center; gap:8px; padding:3px 0">';
+            h+='<span style="background:#5a3030; color:#fff; font-size:11px; font-weight:700; width:22px; height:22px; '
+              +'border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0">'+(v.numero||"?")+'</span>';
+            h+='<span style="font-size:12.5px; color:#f0e2c9">'+(av ? esc(nomeDi(av.membro_id)) : "ancora libera")+'</span>';
+            h+='<span style="margin-left:auto; font-size:10.5px; color:#9db894">'+Math.round(distM(pP, v))+' m</span>';
+            h+='</div>';
+          });
+          h+='</div>';
+        }
+        h+='<button class="btn" id="gi-miaposta" style="margin-top:11px; background:#1D9E75; color:#fff; width:100%">🗺️ Portami alla mia posta</button>';
+        h+='</div>';
+      }
     }
 
     // --- LA MIA ADESIONE (per tutti) ---
@@ -5243,6 +5366,8 @@
     root.querySelectorAll("[data-vg]").forEach(function(bt){
       bt.onclick=function(){ vistaGiornata=bt.dataset.vg; renderGiornata(); };
     });
+    var mp=root.querySelector("#gi-miaposta");
+    if(mp) mp.onclick=function(){ apriMiaPostaInMappa(); };
     var gp=root.querySelector("#gi-presenze");
     if(gp) gp.onclick=apriPresenze;
     var gc=root.querySelector("#gi-concludi");
@@ -5254,6 +5379,9 @@
         if(tracciataAperta){ seguiTraccia(t); return; }   // gia' aperta: solo la guida
         apriTracciata(t, t.area_id);
       };
+    });
+    root.querySelectorAll("[data-gipos]").forEach(function(b){
+      b.onclick=function(){ apriAssegnazioni(b.dataset.gipos); };
     });
     root.querySelectorAll("[data-sin]").forEach(function(b){
       b.onclick=function(){ apriSintesi(b.dataset.sin); };
@@ -5870,6 +5998,367 @@
     }catch(e){
       toast("Non sono riuscito a salvare il punto di ritrovo");
     }
+  }
+
+  /* ===== ASSEGNARE LE POSTE =====
+     Le assegnazioni stanno PER GIORNATA in hn_assegnazioni: un campo fisso
+     sulla posta perderebbe lo storico, e senza storico non si sa chi c'era
+     l'ultima volta. */
+  var assegnazioni = [];        // quelle della giornata aperta
+  var storicoPoste = [];        // chi c'era le volte scorse, per "ultimo qui"
+  var apAreaId = null;          // la mappa che sto distribuendo
+  var postaDaAssegnare = null;  // la posta su cui sto scegliendo
+  var scambioDa = null;         // prima posta toccata per lo scambio
+
+  async function caricaAssegnazioni(){
+    if(!giornataAperta) return;
+    try{
+      var r = await sb.from("hn_assegnazioni").select("*").eq("battuta_id", giornataAperta.id);
+      if(!r.error) assegnazioni = r.data || [];
+      // lo storico serve solo a suggerire: prendo le ultime, non tutte
+      var r2 = await sb.from("hn_assegnazioni").select("*")
+                 .eq("squadra_id", me.squadra_id).order("creata_il", {ascending:false}).limit(400);
+      if(!r2.error) storicoPoste = r2.data || [];
+    }catch(e){ assegnazioni = []; }
+  }
+
+  function assegnazioneDi(postaId){
+    return assegnazioni.find(function(x){ return x.posta_id === postaId; }) || null;
+  }
+  function postaDi(membroId){
+    return assegnazioni.find(function(x){ return x.membro_id === membroId; }) || null;
+  }
+  function ultimoQui(postaId){
+    var v = storicoPoste.find(function(x){
+      return x.posta_id === postaId && (!giornataAperta || x.battuta_id !== giornataAperta.id);
+    });
+    return v ? v.membro_id : null;
+  }
+
+  /* CHI VA IN POSTA: i presenti, tolti tracciatori e chi ha un altro compito
+     quel giorno. Contare tutti i presenti darebbe una copertura bugiarda. */
+  function daMettereInPosta(){
+    return adesioni.filter(function(a){
+      if(!a.presente) return false;
+      if(a.tracciatore) return false;
+      return true;
+    });
+  }
+
+  function coperturaArea(areaId){
+    var a = aree.find(function(x){ return x.id === areaId; });
+    var np = a && a.poste ? a.poste.length : 0;
+    var ass = assegnazioni.filter(function(x){ return x.area_id === areaId; }).length;
+    return {poste:np, assegnate:ass, perc: np ? Math.round(100*ass/np) : 0};
+  }
+  function coloreCopertura(p){
+    return p >= 100 ? "#1D9E75" : (p >= 70 ? "#BA7517" : "#8a2f2f");
+  }
+
+  /* --- la schermata --- */
+  async function apriAssegnazioni(areaId){
+    if(!giornataAperta){ toast("Serve una giornata di battuta"); return; }
+    apAreaId = areaId;
+    scambioDa = null;
+    var a = aree.find(function(x){ return x.id === areaId; });
+    document.getElementById("ap-titolo").textContent = a ? a.nome : "Poste";
+    document.getElementById("poste-scroll").innerHTML = '<div class="loading">Carico…</div>';
+    showView("poste");
+    if(!settori.length) await caricaSettori();
+    await caricaAssegnazioni();
+    renderAssegnazioni();
+  }
+
+  function renderAssegnazioni(){
+    var a = aree.find(function(x){ return x.id === apAreaId; });
+    if(!a){ return; }
+    var root = document.getElementById("poste-scroll");
+    var cop = coperturaArea(apAreaId);
+    var liberi = daMettereInPosta().filter(function(x){ return !postaDi(x.membro_id); });
+    var h = "";
+
+    h += '<div class="card" style="margin-bottom:12px">';
+    h += '<div style="display:flex; align-items:baseline; gap:9px">';
+    h += '<span style="font-size:26px; font-weight:700; color:'+coloreCopertura(cop.perc)+'">'+cop.perc+'%</span>';
+    h += '<span style="font-size:12px; color:var(--muted)">'+cop.assegnate+' di '+cop.poste+' poste coperte</span>';
+    h += '</div>';
+    h += '<div class="barrapos"><i style="width:'+Math.min(100,cop.perc)+'%; background:'+coloreCopertura(cop.perc)+'"></i></div>';
+    h += '<div style="font-size:11px; color:var(--muted); line-height:1.5; margin-top:6px">'
+       + (liberi.length ? liberi.length+' present'+(liberi.length===1?'e ancora senza posta':'i ancora senza posta')
+                        : 'Tutti i presenti hanno una posta')
+       + '</div>';
+    h += '<button class="btn line" id="ap-mappa" style="margin-top:10px; font-size:12px; padding:9px">🗺️ Vedi sulla mappa</button>';
+    h += '</div>';
+
+    if(scambioDa){
+      var pd = (a.poste||[]).find(function(p){ return p.id === scambioDa; });
+      h += '<div class="card" style="background:#3a2c18; border:1px solid var(--gold); margin-bottom:10px">';
+      h += '<div style="font-size:12.5px; color:var(--cream)">Scambio da «'+esc(pd ? (pd.nome||("Posta "+pd.numero)) : "posta")+'»</div>';
+      h += '<div style="font-size:11px; color:var(--muted); margin-top:3px">Tocca un\'altra posta per scambiare i due cacciatori.</div>';
+      h += '<button class="btn line" id="ap-annullascambio" style="margin-top:8px; font-size:12px; padding:8px">Annulla lo scambio</button>';
+      h += '</div>';
+    }
+
+    // le poste, raggruppate per sezione
+    var sez = settoriDi(apAreaId);
+    var fatte = {};
+    sez.forEach(function(st, i){
+      var sue = posteDelSettore(a, st).sort(ordinaPoste);
+      if(!sue.length) return;
+      var pres = sue.filter(function(p){ return !!assegnazioneDi(p.id); }).length;
+      h += '<div class="sechead" style="display:flex; align-items:center; gap:8px">';
+      h += '<span style="background:'+coloreSettore(i)+'; width:14px; height:14px; border-radius:4px; display:inline-block"></span>';
+      h += esc(st.nome);
+      h += '<span style="margin-left:auto; font-size:11px; color:'+(pres===sue.length?"#7be0a8":"var(--muted)")+'">'+pres+'/'+sue.length+'</span>';
+      h += '</div>';
+      sue.forEach(function(p){ fatte[p.id]=true; h += rigaPosta(p); });
+    });
+    var fuori = (a.poste||[]).filter(function(p){ return !fatte[p.id]; }).sort(ordinaPoste);
+    if(fuori.length){
+      h += '<div class="sechead">'+(sez.length ? "Senza sezione" : "Poste")+'</div>';
+      fuori.forEach(function(p){ h += rigaPosta(p); });
+    }
+
+    root.innerHTML = h;
+    bindAssegnazioni();
+  }
+
+  function ordinaPoste(x,y){
+    var nx = parseInt(x.numero,10), ny = parseInt(y.numero,10);
+    if(isNaN(nx) && !isNaN(ny)) return 1;
+    if(!isNaN(nx) && isNaN(ny)) return -1;
+    return (nx||0) - (ny||0);
+  }
+
+  function rigaPosta(p){
+    var as = assegnazioneDi(p.id);
+    var sc = (scambioDa === p.id);
+    var h = '<div class="posriga '+(as?"presa":"")+(sc?" scelta":"")+'" data-posta="'+p.id+'">';
+    h += '<span class="pallino">'+(p.numero||"?")+'</span>';
+    h += '<div class="chi">';
+    if(as){
+      h += '<div class="n">'+esc(nomeDi(as.membro_id))+'</div>';
+      h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</div>';
+    }else{
+      var u = ultimoQui(p.id);
+      h += '<div class="n" style="color:var(--muted)">libera</div>';
+      h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))
+         + (u ? ' \u00b7 ultimo qui: '+esc(nomeDi(u)) : '')+'</div>';
+    }
+    h += '</div>';
+    h += '<span style="font-size:15px; color:var(--muted)">\u203a</span>';
+    h += '</div>';
+    return h;
+  }
+
+  function bindAssegnazioni(){
+    var root = document.getElementById("poste-scroll");
+    root.querySelectorAll("[data-posta]").forEach(function(el){
+      el.onclick = function(){ toccataPostaDaAssegnare(el.dataset.posta); };
+    });
+    var bm = document.getElementById("ap-mappa");
+    if(bm) bm.onclick = function(){ apriAreaDaBattuta(apAreaId); };
+    var ba = document.getElementById("ap-annullascambio");
+    if(ba) ba.onclick = function(){ scambioDa = null; renderAssegnazioni(); };
+  }
+
+  /* toccando una posta: se e' libera scelgo chi ci va; se e' presa e ne tocco
+     un'altra presa, i due si scambiano */
+  function toccataPostaDaAssegnare(postaId){
+    var a = aree.find(function(x){ return x.id === apAreaId; });
+    var p = (a.poste||[]).find(function(x){ return x.id === postaId; });
+    if(!p) return;
+    var as = assegnazioneDi(postaId);
+
+    if(scambioDa){
+      if(scambioDa === postaId){ scambioDa = null; renderAssegnazioni(); return; }
+      eseguiScambio(scambioDa, postaId);
+      return;
+    }
+    if(as){
+      // gia' presa: o la libero, o comincio uno scambio, o cambio persona
+      postaDaAssegnare = p;
+      apriSceltaCacciatore(p, as);
+      return;
+    }
+    postaDaAssegnare = p;
+    apriSceltaCacciatore(p, null);
+  }
+
+  function apriSceltaCacciatore(p, as){
+    document.getElementById("m-cp-tit").textContent = p.nome || ("Posta " + (p.numero||""));
+    document.getElementById("m-cp-hint").textContent = as
+      ? ("Adesso c'\u00e8 " + nomeDi(as.membro_id) + ". Scegli un altro, oppure liberala.")
+      : "Scegli chi ci va.";
+    var u = ultimoQui(p.id);
+    var cand = daMettereInPosta();
+    var h = "";
+    if(as){
+      h += '<button class="btn line" id="cp-scambia" style="margin-bottom:10px">\u21c4 Scambia con un\'altra posta</button>';
+    }
+    if(!cand.length){
+      h += '<div class="hint">Nessun presente disponibile. Segna prima chi c\'\u00e8.</div>';
+    }
+    cand.forEach(function(c){
+      var suo = postaDi(c.membro_id);
+      var qui = as && as.membro_id === c.membro_id;
+      var m = membri.find(function(x){ return x.id === c.membro_id; });
+      h += '<div class="posriga" data-scegli="'+c.membro_id+'" style="cursor:pointer'+(qui?'; border-color:var(--gold)':'')+'">';
+      h += '<span class="pallino" style="background:'+(suo?"#4a3320":"transparent")+'; border-style:'+(suo?"solid":"dashed")+'">'
+         + (suo && suo.posta_id !== p.id ? (postaNumero(suo.posta_id) || "\u00b7") : "\u00b7") + '</span>';
+      h += '<div class="chi"><div class="n">'+esc(nomeDi(c.membro_id))+'</div>';
+      h += '<div class="s">'
+         + (qui ? "\u00e8 gi\u00e0 qui"
+                : (suo ? ("ora \u00e8 in " + esc(nomePosta(suo.posta_id)) + " \u00b7 lo sposto qui")
+                       : (m && (m.compiti||[]).length ? esc((m.compiti||[]).join(", ")) : "libero")))
+         + (u === c.membro_id ? ' \u00b7 <span style="color:#7be0a8">ultimo qui</span>' : '')
+         + '</div></div></div>';
+    });
+    document.getElementById("m-cp-lista").innerHTML = h;
+    document.getElementById("m-cp-libera").style.display = as ? "block" : "none";
+
+    var box = document.getElementById("m-cp-lista");
+    box.querySelectorAll("[data-scegli]").forEach(function(b){
+      b.onclick = function(){ assegnaPosta(p.id, b.dataset.scegli); };
+    });
+    var bs = document.getElementById("cp-scambia");
+    if(bs) bs.onclick = function(){
+      document.getElementById("m-chiposta").classList.remove("show");
+      scambioDa = p.id;
+      renderAssegnazioni();
+      toast("Tocca l'altra posta");
+    };
+    document.getElementById("m-chiposta").classList.add("show");
+  }
+
+  function postaNumero(postaId){
+    var a = aree.find(function(x){ return x.id === apAreaId; });
+    var p = a && a.poste ? a.poste.find(function(x){ return x.id === postaId; }) : null;
+    return p ? p.numero : null;
+  }
+  function nomePosta(postaId){
+    var a = aree.find(function(x){ return x.id === apAreaId; });
+    var p = a && a.poste ? a.poste.find(function(x){ return x.id === postaId; }) : null;
+    return p ? (p.nome || ("posta " + (p.numero||""))) : "un'altra posta";
+  }
+
+  async function assegnaPosta(postaId, membroId){
+    if(!giornataAperta) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var vecchia = postaDi(membroId);          // era gia' da un'altra parte?
+    var occupata = assegnazioneDi(postaId);   // qui c'era qualcun altro?
+    try{
+      if(occupata && occupata.membro_id !== membroId){
+        var rd = await sb.from("hn_assegnazioni").delete().eq("id", occupata.id);
+        if(rd.error) throw rd.error;
+        assegnazioni = assegnazioni.filter(function(x){ return x.id !== occupata.id; });
+      }
+      if(vecchia){
+        var ru = await sb.from("hn_assegnazioni")
+                   .update({posta_id:postaId, area_id:apAreaId}).eq("id", vecchia.id).select().single();
+        if(ru.error) throw ru.error;
+        var k = assegnazioni.findIndex(function(x){ return x.id === vecchia.id; });
+        if(k>=0) assegnazioni[k] = ru.data;
+      }else{
+        var ri = await sb.from("hn_assegnazioni").insert({
+          squadra_id:me.squadra_id, battuta_id:giornataAperta.id,
+          area_id:apAreaId, posta_id:postaId, membro_id:membroId,
+          assegnata_da:me.membro_id
+        }).select().single();
+        if(ri.error) throw ri.error;
+        assegnazioni.push(ri.data);
+      }
+      document.getElementById("m-chiposta").classList.remove("show");
+      renderAssegnazioni();
+      toast(nomeDi(membroId) + " in " + nomePosta(postaId));
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  async function liberaPosta(){
+    if(!postaDaAssegnare) return;
+    var as = assegnazioneDi(postaDaAssegnare.id);
+    if(!as) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_assegnazioni").delete().eq("id", as.id);
+      if(r.error) throw r.error;
+      assegnazioni = assegnazioni.filter(function(x){ return x.id !== as.id; });
+      document.getElementById("m-chiposta").classList.remove("show");
+      renderAssegnazioni();
+      toast("Posta liberata");
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  async function eseguiScambio(postaA, postaB){
+    var a1 = assegnazioneDi(postaA), a2 = assegnazioneDi(postaB);
+    scambioDa = null;
+    if(!a1 && !a2){ renderAssegnazioni(); return; }
+    if(!navigator.onLine){ toast("Serve la rete"); renderAssegnazioni(); return; }
+    try{
+      if(a1 && a2){
+        var r1 = await sb.from("hn_assegnazioni").update({posta_id:postaB}).eq("id", a1.id).select().single();
+        if(r1.error) throw r1.error;
+        var r2 = await sb.from("hn_assegnazioni").update({posta_id:postaA}).eq("id", a2.id).select().single();
+        if(r2.error) throw r2.error;
+        a1.posta_id = postaB; a2.posta_id = postaA;
+        toast(nomeDi(a1.membro_id) + " \u21c4 " + nomeDi(a2.membro_id));
+      }else{
+        var solo = a1 || a2;
+        var dove = a1 ? postaB : postaA;
+        var r3 = await sb.from("hn_assegnazioni").update({posta_id:dove}).eq("id", solo.id).select().single();
+        if(r3.error) throw r3.error;
+        solo.posta_id = dove;
+        toast(nomeDi(solo.membro_id) + " spostato");
+      }
+      renderAssegnazioni();
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  function avvisaErroreAssegnazione(e){
+    var m = (e && (e.message || e.hint || e.details)) ? String(e.message || e.hint || e.details) : "";
+    alert("Non sono riuscito a salvare l'assegnazione.\n\nIl database ha risposto:\n" + (m || "errore sconosciuto"));
+  }
+
+  /* ===== LA POSTA DEL CACCIATORE =====
+     Vede la SUA e SOLO LE DUE PIU' VICINE come distanza: serve a sapere chi ha
+     a destra e a sinistra per i settori di tiro, senza mostrargli il terreno
+     intero. La distanza, non il numero: il numero e' una convenzione, il
+     metro descrive il pericolo vero. */
+  function posteVicine(a, p, quante){
+    if(!a || !a.poste || !p) return [];
+    return a.poste
+      .filter(function(x){ return x.id !== p.id; })
+      .map(function(x){ return {p:x, d:distM(p, x)}; })
+      .sort(function(u,v){ return u.d - v.d; })
+      .slice(0, quante || 2)
+      .map(function(x){ return x.p; });
+  }
+
+  function apriMiaPostaInMappa(){
+    var mp = laMiaPosta();
+    if(!mp){ toast("Non hai ancora una posta"); return; }
+    var a = aree.find(function(x){ return x.id === mp.area_id; });
+    if(!a){ toast("Mappa non trovata"); return; }
+    var p = (a.poste||[]).find(function(x){ return x.id === mp.posta_id; });
+    modoMappa = "campo";
+    areaAttivaId = mp.area_id;
+    areaApertaInMappa = true;
+    aggiornaPills();
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      renderPoste();
+      disegnaSettori();
+      disegnaTracce();
+      if(p) map.setView([p.lat, p.lng], 17);
+      else fitArea();
+    }, 260);
+    toast(p ? ("Posta " + (p.numero||"") + " \u00b7 tocca per le note") : "La tua posta");
+  }
+
+  function laMiaPosta(){
+    if(!me || !assegnazioni.length) return null;
+    return assegnazioni.find(function(x){ return x.membro_id === me.membro_id; }) || null;
   }
 
   /* ===== LA SCHEDA DELLA MAPPA =====
@@ -11021,6 +11510,9 @@
     document.getElementById("m-pres-annulla").onclick=function(){ document.getElementById("m-presenze").classList.remove("show"); };
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
     document.getElementById("ad-indietro").onclick=function(){ showView("aree"); renderAree(); };
+    document.getElementById("ap-indietro").onclick=function(){ showView("giornata"); renderGiornata(); };
+    document.getElementById("m-cp-chiudi").onclick=function(){ document.getElementById("m-chiposta").classList.remove("show"); };
+    document.getElementById("m-cp-libera").onclick=liberaPosta;
     caricaVistaMappa();
     document.getElementById("sz-esci").onclick=chiudiAnteprimaSezione;
     document.getElementById("mt-azioni").onclick=function(){
