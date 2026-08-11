@@ -1975,6 +1975,33 @@
   </div>
 </div>
 
+<!-- MODALE: su quale mappa si fa la battuta -->
+<div class="modal" id="m-iniziabat">
+  <div class="sheet">
+    <h3>Inizia la battuta</h3>
+    <p class="hint">Su quale mappa si batte? Da qui in poi assegni le poste e i ruoli.</p>
+    <select id="m-ib-mappa" style="width:100%; background:var(--dark2); border:1px solid var(--dark3); color:var(--cream); border-radius:11px; padding:13px"></select>
+    <div id="m-ib-nota" class="hint" style="margin-top:10px"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-ib-annulla">Annulla</button>
+      <button class="btn primary" id="m-ib-ok">Apri la battuta</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: una domanda con risposta scritta (sostituisce prompt) -->
+<div class="modal" id="m-chiedi">
+  <div class="sheet">
+    <h3 id="m-ch-tit">Scrivi</h3>
+    <p class="hint" id="m-ch-hint"></p>
+    <input id="m-ch-val" type="text" autocomplete="off">
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-ch-annulla">Annulla</button>
+      <button class="btn primary" id="m-ch-ok">Va bene</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: come si chiama la linea -->
 <div class="modal" id="m-nomelinea">
   <div class="sheet">
@@ -2073,7 +2100,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.69";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.70";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4532,18 +4559,17 @@
   async function chiediResetPassword(){
     if(!membroEdit || !membroEdit.user_id) return;
     if(!puoGestireSquadra()){ toast("Non hai il permesso"); return; }
-    var p=prompt("Nuova password per "+membroEdit.nome+"\n(almeno 6 caratteri)\n\nGliela comunicherai tu, e lui potrà cambiarla.");
-    if(p===null) return;
-    p=p.trim();
-    if(p.length<6){ toast("La password deve avere almeno 6 caratteri"); return; }
-    toast("Reimposto la password…");
-    try{
-      await resetPassword(membroEdit.id, p);
-      toast("Password reimpostata: "+p);
-      alert("Password di "+membroEdit.nome+" reimpostata.\n\nNuova password: "+p+"\n\nComunicagliela: potrà cambiarla dopo il primo accesso.");
-    }catch(e){
-      toast("Errore: "+(e.message||e));
-    }
+    var chi = membroEdit;
+    chiediTesto("Nuova password", "Per " + chi.nome + ". Almeno 6 caratteri: gliela comunicherai tu.", "", "text",
+      async function(p){
+        p = String(p||"").trim();
+        if(p.length<6){ toast("La password deve avere almeno 6 caratteri"); return; }
+        toast("Reimposto la password…");
+        try{
+          await resetPassword(chi.id, p);
+          alert("Password di "+chi.nome+" reimpostata.\n\nNuova password: "+p+"\n\nComunicagliela: potrà cambiarla dopo il primo accesso.");
+        }catch(e){ toast("Errore: "+(e.message||e)); }
+      });
   }
 
   async function salvaMembro(){
@@ -5050,23 +5076,35 @@
         });
       }
 
+      /* LE MAPPE CANDIDATE SI GUARDANO.
+         Toccandone una si apre il satellite in sola lettura: tracciate,
+         segnalazioni, sezioni. Serve a decidere. La battuta si apre da un
+         comando a se', non toccando una mappa per sbaglio. */
       if(mieAree.length){
-        h+='<div class="sechead">'+(battuteSvolte.length?'Apri un\'altra battuta':'Su quale mappa si batte')+'</div>';
+        h+='<div class="sechead">Mappe di oggi</div>';
         h+='<div class="cubi" style="margin-top:2px">';
         mieAree.forEach(function(idA){
           var arC = aree.find(function(x){ return x.id === idA; });
           if(!arC) return;
           var fatte = battuteSvolte.filter(function(x){ return x.area_id === idA; }).length;
-          h+='<button class="cubo'+(fatte?' spento':'')+'" data-gibat="'+idA+'" style="min-width:150px">';
+          var nSeg = segnalazioni.filter(function(x){
+            var tc = tracciate.find(function(y){ return y.id === x.tracciata_id; });
+            return tc && tc.area_id === idA; }).length;
+          h+='<button class="cubo'+(fatte?' spento':'')+'" data-giarea="'+idA+'" style="min-width:150px">';
           h+='<div class="et">'+esc(arC.nome)+'</div>';
           h+='<div class="rg"><span class="n">'+((arC.poste||[]).length)+'</span><span class="t">poste</span></div>';
-          if(fatte) h+='<div class="rg"><span class="t">gi\u00e0 battuta '+(fatte>1?fatte+' volte':'')+'</span></div>';
-          h+='<div class="vai">'+(inCorso0 ? 'chiudi prima' : 'apri la battuta \u203a')+'</div></button>';
+          if(nSeg) h+='<div class="rg"><span class="n" style="color:#7be0a8">'+nSeg+'</span><span class="t">segnalazioni</span></div>';
+          if(fatte) h+='<div class="rg"><span class="t">gi\u00e0 battuta'+(fatte>1?' '+fatte+' volte':'')+'</span></div>';
+          h+='<div class="vai">guarda \u203a</div></button>';
         });
         h+='</div>';
+
+        // il comando a se': si sceglie dalla tendina
+        h+='<button class="btn primary" id="gi-iniziabattuta" style="margin-bottom:14px"'
+          +(inCorso0?' disabled':'')+'>\ud83c\udfaf Inizia la battuta</button>';
         if(inCorso0){
-          h+='<div style="font-size:10.5px; color:var(--muted); margin:-8px 0 12px 2px">'
-            +'C\'\u00e8 una battuta in corso: chiudila prima di aprirne un\'altra.</div>';
+          h+='<div style="font-size:11px; color:var(--gold); margin:-10px 0 14px 2px">'
+            +'C\'\u00e8 la battuta su \u00ab'+esc(nomeBattuta(inCorso0))+'\u00bb in corso: chiudila prima di aprirne un\'altra.</div>';
         }
       }
     }
@@ -5423,9 +5461,8 @@
         apriTracciata(t, t.area_id);
       };
     });
-    root.querySelectorAll("[data-gibat]").forEach(function(b){
-      b.onclick=function(){ apriBattutaSuMappa(b.dataset.gibat); };
-    });
+    var bib=root.querySelector("#gi-iniziabattuta");
+    if(bib) bib.onclick=apriSceltaBattuta;
     root.querySelectorAll("[data-bsapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.bsapri); };
     });
@@ -5756,14 +5793,18 @@
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     serveGPS("ritrovo");
     if(!pos){ toast("Aspetta il segnale GPS, poi riprova"); return; }
-    var nome=prompt("Nome del punto di ritrovo\\n(es. Piazzale Fontana)");
-    if(!nome) return;
-    nome=nome.trim();
-    if(!nome) return;
+    var la=pos.lat, ln=pos.lng, ac=Math.round(pos.acc);
+    chiediTesto("Nome del punto di ritrovo", "Es. Piazzale Fontana", "", "text",
+      function(n){ scriviRitrovoQui(n, la, ln, ac); });
+  }
+
+  async function scriviRitrovoQui(nome, la, ln, ac){
+    nome = String(nome||"").trim();
+    if(!nome){ toast("Serve un nome"); return; }
     try{
       var r=await sb.from("hn_ritrovi").insert({
         squadra_id:me.squadra_id, nome:nome,
-        lat:pos.lat, lng:pos.lng, accuratezza:Math.round(pos.acc),
+        lat:la, lng:ln, accuratezza:ac,
         creato_da:me.user_id
       }).select().single();
       if(r.error) throw r.error;
@@ -6023,12 +6064,15 @@
 
   async function confermaPuntoRitrovo(){
     if(!pickRitrovo || pickRitrovo.lat===null){ toast("Tocca prima il punto sulla mappa"); return; }
-    var nome=prompt("Nome del punto di ritrovo\n(es. Piazzale Fontana)");
-    if(!nome) return;
-    nome=nome.trim();
-    if(!nome) return;
     if(!navigator.onLine){ toast("Serve la rete per salvare il punto di ritrovo"); return; }
     var lat=pickRitrovo.lat, lng=pickRitrovo.lng, origine=pickRitrovo.origine;
+    chiediTesto("Nome del punto di ritrovo", "Es. Piazzale Fontana", "", "text",
+      function(n){ scriviRitrovoDaMappa(n, lat, lng, origine); });
+  }
+
+  async function scriviRitrovoDaMappa(nome, lat, lng, origine){
+    nome = String(nome||"").trim();
+    if(!nome){ toast("Serve un nome"); return; }
     try{
       var r=await sb.from("hn_ritrovi").insert({
         squadra_id:me.squadra_id, nome:nome,
@@ -6086,6 +6130,33 @@
     if(!bs) return "";
     var a = aree.find(function(x){ return x.id === bs.area_id; });
     return (bs.numero ? (bs.numero + "ª · ") : "") + (a ? a.nome : "mappa");
+  }
+
+  /* la battuta si apre da qui, scegliendo dalla tendina: toccare una mappa
+     serve a guardarla, non a far partire la caccia */
+  function apriSceltaBattuta(){
+    if(!giornataAperta || !puoGestireBattute()) return;
+    var inCorso = battutaInCorso();
+    if(inCorso){
+      alert("C'\u00e8 gi\u00e0 la battuta su \u00ab" + nomeBattuta(inCorso) + "\u00bb in corso.\n\nChiudila prima di aprirne un'altra.");
+      return;
+    }
+    var cand = (giornataAperta.aree_segnalate || []);
+    if(!cand.length){ toast("Scegli prima le mappe della giornata"); return; }
+    var h = "";
+    cand.forEach(function(idA){
+      var ar = aree.find(function(x){ return x.id === idA; });
+      if(!ar) return;
+      var fatte = battuteSvolte.filter(function(x){ return x.area_id === idA; }).length;
+      h += '<option value="'+idA+'">' + esc(ar.nome)
+         + ' \u00b7 ' + ((ar.poste||[]).length) + ' poste'
+         + (fatte ? ' \u00b7 gi\u00e0 battuta' : '') + '</option>';
+    });
+    document.getElementById("m-ib-mappa").innerHTML = h;
+    document.getElementById("m-ib-nota").textContent = battuteSvolte.length
+      ? ("Oggi sono gi\u00e0 state fatte " + battuteSvolte.length + " battute. Questa sar\u00e0 la " + (battuteSvolte.length+1) + "ª.")
+      : "Sar\u00e0 la prima battuta di oggi.";
+    document.getElementById("m-iniziabat").classList.add("show");
   }
 
   async function apriBattutaSuMappa(areaId){
@@ -7593,6 +7664,49 @@
   /* IL NOME SI CHIEDE CON UNA FINESTRA VERA.
      La finestrella del browser (prompt) nelle app installate sulla schermata
      Home a volte non compare: si preme Salva e sembra che non funzioni nulla. */
+  /* PROMPT() NON SI USA.
+     Nelle app installate sulla schermata Home la finestrella del browser a
+     volte non compare: si preme il tasto e sembra rotto. Questa e' una
+     finestra vera dell'app, e chiede la risposta a una domanda per volta. */
+  var chiediCb = null;
+
+  function chiediTesto(titolo, aiuto, valore, tipo, cb){
+    chiediCb = cb;
+    document.getElementById("m-ch-tit").textContent = titolo;
+    document.getElementById("m-ch-hint").textContent = aiuto || "";
+    var inp = document.getElementById("m-ch-val");
+    inp.type = tipo || "text";
+    inp.value = (valore === null || valore === undefined) ? "" : String(valore);
+    document.getElementById("m-chiedi").classList.add("show");
+    setTimeout(function(){ try{ inp.focus(); inp.select(); }catch(e){} }, 150);
+  }
+  function chiudiChiedi(){
+    document.getElementById("m-chiedi").classList.remove("show");
+    chiediCb = null;
+  }
+  function confermaChiedi(){
+    var v = document.getElementById("m-ch-val").value;
+    var cb = chiediCb;
+    document.getElementById("m-chiedi").classList.remove("show");
+    chiediCb = null;
+    if(cb) cb(v);
+  }
+
+  /* piu' domande di fila, una finestra per volta */
+  function chiediInSerie(passi, fine){
+    var risposte = [];
+    function avanti(i){
+      if(i >= passi.length){ fine(risposte); return; }
+      var p = passi[i];
+      chiediTesto(p.titolo, p.aiuto, p.valore, p.tipo, function(v){
+        if(p.obbligatorio && !String(v||"").trim()){ toast("Serve una risposta"); return; }
+        risposte.push(v);
+        setTimeout(function(){ avanti(i+1); }, 120);
+      });
+    }
+    avanti(0);
+  }
+
   var nomeLineaCb = null;
 
   function chiediNomeLinea(titolo, aiuto, riepilogo, proposta, cb){
@@ -9565,7 +9679,11 @@
       return f.membro_id===mid && f.tipo==="medaglia" && f.medaglia_id===medId;
     });
     if(gia){ toast("Ce l'ha già per questa giornata"); return; }
-    var nota = prompt("Motivazione (facoltativa)");
+    chiediTesto("Motivazione", "Perché gliela dai. Puoi anche lasciare vuoto.", "", "text",
+      function(n){ scriviMedaglia(mid, medId, n); });
+  }
+
+  async function scriviMedaglia(mid, medId, nota){
     try{
       var r = await sb.from("hn_fatti").insert({
                 squadra_id:me.squadra_id, battuta_id:smBattutaId, membro_id:mid,
@@ -10453,11 +10571,14 @@
 
   async function nuovoObiettivo(){
     if(!puoGestireCassa()) return;
-    var nome=prompt("Nome dell'obiettivo\\n(es. Collari nuovi per i cani)");
-    if(!nome) return;
-    var imp=prompt("Importo totale da raccogliere (€)");
-    if(!imp) return;
-    var totale=parseFloat(String(imp).replace(",","."));
+    chiediInSerie([
+      {titolo:"Nome dell'obiettivo", aiuto:"Es. Collari nuovi per i cani", obbligatorio:true},
+      {titolo:"Quanto serve in tutto", aiuto:"In euro", tipo:"text", obbligatorio:true}
+    ], function(risp){ scriviObiettivo(risp[0], risp[1]); });
+  }
+
+  async function scriviObiettivo(nome, imp){
+    var totale=parseFloat(String(imp||"").replace(",","."));
     if(!totale || totale<=0){ toast("Importo non valido"); return; }
     try{
       var r=await sb.from("hn_obiettivi").insert({
@@ -10505,9 +10626,13 @@
       return;
     }
 
-    var imp=prompt("Quanto versa "+(m?m.nome:"")+"?\\n(deve "+eur(q-v)+")", String(q-v).replace(".",","));
-    if(!imp) return;
-    var val=parseFloat(String(imp).replace(",","."));
+    var pp=p, oo=o;
+    chiediTesto("Quanto versa "+(m?m.nome:"")+"?", "Deve "+eur(q-v), String(q-v).replace(".",","), "text",
+      function(imp){ scriviVersamentoObiettivo(pp, oo, imp); });
+  }
+
+  async function scriviVersamentoObiettivo(p, o, imp){
+    var val=parseFloat(String(imp||"").replace(",","."));
     if(!val || val<=0){ toast("Importo non valido"); return; }
     try{
       var r=await sb.from("hn_movimenti").insert({
@@ -10525,9 +10650,13 @@
   async function includiInObiettivo(membroId){
     if(!puoGestireCassa()) return;
     var o=obiettivoAperto;
-    var imp=prompt("Quota per questo componente (€)", String(Number(o.importo)/Math.max(1,partObiettivo.filter(function(p){return p.obiettivo_id===o.id;}).length+1)).slice(0,6));
-    if(!imp) return;
-    var q=parseFloat(String(imp).replace(",","."));
+    var prop = String(Number(o.importo)/Math.max(1,partObiettivo.filter(function(p){return p.obiettivo_id===o.id;}).length+1)).slice(0,6);
+    chiediTesto("Quota per questo componente", "In euro", prop, "text",
+      function(imp){ scriviQuotaObiettivo(membroId, o, imp); });
+  }
+
+  async function scriviQuotaObiettivo(membroId, o, imp){
+    var q=parseFloat(String(imp||"").replace(",","."));
     if(!q || q<0){ toast("Importo non valido"); return; }
     try{
       var r=await sb.from("hn_obiettivi_part").insert({
@@ -10698,21 +10827,23 @@
 
   async function nuovaSpesa(programmata){
     if(!puoGestireCassa()) return;
-    var desc=prompt((programmata?"Spesa DA AFFRONTARE":"Spesa SOSTENUTA")+"\\nDescrizione (es. Veterinario)");
-    if(!desc) return;
-    var imp=prompt("Importo (€)");
-    if(!imp) return;
-    var val=parseFloat(String(imp).replace(",","."));
+    var passi = [
+      {titolo:(programmata?"Spesa da affrontare":"Spesa sostenuta"), aiuto:"Descrizione, es. Veterinario", obbligatorio:true},
+      {titolo:"Importo", aiuto:"In euro", obbligatorio:true}
+    ];
+    if(programmata) passi.push({titolo:"Entro quando?", aiuto:"gg/mm/aaaa — lascia vuoto se non c'è scadenza"});
+    chiediInSerie(passi, function(r){ scriviSpesa(programmata, r[0], r[1], r[2]); });
+  }
+
+  async function scriviSpesa(programmata, desc, imp, sQuando){
+    var val=parseFloat(String(imp||"").replace(",","."));
     if(!val || val<=0){ toast("Importo non valido"); return; }
     var scad=null;
-    if(programmata){
-      var s=prompt("Entro quando? (gg/mm/aaaa)\\nLascia vuoto se non c'è scadenza");
-      if(s){
-        var p=String(s).trim().split(/[\\/\\-\\.]/);
-        if(p.length===3){
-          var aa=p[2].length===2 ? "20"+p[2] : p[2];
-          scad=aa+"-"+String(p[1]).padStart(2,"0")+"-"+String(p[0]).padStart(2,"0");
-        }
+    if(programmata && sQuando){
+      var p=String(sQuando).trim().split(/[\/\-\.]/);
+      if(p.length===3){
+        var aa=p[2].length===2 ? "20"+p[2] : p[2];
+        scad=aa+"-"+String(p[1]).padStart(2,"0")+"-"+String(p[0]).padStart(2,"0");
       }
     }
     try{
@@ -10762,9 +10893,12 @@
 
   async function modificaQuota(campo, titolo){
     if(!puoGestireCassa()) return;
-    var v=prompt(titolo+" (€)", String(config[campo]||0).replace(".",","));
-    if(v===null) return;
-    var val=parseFloat(String(v).replace(",","."));
+    chiediTesto(titolo, "In euro", String(config[campo]||0).replace(".",","), "text",
+      function(v){ scriviQuota(campo, v); });
+  }
+
+  async function scriviQuota(campo, v){
+    var val=parseFloat(String(v||"").replace(",","."));
     if(isNaN(val) || val<0){ toast("Importo non valido"); return; }
     try{
       var r;
@@ -11856,6 +11990,17 @@
       if(segnRemota && segnRemota.punto) salvaSegnRemota(segnTipoInCorso, null);
       else salvaSegnalazione(segnTipoInCorso, null);
     };
+    document.getElementById("m-ib-annulla").onclick=function(){ document.getElementById("m-iniziabat").classList.remove("show"); };
+    document.getElementById("m-ib-ok").onclick=function(){
+      var v=document.getElementById("m-ib-mappa").value;
+      document.getElementById("m-iniziabat").classList.remove("show");
+      if(v) apriBattutaSuMappa(v);
+    };
+    document.getElementById("m-ch-annulla").onclick=chiudiChiedi;
+    document.getElementById("m-ch-ok").onclick=confermaChiedi;
+    document.getElementById("m-ch-val").addEventListener("keydown", function(e){
+      if(e.key==="Enter"){ e.preventDefault(); confermaChiedi(); }
+    });
     document.getElementById("m-nl-annulla").onclick=chiudiNomeLinea;
     document.getElementById("m-nl-ok").onclick=confermaNomeLinea;
     document.getElementById("m-nl-testo").addEventListener("keydown", function(e){
