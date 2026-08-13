@@ -2410,7 +2410,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.80";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.81";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -14302,12 +14302,9 @@ function fineA(){
     elA('ga-f-capi').textContent=SA.capi;
     elA('ga-f-mira').textContent=(SA.colpi?Math.round(SA.centri/SA.colpi*100):0)+'%';
     elA('ga-f-liv').textContent=livelloA();
-    var finti=[['Peppe',980],['Mimmo',720],['Saverio',600],['Nino',430],['Turi',300]];
-    var righe=finti.concat([['TU',SA.punti]]).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
-    elA('ga-f-classifica').innerHTML=righe.map(function(r,i){
-      return '<tr class="'+(r[0]==='TU'?'io':'')+'"><td class="pos">'+(i+1)+'</td><td>'+r[0]+'</td><td class="p">'+r[1]+'</td></tr>';
-    }).join('');
+    elA('ga-f-classifica').innerHTML='<div class="loading">Carico…</div>';
     elA('ga-fine').classList.remove('gc-off');
+    elA('ga-f-classifica').innerHTML=await GIOCHI.classifica("anatra");
   },2750);
 }
 
