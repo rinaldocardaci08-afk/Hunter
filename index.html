@@ -2134,7 +2134,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.73";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.74";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12475,7 +12475,6 @@
       if(segnRemota && segnRemota.punto) salvaSegnRemota(segnTipoInCorso, null);
       else salvaSegnalazione(segnTipoInCorso, null);
     };
-    document.getElementById("tab-auto").onclick=apriFinestraAuto;
     document.getElementById("m-au-annulla").onclick=chiudiFinestraAuto;
     document.getElementById("m-au-ok").onclick=function(){
       if(!parcheggio){ salvaParcheggio(); apriFinestraAuto(); }
@@ -12572,7 +12571,14 @@
     document.getElementById("m-ann-salva").onclick=salvaAnnuncio;
     document.getElementById("m-ann-annulla").onclick=function(){ document.getElementById("m-annuncio").classList.remove("show"); };
 
-    document.querySelectorAll("nav.tabs button").forEach(function(b){ b.onclick=function(){ showView(b.dataset.view); }; });
+    /* SOLO i tasti che portano a una vista: quelli con un compito loro
+       (come il Mezzo) hanno gia' il loro clic e non vanno sovrascritti.
+       Questo ciclo girava DOPO gli altri agganci e li cancellava. */
+    document.querySelectorAll("nav.tabs button[data-view]").forEach(function(b){
+      b.onclick=function(){ showView(b.dataset.view); }; });
+
+    // il Mezzo: agganciato DOPO il ciclo della barra, cosi' nessuno lo copre
+    document.getElementById("tab-auto").onclick=apriFinestraAuto;
 
     document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
     document.getElementById("sz-piu").onclick=function(){ schemaZoom(1.5); };
