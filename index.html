@@ -1458,7 +1458,7 @@
     <button class="on" data-view="home"><span class="i">🏠</span>Home</button>
     <button data-view="bacheca"><span class="i">📢</span>Bacheca</button>
     <button data-view="mappa"><span class="i">🗺️</span>Mappa</button>
-    <button data-view="aree"><span class="i">📍</span>Aree</button>
+    <button id="tab-auto"><span class="i">🚗</span>Mezzo</button>
   </nav>
 </div>
 
@@ -1995,6 +1995,20 @@
   </div>
 </div>
 
+<!-- MODALE: il mezzo -->
+<div class="modal" id="m-auto">
+  <div class="sheet">
+    <h3 id="m-au-tit">Il tuo mezzo</h3>
+    <div id="m-au-corpo"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-au-annulla">Annulla</button>
+      <button class="btn primary" id="m-au-ok">Marca il parcheggio</button>
+    </div>
+    <button class="btn line" id="m-au-altro" style="margin-top:8px; display:none"></button>
+    <button class="btn line" id="m-au-scorda" style="margin-top:8px; display:none">Cancella il punto</button>
+  </div>
+</div>
+
 <!-- MODALE: su quale mappa si fa la battuta -->
 <div class="modal" id="m-iniziabat">
   <div class="sheet">
@@ -2120,7 +2134,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.72";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.73";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3529,7 +3543,8 @@
       try{ perTracciataLayer.clearLayers(); }catch(e){}
     }
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
-    document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
+    document.querySelectorAll("nav.tabs button").forEach(function(b){
+      b.classList.toggle("on", !!b.dataset.view && b.dataset.view===v); });
     // il GPS si accende solo dove serve. In home serve se ho segnato il mezzo:
     // la freccia deve puntare anche stando fermi sull'elenco.
     if(v==="mappa") serveGPS("mappa");
@@ -6196,6 +6211,8 @@
       h += '<div class="lab">Segnalo prima di entrare nel bosco: poi ti ci riporto anche senza campo.</div>';
       h += '</div></div>';
       h += '<button class="btn line" id="auto-segna" style="margin-top:11px">\ud83d\udccd Ho parcheggiato qui</button>';
+      h += '<div style="font-size:10.5px; color:var(--muted); margin-top:7px; text-align:center">'
+         + 'lo trovi anche col tasto \ud83d\ude97 in basso</div>';
       h += '</div>';
     }else{
       var d = pos ? Math.round(distM(pos, parcheggio)) : null;
@@ -6235,6 +6252,85 @@
     if(parcheggio && document.getElementById("v-home").classList.contains("active")){
       serveGPS("auto");
       autoTimer = setInterval(aggiornaFrecciaAuto, 3000);
+    }
+  }
+
+  /* IL MEZZO DALLA BARRA IN BASSO.
+     Sta al posto di "Aree" perche' quello serve solo ai capi, mentre tornare
+     alla macchina serve a tutti. Le mappe restano raggiungibili dalla Home
+     e dal menu'. */
+  var autoTimerPop = null;
+
+  function apriFinestraAuto(){
+    caricaParcheggio();
+    var corpo = document.getElementById("m-au-corpo");
+    var ok = document.getElementById("m-au-ok");
+    var altro = document.getElementById("m-au-altro");
+    var scorda = document.getElementById("m-au-scorda");
+    var h = "";
+
+    if(!parcheggio){
+      document.getElementById("m-au-tit").textContent = "Dove hai lasciato il mezzo";
+      h += '<p class="hint" style="line-height:1.6">Registra il parcheggio: potrai usarlo <b>anche senza rete</b>. '
+         + 'Ti riporter\u00e0 alla tua auto con una freccia e i metri che mancano, anche dove non c\u2019\u00e8 campo.</p>';
+      if(!pos) h += '<div class="card" style="font-size:12px; color:var(--gold); margin-top:10px">Aspetto il segnale GPS\u2026</div>';
+      corpo.innerHTML = h;
+      ok.style.display = "block";
+      ok.textContent = "\ud83d\udccd Marca il parcheggio";
+      ok.disabled = !pos;
+      altro.style.display = "none";
+      scorda.style.display = "none";
+    }else{
+      document.getElementById("m-au-tit").textContent = "Il tuo mezzo";
+      var d = pos ? Math.round(distM(pos, parcheggio)) : null;
+      var g = pos ? bearing(pos, parcheggio) : 0;
+      h += '<div class="riga" style="display:flex; align-items:center; gap:14px">';
+      h += '<div id="m-au-freccia" style="width:64px; height:64px; border-radius:50%; background:#1a2a18; '
+         + 'border:2px solid #4d6141; display:flex; align-items:center; justify-content:center; '
+         + 'font-size:30px; color:#7be0a8; flex-shrink:0; transform:rotate('+Math.round(g)+'deg)">\u2191</div>';
+      h += '<div style="flex:1; min-width:0">';
+      if(d === null){
+        h += '<div style="font-size:16px; color:#fff; font-weight:700">Cerco il segnale\u2026</div>';
+        h += '<div style="font-size:11.5px; color:var(--muted)">Il punto \u00e8 salvato, aspetto il GPS.</div>';
+      }else{
+        h += '<div id="m-au-dist" style="font-size:26px; font-weight:700; color:#fff; line-height:1.1">'
+           + (d>=1000 ? (d/1000).toFixed(2).replace(".",",")+" km" : d+" m")+'</div>';
+        h += '<div style="font-size:11.5px; color:var(--muted)">dal tuo mezzo \u00b7 segui la freccia</div>';
+      }
+      h += '<div style="font-size:10.5px; color:var(--muted); margin-top:3px">segnato '+daQuandoParcheggiato()+'</div>';
+      h += '</div></div>';
+      h += '<p class="hint" style="margin-top:12px">Funziona anche senza rete: il punto \u00e8 salvato nel telefono.</p>';
+      corpo.innerHTML = h;
+      ok.style.display = "block";
+      ok.textContent = "\ud83d\uddfa\ufe0f Vedilo sulla mappa";
+      ok.disabled = false;
+      altro.style.display = "block";
+      altro.textContent = "\ud83d\udccd Sposta il punto: ho parcheggiato qui";
+      scorda.style.display = "block";
+    }
+    document.getElementById("m-auto").classList.add("show");
+    serveGPS("auto");
+    if(autoTimerPop){ clearInterval(autoTimerPop); autoTimerPop = null; }
+    if(parcheggio) autoTimerPop = setInterval(aggiornaFrecciaPop, 2000);
+  }
+
+  function chiudiFinestraAuto(){
+    document.getElementById("m-auto").classList.remove("show");
+    if(autoTimerPop){ clearInterval(autoTimerPop); autoTimerPop = null; }
+  }
+
+  function aggiornaFrecciaPop(){
+    if(!document.getElementById("m-auto").classList.contains("show")){
+      if(autoTimerPop){ clearInterval(autoTimerPop); autoTimerPop = null; }
+      return;
+    }
+    if(!parcheggio || !pos) return;
+    var f = document.getElementById("m-au-freccia");
+    if(f) f.style.transform = "rotate(" + Math.round(bearing(pos, parcheggio)) + "deg)";
+    var dv = document.getElementById("m-au-dist");
+    if(dv){
+      var d = Math.round(distM(pos, parcheggio));
+      dv.textContent = (d>=1000 ? (d/1000).toFixed(2).replace(".",",")+" km" : d+" m");
     }
   }
 
@@ -12379,6 +12475,14 @@
       if(segnRemota && segnRemota.punto) salvaSegnRemota(segnTipoInCorso, null);
       else salvaSegnalazione(segnTipoInCorso, null);
     };
+    document.getElementById("tab-auto").onclick=apriFinestraAuto;
+    document.getElementById("m-au-annulla").onclick=chiudiFinestraAuto;
+    document.getElementById("m-au-ok").onclick=function(){
+      if(!parcheggio){ salvaParcheggio(); apriFinestraAuto(); }
+      else{ chiudiFinestraAuto(); mostraParcheggioInMappa(); }
+    };
+    document.getElementById("m-au-altro").onclick=function(){ salvaParcheggio(); apriFinestraAuto(); };
+    document.getElementById("m-au-scorda").onclick=function(){ dimenticaParcheggio(); apriFinestraAuto(); };
     document.getElementById("m-ib-annulla").onclick=function(){ document.getElementById("m-iniziabat").classList.remove("show"); };
     document.getElementById("m-ib-ok").onclick=function(){
       var v=document.getElementById("m-ib-mappa").value;
