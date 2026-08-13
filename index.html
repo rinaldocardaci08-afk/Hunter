@@ -818,6 +818,35 @@
 #gc-sez .gc-coppe b{font-family:'Arial Narrow',Impact,sans-serif; font-size:26px; color:var(--gold); margin-left:6px;}
 #gc-sez .gc-elenco{font-size:12.5px; line-height:1.7; color:var(--cream); opacity:.85;}
 #gc-sez .gc-elenco b{color:var(--gold);}
+/* ---- sezione Giochi: ogni caccia ha il suo colore, non il marrone di tutto il resto ---- */
+.gc-cacce{display:flex; flex-direction:column; gap:10px; margin-bottom:4px;}
+.gc-caccia{position:relative; text-align:left; border:none; border-radius:14px; padding:15px 15px 17px;
+  color:#fff; overflow:hidden; width:100%;}
+.gc-c-cin{background:linear-gradient(135deg,#4E7A34,#2E4C1F);}
+.gc-c-ana{background:linear-gradient(135deg,#2F7EA8,#1B4A66);}
+.gc-caccia .em{font-size:32px; line-height:1;}
+.gc-caccia .nm{font-family:'Arial Narrow',Impact,sans-serif; font-size:24px; letter-spacing:1px; margin-top:4px;}
+.gc-caccia .ds{font-size:12px; opacity:.85; margin-top:2px;}
+.gc-caccia .gioca{position:absolute; right:14px; bottom:15px; background:#ffffff22; border:1px solid #ffffff44;
+  border-radius:20px; padding:6px 13px; font-size:11.5px; letter-spacing:1px;}
+#gc-sez .gc-periodi{display:flex; gap:6px; background:#00000038; padding:4px; border-radius:11px; margin:2px 0 2px;}
+#gc-sez .gc-periodi button{flex:1; padding:10px 4px; border:none; border-radius:8px; background:transparent;
+  color:var(--muted); font-size:12.5px; letter-spacing:1px;}
+#gc-sez .gc-periodi button.on{background:var(--dark3); color:var(--cream); font-weight:700;}
+#gc-sez .gc-riq.gc-cinghiale{border-left:5px solid #4E7A34;}
+#gc-sez .gc-riq.gc-anatra{border-left:5px solid #2F7EA8;}
+#gc-sez .gc-riq.gc-cinghiale .gc-et{color:#8FD16A;}
+#gc-sez .gc-riq.gc-anatra .gc-et{color:#7FC6E8;}
+#gc-sez .gc-podio{display:flex; align-items:flex-end; gap:8px; margin:2px 0 6px;}
+#gc-sez .gc-podio > div{flex:1; border-radius:10px 10px 0 0; padding:9px 5px 7px; text-align:center;
+  background:#ffffff10;}
+#gc-sez .gc-podio .p1{background:linear-gradient(#e0b878,#8a6a34); color:#241d13; height:112px;}
+#gc-sez .gc-podio .p2{height:90px;}
+#gc-sez .gc-podio .p3{height:76px;}
+#gc-sez .gc-podio .nm{font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+#gc-sez .gc-podio .pt{font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; margin-top:3px;}
+#gc-sez .gc-podio .gr{font-size:10px; opacity:.7;}
+
 
 
 /* ================= GIOCHI · CACCIA ALL'ANATRA ================= */
@@ -1557,16 +1586,18 @@
         <div class="ttl">Giochi</div>
       </div>
       <div class="scroll">
-        <div class="grid">
-          <button class="tile" data-gioco="cinghiale">
-            <div class="ic">🐗</div>
-            <div class="nm">Caccia al cinghiale</div>
+        <div class="gc-cacce">
+          <button class="gc-caccia gc-c-cin" data-gioco="cinghiale">
+            <div class="em">🐗</div>
+            <div class="nm">CACCIA AL CINGHIALE</div>
             <div class="ds">Tre linee, tre colpi, mira svelta</div>
+            <span class="gioca">GIOCA ▸</span>
           </button>
-          <button class="tile" data-gioco="anatra">
-            <div class="ic">🦆</div>
-            <div class="nm">Caccia all'anatra</div>
+          <button class="gc-caccia gc-c-ana" data-gioco="anatra">
+            <div class="em">🦆</div>
+            <div class="nm">CACCIA ALL'ANATRA</div>
             <div class="ds">Dal laghetto, tre colpi, rosata</div>
+            <span class="gioca">GIOCA ▸</span>
           </button>
         </div>
         <div id="gc-sez"></div>
@@ -2410,7 +2441,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.82";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.83";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -13633,6 +13664,7 @@
        punteggi, cosi' bacheca e classifica non possono mai dire due cose
        diverse. Si vince la settimana con almeno 3 partite in quel gioco. */
     var MIN_PARTITE=3;
+    var DATI=null, periodo="settimana";
     var NOMEGIOCO={cinghiale:"Cinghiali", anatra:"Anatre"};
     function lunediGiochi(d){
       var x=new Date(d), g=(x.getDay()+6)%7;
@@ -13671,9 +13703,12 @@
         });
       }catch(e3){}
     }
-    function tabellaDa(best, ordine){
-      var h='<table>', n=0;
-      ordine.slice(0,10).forEach(function(id){
+    function tabellaDa(best, ordine, da){
+      da=da||0;
+      var righe=ordine.slice(da, da+10);
+      if(!righe.length) return '';
+      var h='<table>', n=da;
+      righe.forEach(function(id){
         n++;
         h+='<tr class="'+((me&&me.membro_id===id)?"io":"")+'"><td class="pos">'+n+'</td><td>'+
            nomeMembroGioco(id)+'</td><td class="p">'+best[id]+'</td></tr>';
@@ -13768,19 +13803,50 @@
         htrofei+='<div class="gc-elenco"><div>Nessun trofeo ancora. Si vince la settimana con almeno '+
                  MIN_PARTITE+' partite in quel gioco.</div></div>';
       }
-      function blocco(dati){
-        if(!dati || !dati.length) return '<div class="gc-et" style="opacity:.5">Nessuno ancora</div>';
-        var m=miglioriPerMembro(dati);
-        return tabellaDa(m.best, m.ordine);
-      }
+      DATI={ settimana:{ cinghiale:settimana.cinghiale||[], anatra:settimana.anatra||[] },
+             sempre:  { cinghiale:sempre.cinghiale||[],    anatra:sempre.anatra||[] } };
       box.innerHTML =
         riquadro("🏆 Bacheca trofei personali", htrofei)+
-        '<div class="gc-griglia">'+
-          riquadro("Classifica settimanale · Cinghiali", blocco(settimana.cinghiale))+
-          riquadro("Classifica settimanale · Anatre",    blocco(settimana.anatra))+
-          riquadro("Classifica generale · Cinghiali",    blocco(sempre.cinghiale))+
-          riquadro("Classifica generale · Anatre",       blocco(sempre.anatra))+
-        '</div>';
+        '<div class="gc-periodi">'+
+          '<button class="'+(periodo==="settimana"?"on":"")+'" data-periodo="settimana">QUESTA SETTIMANA</button>'+
+          '<button class="'+(periodo==="sempre"?"on":"")+'" data-periodo="sempre">DI SEMPRE</button>'+
+        '</div><div id="gc-classifiche"></div>';
+      box.querySelectorAll(".gc-periodi button").forEach(function(b){
+        b.onclick=function(){
+          box.querySelectorAll(".gc-periodi button").forEach(function(x){ x.classList.remove("on"); });
+          b.classList.add("on"); periodo=b.dataset.periodo; disegnaClassifiche();
+        };
+      });
+      disegnaClassifiche();
+    }
+    /* la settimana e' un elenco secco; il "di sempre" merita il podio */
+    function podio(m){
+      var t=m.ordine, cls=["p2","p1","p3"], gr=["2°","1°","3°"], ord=[t[1],t[0],t[2]], h='<div class="gc-podio">';
+      for(var i=0;i<3;i++){
+        var id=ord[i];
+        h+='<div class="'+cls[i]+'">'+
+             '<div class="nm">'+(id?nomeMembroGioco(id).split(" ")[0]:"—")+'</div>'+
+             '<div class="pt">'+(id?m.best[id]:"–")+'</div>'+
+             '<div class="gr">'+gr[i]+'</div></div>';
+      }
+      return h+'</div>';
+    }
+    function scatolaGioco(gioco){
+      var dati=(DATI[periodo]||{})[gioco]||[];
+      var titolo=(gioco==="anatra"?"🦆 Anatre":"🐗 Cinghiali");
+      var dentro;
+      if(!dati.length) dentro='<div class="gc-et" style="opacity:.5">Nessuno ancora</div>';
+      else{
+        var m=miglioriPerMembro(dati);
+        dentro = (periodo==="sempre") ? podio(m)+tabellaDa(m.best,m.ordine,3)
+                                      : tabellaDa(m.best,m.ordine,0);
+      }
+      return '<div class="gc-riq gc-'+gioco+'"><div class="gc-et">'+titolo+'</div>'+dentro+'</div>';
+    }
+    function disegnaClassifiche(){
+      var c=el("gc-classifiche");
+      if(!c || !DATI) return;
+      c.innerHTML = scatolaGioco("cinghiale") + scatolaGioco("anatra");
     }
     /* ---------- fine partita ---------- */
     function fine(){
