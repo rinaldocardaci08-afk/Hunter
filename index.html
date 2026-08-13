@@ -745,7 +745,8 @@
   overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none;}
 #gioco.show{display:block;}
 #gioco img.gc-src{display:none;}
-#gioco canvas{position:absolute; inset:0; width:100%; height:100%; display:block;}
+#gioco canvas{position:absolute; inset:0; width:100%; height:100%; display:block;
+  touch-action:none;}   /* niente zoom col doppio tocco mentre si spara */
 #gc-top{position:absolute; top:0; left:0; right:0; z-index:3;
   padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;
   display:flex; align-items:flex-start; justify-content:space-between; pointer-events:none;
@@ -2274,7 +2275,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.76";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.77";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -13580,9 +13581,32 @@
         el("gc-audio").innerHTML = audioSi ? "&#128266;" : "&#128263;";
       };
       window.addEventListener("resize", function(){ if(acceso) dimensiona(); });
+
+      /* NIENTE ZOOM MENTRE SI GIOCA.
+         Il meta viewport con user-scalable=no non basta: iPhone lo ignora da anni,
+         e col doppio tocco o due dita lo schermo si ingrandiva e il cane finiva
+         fuori dal ritaglio. Lo blocco solo qui dentro: fuori dal gioco lo zoom
+         resta libero, che sulla mappa serve. */
+      var box=el("gioco");
+      ["gesturestart","gesturechange","gestureend"].forEach(function(ev){
+        box.addEventListener(ev, function(e){ e.preventDefault(); }, {passive:false});
+      });
+      box.addEventListener("touchstart", function(e){ if(e.touches.length>1) e.preventDefault(); }, {passive:false});
+      box.addEventListener("touchmove",  function(e){ if(e.touches.length>1) e.preventDefault(); }, {passive:false});
+      var ultimoTocco=0;
+      cv.addEventListener("touchend", function(e){
+        var t=Date.now();
+        if(t-ultimoTocco<350) e.preventDefault();   // il doppio tocco ingrandiva
+        ultimoTocco=t;
+      }, {passive:false});
+      if(window.visualViewport){
+        // se lo schermo resta ingrandito da prima, il campo si rimisura da solo
+        window.visualViewport.addEventListener("resize", function(){ if(acceso) dimensiona(); });
+      }
     }
     function apri(){
       prepara();
+      try{ window.scrollTo(0,0); }catch(e){}
       el("gioco").classList.add("show");
       acceso=true;
       S=null;
