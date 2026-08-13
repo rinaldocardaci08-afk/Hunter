@@ -798,6 +798,16 @@
 #gioco tr.io td, #gc-sez tr.io td{color:var(--gold); font-weight:700; background:#e0b8781a;}
 #gioco td.p, #gc-sez td.p{text-align:right; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px;}
 #gioco td.pos, #gc-sez td.pos{width:26px; opacity:.5;}
+/* tabellone di fine partita: sul telefono le righe si accavallavano */
+#gioco .gc-tabellone, #gioco2 .gc-tabellone{width:100%; max-width:340px; margin:0 auto;}
+#gioco .gc-tabellone table, #gioco2 .gc-tabellone table{table-layout:fixed; width:100%;}
+#gioco .gc-tabellone td, #gioco2 .gc-tabellone td{padding:9px 6px; line-height:1.35;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+#gioco .gc-tabellone td.pos, #gioco2 .gc-tabellone td.pos{width:30px;}
+#gioco .gc-tabellone td.p, #gioco2 .gc-tabellone td.p{width:74px;}
+.gc-scelte{display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:6px;}
+#gioco .gc-secondo, #gioco2 .gc-secondo{background:transparent; border:1.5px solid var(--gold);
+  color:var(--gold); font-size:18px; padding:13px 22px;}
 #gc-sez{margin-top:16px; display:flex; flex-direction:column; gap:12px;}
 #gc-sez .gc-riq{background:#ffffff08; border:1px solid var(--dark3); border-radius:10px; padding:12px 12px 8px;}
 #gc-sez .gc-riq .gc-et{margin-bottom:8px; display:block;}
@@ -1665,8 +1675,11 @@
       <div><b id="gc-f-liv">1</b><span>Livello</span></div>
     </div>
     <div class="gc-et">Classifica della settimana</div>
-    <div id="gc-f-classifica" style="width:100%; display:flex; justify-content:center"></div>
-    <button class="gc-vai" id="gc-ancora">UN'ALTRA</button>
+    <div id="gc-f-classifica" class="gc-tabellone"></div>
+    <div class="gc-scelte">
+      <button class="gc-vai" id="gc-ancora">UN'ALTRA</button>
+      <button class="gc-vai gc-secondo" id="gc-esci-fine">‹ GIOCHI</button>
+    </div>
   </div>
 </div>
 
@@ -1716,8 +1729,11 @@
       <div><b id="ga-f-liv">1</b><span>Livello</span></div>
     </div>
     <div class="gc-et">Classifica della settimana</div>
-    <div id="ga-f-classifica" style="width:100%; display:flex; justify-content:center"></div>
-    <button class="gc-vai" id="ga-ancora">UN'ALTRA</button>
+    <div id="ga-f-classifica" class="gc-tabellone"></div>
+    <div class="gc-scelte">
+      <button class="gc-vai" id="ga-ancora">UN'ALTRA</button>
+      <button class="gc-vai gc-secondo" id="ga-esci-fine">‹ GIOCHI</button>
+    </div>
   </div>
 </div>
 
@@ -2394,7 +2410,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.78";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.80";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -13792,6 +13808,7 @@
       el("gc-parti").onclick=function(){ accendiAudio(); el("gc-via").classList.add("gc-off"); nuovaPartita(); };
       el("gc-ancora").onclick=function(){ el("gc-fine").classList.add("gc-off"); nuovaPartita(); };
       el("gc-esci").onclick=chiudi;
+      el("gc-esci-fine").onclick=chiudi;
       el("gc-audio").onclick=function(){
         audioSi=!audioSi; accendiAudio();
         el("gc-audio").innerHTML = audioSi ? "&#128266;" : "&#128263;";
@@ -14057,21 +14074,30 @@ function nuovaPartitaA(){
   elA('ga-fine').classList.add('gc-off');
   aggiornaHUDA();
 }
+function tettoA(){
+  /* le anatre non devono entrare nella fascia dei comandi in alto:
+     li' c'e' il tasto Esci, e sparandogli sopra si usciva dalla partita */
+  return Math.max(130, HA*.19);
+}
 function spawnaA(){
   var k=Math.min(Math.max(WA/420,.62),1.4), r=Math.random();
   var o={ colpitaA:false, cad:0, t:Math.random()*6 };
+  var tetto=tettoA();
   if(r<.30){                                   // di petto, dritta in su
     o.tipo='su'; o.scala=(96*k)/ALTOA; o.dir=1;
     o.x=WA*(.2+Math.random()*.6); o.y=HA*.92;
     o.vx=0; o.vy=-HA*.30*velFattoreA(); o.amp=34; o.pt=40;
   }else{
     o.tipo='lato'; o.scala=(84*k)/ALTOA;
+    var alt=ALTOA*o.scala;
     var daSx=Math.random()<.5;
     o.dir=daSx?1:-1;
     o.x=daSx?-CELLAA*o.scala:WA+CELLAA*o.scala;
-    o.y=HA*(.14+Math.random()*.34);
+    var basso=Math.max(tetto+alt*.75, HA*.16), alto=Math.max(basso+10, HA*.50);
+    o.y=basso+Math.random()*(alto-basso);
     o.vx=o.dir*WA*.29*velFattoreA()*(.85+Math.random()*.3);
     o.vy=0; o.amp=26+Math.random()*34; o.pt=20;
+    o.amp=Math.min(o.amp, Math.max(6, o.y-(tetto+alt*.6)));   // nemmeno ondeggiando
   }
   o.y0=o.y;
   SA.vivi.push(o);
@@ -14113,20 +14139,24 @@ function scappataA(o){
 /* ---------- effettiA ---------- */
 function effettiA(ora){
   // rosata: i pallini che impattano
-  SA.rosate=SA.rosate.filter(function(r){ return ora-r.t<1100; });
+  SA.rosate=SA.rosate.filter(function(r){ return ora-r.t<800; });
   SA.rosate.forEach(function(r){
-    var e=(ora-r.t)/1100;                       // 0 = appena sparato, 1 = sparita
+    var e=(ora-r.t)/800;                        // 0 = appena sparato, 1 = sparita
     var apri=Math.min(1,e*4.2);                 // si apre in fretta, poi resta ferma
-    var rag=(14+apri*46)*r.sc;
-    cxA.globalAlpha = e<.55 ? 1 : 1-(e-.55)/.45; // resta piena per mezzo secondo
-    for(var i=0;i<18;i++){
-      var a=r.ang+i*.349, d=rag*(.45+((i*37)%13)/14);
-      var px=r.x+Math.cos(a)*d, py=r.y+Math.sin(a)*d;
-      cxA.fillStyle='rgba(255,240,190,.85)';     // alone caldo dietro il pallino
-      cxA.beginPath(); cxA.arc(px,py,(5.2-apri*1.4)*r.sc,0,7); cxA.fill();
-      cxA.fillStyle=i%3?'#1E1E1E':'#5A5A5A';
-      cxA.beginPath(); cxA.arc(px,py,(3.4-apri*.9)*r.sc,0,7); cxA.fill();
-    }
+    var rag=(14+apri*44)*r.sc;
+    cxA.globalAlpha = e<.62 ? 1 : 1-(e-.62)/.38;
+    // 11 pallini in cerchi concentrici: uno in mezzo, quattro dentro, sei fuori
+    var anelli=[[1,0,0],[4,.55,.39],[6,1,0]];
+    anelli.forEach(function(an){
+      for(var i=0;i<an[0];i++){
+        var a=r.ang+an[2]+i*6.2832/an[0], d=rag*an[1];
+        var px=r.x+Math.cos(a)*d, py=r.y+Math.sin(a)*d;
+        cxA.fillStyle='rgba(255,240,190,.85)';   // alone caldo dietro il pallino
+        cxA.beginPath(); cxA.arc(px,py,(5.4-apri*1.4)*r.sc,0,7); cxA.fill();
+        cxA.fillStyle='#1E1E1E';
+        cxA.beginPath(); cxA.arc(px,py,(3.5-apri*.9)*r.sc,0,7); cxA.fill();
+      }
+    });
     cxA.strokeStyle='rgba(255,236,170,'+(1-e)*.85+')'; cxA.lineWidth=3.2*r.sc;
     cxA.beginPath(); cxA.arc(r.x,r.y,rag*.86,0,7); cxA.stroke();
     cxA.strokeStyle='rgba(255,255,255,'+(1-e)*.5+')'; cxA.lineWidth=1.6*r.sc;
@@ -14239,7 +14269,7 @@ function cicloA(ora){
         }
         return true;
       }
-      var fuori = o.tipo==='su' ? (o.y < -ALTOA*o.scala)
+      var fuori = o.tipo==='su' ? (o.y < tettoA()+ALTOA*o.scala*.5)
                 : (o.dir>0 ? o.x > WA+CELLAA*o.scala : o.x < -CELLAA*o.scala);
       if(fuori){ scappataA(o); return false; }
       return true;
@@ -14295,6 +14325,7 @@ function fineA(){
     elA('ga-parti').onclick=function(){ accendiAudioA(); elA('ga-via').classList.add('gc-off'); nuovaPartitaA(); };
     elA('ga-ancora').onclick=function(){ elA('ga-fine').classList.add('gc-off'); nuovaPartitaA(); };
     elA('ga-esci').onclick=chiudiA;
+    elA('ga-esci-fine').onclick=chiudiA;
     elA('ga-audio').onclick=function(){ audioSiA=!audioSiA; accendiAudioA();
       elA('ga-audio').innerHTML=audioSiA?'&#128266;':'&#128263;'; };
     /* niente zoom mentre si gioca: il meta viewport non basta su iPhone */
