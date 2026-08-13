@@ -739,6 +739,65 @@
     opacity:0; transition:opacity .3s; pointer-events:none; max-width:88%; text-align:center;}
   .toast.show{opacity:1;}
   .leaflet-container{background:#3d4a2a;}
+
+/* ================= GIOCHI · CACCIA AL CINGHIALE ================= */
+#gioco{position:fixed; inset:0; z-index:2800; display:none; background:#0E1A14;
+  overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none;}
+#gioco.show{display:block;}
+#gioco img.gc-src{display:none;}
+#gioco canvas{position:absolute; inset:0; width:100%; height:100%; display:block;}
+#gc-top{position:absolute; top:0; left:0; right:0; z-index:3;
+  padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;
+  display:flex; align-items:flex-start; justify-content:space-between; pointer-events:none;
+  background:linear-gradient(#0b1422aa,#0b142200);}
+#gioco .gc-et{font-size:10px; letter-spacing:2.5px; opacity:.7; text-transform:uppercase;
+  color:var(--cream); text-shadow:0 1px 2px #000;}
+#gc-punti{font-family:'Arial Narrow',Impact,sans-serif; font-weight:700; font-size:38px;
+  line-height:.95; color:var(--cream); text-shadow:0 2px 3px #00000080;}
+#gc-molt{color:var(--gold); font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; text-shadow:0 1px 2px #000;}
+#gc-fughe{display:flex; gap:6px; justify-content:flex-end; margin-top:4px; font-size:19px;}
+#gc-fughe span.persa{opacity:.22; filter:grayscale(1);}
+#gc-audio{pointer-events:auto; font-size:19px; margin-top:9px; padding:5px 8px; border-radius:8px;
+  background:#00000055; border:1px solid #ffffff20; display:inline-block;}
+#gc-esci{pointer-events:auto; background:#00000066; border:1px solid #ffffff25; color:var(--cream);
+  font-size:13px; padding:7px 12px; border-radius:8px; margin-bottom:8px;}
+#gc-bot{position:absolute; left:0; right:0; bottom:0; z-index:3;
+  padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);
+  display:flex; align-items:center; gap:14px; background:linear-gradient(#0b142200,#0b1422e6);}
+#gc-cart{display:flex; gap:10px; flex:1; align-items:flex-end;}
+#gc-cart .c{width:17px; height:58px; background:url(cartuccia.png) center/contain no-repeat;
+  filter:drop-shadow(0 2px 3px rgba(0,0,0,.55)); transition:filter .18s, opacity .18s;}
+#gc-cart .c.vuota{filter:grayscale(1) brightness(.55) drop-shadow(0 2px 3px rgba(0,0,0,.4)); opacity:.5;}
+#gc-ricarica{font-family:'Arial Narrow',Impact,sans-serif; font-size:15px; letter-spacing:2px;
+  padding:10px 14px; border:1.5px solid var(--gold); color:var(--gold); border-radius:6px; background:#00000040;}
+#gc-ricarica.lavora{opacity:.45;}
+#gc-barra{position:absolute; left:14px; right:14px; z-index:3;
+  bottom:calc(env(safe-area-inset-bottom) + 6px); height:3px; background:#ffffff18;
+  border-radius:2px; overflow:hidden; display:none;}
+#gc-barra i{display:block; height:100%; width:0; background:var(--gold);}
+#gioco .gc-schermata{position:absolute; inset:0; z-index:4; display:flex; flex-direction:column;
+  align-items:center; gap:13px; padding:26px; text-align:center; color:var(--cream);
+  background:#0a1119ee; justify-content:center;}
+#gioco .gc-schermata.gc-off{display:none;}
+#gc-fine{justify-content:flex-start; padding-top:6vh; padding-bottom:150px; overflow-y:auto;}
+#gioco .gc-tit{font-family:'Arial Narrow',Impact,sans-serif; font-weight:700; letter-spacing:2px;
+  line-height:.92; font-size:clamp(34px,12vw,56px);}
+#gioco .gc-tit small{display:block; font-size:12px; letter-spacing:6px; opacity:.6; font-weight:400; margin-bottom:6px;}
+#gioco .gc-regole{font-size:14px; line-height:1.65; max-width:330px; opacity:.88;}
+#gioco .gc-regole b{color:#52C22B;}
+#gioco .gc-vai{font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; letter-spacing:3px;
+  padding:14px 36px; border-radius:8px; background:#52C22B; color:#08210a; border:none; font-weight:700;}
+#gioco .gc-esiti{display:flex; gap:24px; margin:2px 0 4px;}
+#gioco .gc-esiti div{text-align:center;}
+#gioco .gc-esiti b{display:block; font-family:'Arial Narrow',Impact,sans-serif; font-size:26px;}
+#gioco .gc-esiti span{font-size:9.5px; letter-spacing:2px; opacity:.6; text-transform:uppercase;}
+#gioco table, #gc-sez-classifica table{width:100%; max-width:340px; border-collapse:collapse; font-size:14px;}
+#gioco td, #gc-sez-classifica td{padding:7px 8px; border-bottom:1px solid #ffffff12;}
+#gioco tr.io td, #gc-sez-classifica tr.io td{color:var(--gold); font-weight:700; background:#e0b8781a;}
+#gioco td.p, #gc-sez-classifica td.p{text-align:right; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px;}
+#gioco td.pos, #gc-sez-classifica td.pos{width:26px; opacity:.5;}
+#gc-sez-classifica{margin-top:18px;}
+
 </style>
 </head>
 <body>
@@ -1410,6 +1469,31 @@
     </section>
 
     <!-- GUIDA -->
+
+    <!-- GIOCHI -->
+    <section class="view" id="v-giochi">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl">Giochi</div>
+      </div>
+      <div class="scroll">
+        <div class="grid">
+          <button class="tile" data-gioco="cinghiale">
+            <div class="ic">🐗</div>
+            <div class="nm">Caccia al cinghiale</div>
+            <div class="ds">Tre linee, tre colpi, mira svelta</div>
+          </button>
+          <button class="tile soon" data-soon="Nuovi giochi">
+            <span class="badge">presto</span>
+            <div class="ic">🕹️</div>
+            <div class="nm">Altri giochi</div>
+            <div class="ds">Se ne aggiungeranno</div>
+          </button>
+        </div>
+        <div id="gc-sez-classifica"></div>
+      </div>
+    </section>
+
     <section class="view" id="v-info">
       <div class="backbar">
         <button data-home>‹ Home</button>
@@ -1459,7 +1543,62 @@
     <button data-view="bacheca"><span class="i">📢</span>Bacheca</button>
     <button data-view="mappa"><span class="i">🗺️</span>Mappa</button>
     <button id="tab-auto"><span class="i">🚗</span>Mezzo</button>
+    <button data-view="giochi"><span class="i">🕹️</span>Giochi</button>
   </nav>
+</div>
+
+
+<!-- ================= GIOCO: CACCIA AL CINGHIALE ================= -->
+<div id="gioco">
+  <canvas id="gc-c"></canvas>
+  <img class="gc-src" id="gc-i-cinghiale" src="cinghiale.png" alt="">
+  <img class="gc-src" id="gc-i-cane" src="cane.png" alt="">
+  <img class="gc-src" id="gc-i-padella" src="padella.png" alt="">
+
+  <div id="gc-top">
+    <div>
+      <button id="gc-esci">‹ Esci</button>
+      <div class="gc-et">Punti</div>
+      <div id="gc-punti">0</div>
+      <div id="gc-molt">×1</div>
+    </div>
+    <div style="text-align:right">
+      <div class="gc-et">Fughe</div>
+      <div id="gc-fughe"></div>
+      <div class="gc-et" style="margin-top:8px" id="gc-liv">Liv. 1</div>
+      <div id="gc-audio">&#128266;</div>
+    </div>
+  </div>
+
+  <div id="gc-bot">
+    <div id="gc-cart"></div>
+    <div id="gc-ricarica">RICARICA</div>
+  </div>
+  <div id="gc-barra"><i></i></div>
+
+  <div class="gc-schermata" id="gc-via">
+    <div class="gc-tit"><small>ZANNALUNGA</small>CACCIA AL CINGHIALE</div>
+    <div class="gc-regole">
+      Il cinghiale esce dalla macchia e attraversa la <b>finestra di tiro</b>: tocca sopra per fermarlo.<br><br>
+      Hai <b>3 colpi</b>: finiti, si ricarica e intanto passano.<br>
+      Più è <b>lontano</b>, più vale. Ogni capo alza la velocità.<br>
+      Il <b>cinghiale bianco</b> vale 150 e ti riempie il fucile.<br>
+      <b>3 fughe</b> e la battuta è chiusa.
+    </div>
+    <button class="gc-vai" id="gc-parti">CARICA E PARTI</button>
+  </div>
+
+  <div class="gc-schermata gc-off" id="gc-fine">
+    <div class="gc-tit"><small>BATTUTA CHIUSA</small><span id="gc-f-punti">0</span></div>
+    <div class="gc-esiti">
+      <div><b id="gc-f-capi">0</b><span>Capi</span></div>
+      <div><b id="gc-f-mira">0%</b><span>Mira</span></div>
+      <div><b id="gc-f-liv">1</b><span>Livello</span></div>
+    </div>
+    <div class="gc-et">Classifica della settimana</div>
+    <div id="gc-f-classifica" style="width:100%; display:flex; justify-content:center"></div>
+    <button class="gc-vai" id="gc-ancora">UN'ALTRA</button>
+  </div>
 </div>
 
 <!-- MENU GENERALE -->
@@ -1473,6 +1612,7 @@
     <button data-go="scadenze">📋 &nbsp;Le mie scadenze</button>
     <button data-go="squadra">👥 &nbsp;Squadra</button>
     <button data-go="aree">📍 &nbsp;Aree e poste</button>
+    <button data-go="giochi">🕹️ &nbsp;Giochi</button>
     <button data-go="info">ⓘ &nbsp;Guida</button>
     <button id="menu-anteprima">👁 &nbsp;Vedi come...</button>
     <button id="menu-gps">🔋 &nbsp;Sospendi GPS</button>
@@ -2134,7 +2274,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.75";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.76";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3543,6 +3683,7 @@
       try{ perTracciataLayer.clearLayers(); }catch(e){}
     }
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
+    if(v==="giochi" && typeof GIOCHI!=="undefined") GIOCHI.sezione();
     document.querySelectorAll("nav.tabs button").forEach(function(b){
       b.classList.toggle("on", !!b.dataset.view && b.dataset.view===v); });
     // il GPS si accende solo dove serve. In home serve se ho segnato il mezzo:
@@ -12703,6 +12844,10 @@
     document.querySelectorAll(".tile[data-soon]").forEach(function(t){
       t.onclick=function(){ toast(t.dataset.soon+" — in arrivo"); };
     });
+    // GIOCHI: la piastrella apre il gioco a schermo pieno
+    document.querySelectorAll("[data-gioco]").forEach(function(t){
+      t.onclick=function(){ GIOCHI.apri(); };
+    });
     // pulsanti "‹ Home" nelle sezioni
     document.querySelectorAll("[data-home]").forEach(function(b){
       b.onclick=function(){ showView("home"); };
@@ -12922,6 +13067,542 @@
     if(s.data && s.data.session){ await afterLogin(); }
     else showLogin();
   }
+
+  /* ================= GIOCHI · CACCIA AL CINGHIALE =================
+     Tutto chiuso qui dentro: fuori escono solo GIOCHI.apri e GIOCHI.sezione,
+     cosi' nessun nome puo' scontrarsi con il resto dell'app. */
+  var GIOCHI = (function(){
+    var REC_KEY="hunter_gioco_cinghiale_record";
+    var cv=null, cx=null, W=0, H=0, DPR=1, avviato=false, acceso=false;
+    var SPRITE=null, CANE=null, PADELLA=null;
+    var sfondoCache=null, macchiaCache=null;
+    var MASCHERA=null, MW=0, MH=0;
+    var CELLA=304, ALTO=190, POSE=3;
+    var S=null, ultimo=0;
+
+    var CONF=[
+      {y:.335, h:52,  gL:.26, gR:.74, v:.215, pt:30, nome:"LONTANO"},
+      {y:.525, h:82,  gL:.17, gR:.83, v:.300, pt:20, nome:"MEZZA COSTA"},
+      {y:.720, h:118, gL:.09, gR:.91, v:.420, pt:10, nome:"VICINO"}
+    ];
+    var LINEE=[];
+
+    function el(id){ return document.getElementById(id); }
+    function seme(n){ var s=n*9301+49297; return function(){ s=(s*9301+49297)%233280; return s/233280; }; }
+
+    /* ---------- misure ---------- */
+    function dimensiona(){
+      if(!cv) return;
+      DPR=Math.min(window.devicePixelRatio||1,2.5);
+      W=cv.clientWidth; H=cv.clientHeight;
+      if(!W||!H) return;
+      cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR);
+      cx.setTransform(DPR,0,0,DPR,0,0);
+      var k=Math.min(Math.max(W/420,.62),1.4);
+      LINEE=CONF.map(function(c,i){
+        return { i:i, y:H*c.y, alt:c.h*k, scala:c.h*k/ALTO, xL:W*c.gL, xR:W*c.gR,
+                 vel:W*c.v, pt:c.pt, nome:c.nome };
+      });
+      sfondoCache=disegnaSfondo(); macchiaCache=disegnaMacchia();
+    }
+    function tela(){
+      var t=document.createElement("canvas");
+      t.width=Math.round(W*DPR); t.height=Math.round(H*DPR);
+      var g=t.getContext("2d"); g.setTransform(DPR,0,0,DPR,0,0);
+      return {t:t,g:g};
+    }
+
+    /* ---------- sfondo, disegnato una volta sola ---------- */
+    function disegnaSfondo(){
+      var o=tela(), t=o.t, g=o.g;
+      var cielo=g.createLinearGradient(0,0,0,H*.5);
+      cielo.addColorStop(0,"#1B4C86"); cielo.addColorStop(.55,"#4E8FC4"); cielo.addColorStop(1,"#A9CFE4");
+      g.fillStyle=cielo; g.fillRect(0,0,W,H);
+      var r=seme(3); g.fillStyle="rgba(255,255,255,.9)";
+      for(var n=0;n<5;n++){
+        var cxn=r()*W, cyn=H*(.04+r()*.16), sc=.5+r()*.9;
+        [[0,0,26],[22,6,20],[-24,7,18],[8,-12,17]].forEach(function(p){
+          g.beginPath(); g.arc(cxn+p[0]*sc, cyn+p[1]*sc, p[2]*sc, 0, 7); g.fill();
+        });
+      }
+      g.fillStyle="#2F5E3A"; g.beginPath(); g.moveTo(0,H*.245);
+      for(var x=0;x<=W;x+=W/10) g.lineTo(x, H*.245 - Math.sin(x/W*5.6)*H*.035);
+      g.lineTo(W,H); g.lineTo(0,H); g.fill();
+      var suoli=["#8C7A4E","#9C8752","#AE9760"];
+      LINEE.forEach(function(L,i){
+        g.fillStyle=suoli[i];
+        g.fillRect(0, L.y-2, W, (LINEE[i+1]? LINEE[i+1].y : H) - L.y + 4);
+      });
+      var q=seme(11);
+      LINEE.forEach(function(L){
+        for(var n2=0;n2<9;n2++){
+          var xx=q()*W, yy=L.y+6+q()*26*L.scala;
+          g.fillStyle="rgba(60,48,30,"+(.18+q()*.2)+")";
+          g.beginPath(); g.ellipse(xx,yy,(3+q()*7)*L.scala,(1.6+q()*3)*L.scala,0,0,7); g.fill();
+        }
+        g.strokeStyle="rgba(40,60,26,.5)"; g.lineWidth=1.5;
+        g.beginPath(); g.moveTo(0,L.y);
+        for(var x2=0;x2<=W;x2+=W/7) g.lineTo(x2, L.y+Math.sin((x2+L.i*90)/90)*2.2);
+        g.stroke();
+      });
+      return t;
+    }
+
+    /* ---------- la macchia ---------- */
+    function siepe(g,x0,x1,alt,r){
+      var cerchi=[], x, bordo, h2, n;
+      for(x=x0; x<x1; x+=alt*.28){
+        bordo=Math.min(1,Math.min(x-x0,x1-x)/(alt*.9));
+        h2=alt*(.55+r()*.45)*(.45+bordo*.55);
+        for(n=0;n<2;n++) cerchi.push({x:x+(r()-.5)*alt*.2, y:-h2*(.55+r()*.5), r:alt*(.20+r()*.16)});
+      }
+      g.fillStyle="#173D12";
+      g.beginPath(); g.moveTo(x0,4);
+      cerchi.forEach(function(c){ g.lineTo(c.x, c.y-c.r*.5); });
+      g.lineTo(x1,4); g.closePath(); g.fill();
+      cerchi.forEach(function(c){ g.beginPath(); g.arc(c.x,c.y,c.r,0,7); g.fill(); });
+      g.fillStyle="#2E7A18";
+      cerchi.forEach(function(c){ g.beginPath(); g.arc(c.x+c.r*.12,c.y+c.r*.18,c.r*.82,0,7); g.fill(); });
+      g.fillStyle="#52C22B";
+      cerchi.forEach(function(c){ if(r()<.62){ g.beginPath(); g.arc(c.x-c.r*.24,c.y-c.r*.26,c.r*.5,0,7); g.fill(); } });
+      g.fillStyle="#7FD948";
+      cerchi.forEach(function(c){ if(r()<.35){ g.beginPath(); g.arc(c.x-c.r*.3,c.y-c.r*.34,c.r*.24,0,7); g.fill(); } });
+      cerchi.forEach(function(c){
+        if(r()<.5){
+          var a=(r()*2-1)*1.3, d=c.r*(.9+r()*.35);
+          g.save(); g.translate(c.x+Math.sin(a)*d, c.y-Math.cos(a)*d*.8); g.rotate(a*.8);
+          g.fillStyle= r()<.5 ? "#6FD43A" : "#3E9A20";
+          g.beginPath(); g.ellipse(0,0,c.r*.30,c.r*.14,0,0,7); g.fill(); g.restore();
+        }
+      });
+    }
+    function disegnaMacchia(){
+      var o=tela(), t=o.t, g=o.g;
+      LINEE.forEach(function(L){
+        var alt=[46,68,96][L.i]*Math.min(Math.max(W/420,.7),1.3), r=seme(L.i+7);
+        g.save(); g.translate(0,L.y);
+        siepe(g,-30, L.xL+14, alt, r);
+        siepe(g, L.xR-14, W+30, alt, r);
+        g.restore();
+      });
+      var r2=seme(21), altE=62*Math.min(Math.max(W/420,.7),1.3);
+      var varco=Math.min(W*.60,290)*.46;              // il varco da cui esce il cane
+      g.save(); g.translate(0, H-46);
+      siepe(g, -30, W/2-varco, altE, r2);
+      siepe(g, W/2+varco, W+30, altE, r2);
+      g.restore();
+      g.save(); g.translate(0, H-6);
+      siepe(g, W/2-varco-14, W/2+varco+14, altE*.34, seme(33));
+      g.restore();
+      return t;
+    }
+
+    /* ---------- il cinghiale ---------- */
+    function preparaMaschera(){        // si colpisce solo il pelo, non l'aria intorno
+      try{
+        var t=document.createElement("canvas");
+        t.width=SPRITE.naturalWidth; t.height=SPRITE.naturalHeight;
+        var g=t.getContext("2d"); g.drawImage(SPRITE,0,0);
+        var d=g.getImageData(0,0,t.width,t.height).data;
+        MW=t.width; MH=t.height; MASCHERA=new Uint8Array(MW*MH);
+        for(var i=0,j=3;i<MASCHERA.length;i++,j+=4) MASCHERA[i]=d[j];
+      }catch(e){ MASCHERA=null; }
+    }
+    function centrato(o,x,y){
+      var s=o.L.scala, larg=CELLA*s, alt=ALTO*s;
+      var dx=(x-o.x)*o.dir, u=(dx/larg+.5)*CELLA, v=(y-(o.L.y-alt))/alt*ALTO;
+      if(!MASCHERA) return Math.abs(dx)<larg*.42 && v>ALTO*.15 && v<ALTO*1.02;
+      var tol=11/s, base=(o.posa||0)+(o.bianco?3:0);
+      var ox=[0,tol,-tol,0,0], oy=[0,0,0,tol,-tol];
+      for(var i=0;i<5;i++){
+        var uu=Math.round(u+ox[i]), vv=Math.round(v+oy[i]);
+        if(uu<0||vv<0||uu>=CELLA||vv>=MH) continue;
+        if(MASCHERA[vv*MW + Math.round(base*CELLA+uu)]>40) return true;
+      }
+      return false;
+    }
+    function segnoRosso(larg,alt){
+      cx.fillStyle="#D01608";
+      cx.beginPath(); cx.arc(larg*.06,-alt*.62, alt*.085, 0, 7); cx.fill();
+      [[.13,-.10,.34],[.00,.05,.28],[.10,.08,.22],[.18,-.02,.20]].forEach(function(p){
+        cx.beginPath(); cx.arc(larg*(.06+p[0]*.5), -alt*(.62+p[1]), alt*.085*p[2], 0, 7); cx.fill();
+      });
+      cx.fillStyle="#8E0A04";
+      cx.beginPath(); cx.arc(larg*.06,-alt*.62, alt*.035, 0, 7); cx.fill();
+    }
+    function disegnaCinghiale(o,ora){
+      if(!SPRITE || !SPRITE.complete || !SPRITE.naturalWidth) return;
+      var s=o.L.scala, larg=CELLA*s, alt=ALTO*s;
+      var posa=Math.floor(ora/(120/velFattore()))%POSE;
+      cx.save();
+      cx.translate(o.x, o.L.y);
+      cx.scale(o.dir,1);
+      if(o.colpito){
+        var p=Math.min(o.cad,1);
+        cx.rotate(1.52*(1-Math.pow(1-p,3)));       // cade come il bersaglio al poligono
+        if(o.cad>1.5) cx.globalAlpha=Math.max(0,1-(o.cad-1.5)/.7);
+        posa=2;
+      }else{
+        cx.translate(0, Math.sin(ora/95+o.t)*1.5*s);
+      }
+      o.posa=posa;
+      cx.drawImage(SPRITE, (posa+(o.bianco?3:0))*CELLA, 0, CELLA, ALTO, -larg/2, -alt, larg, alt);
+      if(o.colpito) segnoRosso(larg,alt);
+      cx.restore();
+    }
+
+    /* ---------- suoni, generati: nessun file ---------- */
+    var AC=null, audioSi=true;
+    function accendiAudio(){
+      if(!AC){ try{ AC=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ AC=null; } }
+      if(AC && AC.state==="suspended") AC.resume();
+    }
+    function rumore(dur){
+      var n=Math.max(1,Math.floor(AC.sampleRate*dur)), b=AC.createBuffer(1,n,AC.sampleRate), d=b.getChannelData(0);
+      for(var i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+      var s=AC.createBufferSource(); s.buffer=b; return s;
+    }
+    function nota(tipo,f0,f1,dur,vol,t0){
+      var o=AC.createOscillator(), g=AC.createGain(), t=t0||AC.currentTime;
+      o.type=tipo; o.frequency.setValueAtTime(f0,t);
+      if(f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
+      g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.0008,t+dur);
+      o.connect(g); g.connect(AC.destination); o.start(t); o.stop(t+dur+.02);
+    }
+    function suona(che){
+      if(!audioSi||!AC) return;
+      var t=AC.currentTime, s, f, g;
+      if(che==="sparo"){
+        s=rumore(.22); f=AC.createBiquadFilter(); g=AC.createGain();
+        f.type="lowpass"; f.frequency.setValueAtTime(2600,t); f.frequency.exponentialRampToValueAtTime(280,t+.18);
+        g.gain.setValueAtTime(.75,t); g.gain.exponentialRampToValueAtTime(.001,t+.22);
+        s.connect(f); f.connect(g); g.connect(AC.destination); s.start(t); s.stop(t+.24);
+        nota("sine",150,42,.18,.55,t);
+      }
+      else if(che==="tonfo"){
+        nota("sine",210,60,.22,.5,t);
+        s=rumore(.09); g=AC.createGain();
+        g.gain.setValueAtTime(.35,t); g.gain.exponentialRampToValueAtTime(.001,t+.09);
+        s.connect(g); g.connect(AC.destination); s.start(t); s.stop(t+.1);
+      }
+      else if(che==="padella"){ nota("triangle",1180,1130,.55,.22,t); nota("triangle",1790,1720,.45,.13,t+.005); nota("square",620,600,.3,.08,t); }
+      else if(che==="ricarica"){
+        [0,.19].forEach(function(d){
+          var s2=rumore(.05), g2=AC.createGain(), f2=AC.createBiquadFilter();
+          f2.type="bandpass"; f2.frequency.value=2100;
+          g2.gain.setValueAtTime(.5,t+d); g2.gain.exponentialRampToValueAtTime(.001,t+d+.05);
+          s2.connect(f2); f2.connect(g2); g2.connect(AC.destination); s2.start(t+d); s2.stop(t+d+.06);
+        });
+      }
+      else if(che==="bianco"){ [660,880,1320].forEach(function(fq,i){ nota("square",fq,fq,.13,.16,t+i*.075); }); }
+      else if(che==="fuga"){ nota("sawtooth",420,150,.35,.16,t); }
+      else if(che==="cane"){ for(var i=0;i<7;i++) nota("square", i%2?720:520, i%2?640:470, .07,.16, t+.5+i*.13); }
+    }
+
+    /* ---------- partita ---------- */
+    function velFattore(){ return Math.min(1.18+.05*S.capi,3.1); }
+    function livello(){ return Math.floor(S.capi/5)+1; }
+    function nuovaPartita(){
+      S={ vivi:[], punti:0, capi:0, colpi:0, centri:0, fughe:0, combo:0, cartucce:3,
+          ricarica:0, prossimo:260, scosse:0, lampi:[], numeri:[], polvere:[],
+          cane:null, padella:0, inizio:Date.now(), inCorso:true };
+      el("gc-fine").classList.add("gc-off");
+      aggiornaHUD();
+    }
+    function spawna(){
+      var L=LINEE[Math.floor(Math.random()*3)];
+      var versoDx=Math.random()<.5, marg=L.alt*1.6;
+      var bianco = S.capi>=8 && Math.random()<.12;
+      S.vivi.push({ L:L, dir:versoDx?1:-1, x: versoDx ? L.xL-marg : L.xR+marg,
+        v: L.vel*velFattore()*(bianco?1.75:(.85+Math.random()*.3)),
+        bianco:bianco, colpito:false, cad:0, t:Math.random()*6 });
+    }
+    function spara(x,y){
+      if(!S||!S.inCorso) return;
+      if(S.cartucce<=0){ if(S.ricarica<=0) avviaRicarica(); return; }
+      suona("sparo"); S.cartucce--; S.colpi++; S.scosse=7;
+      S.lampi.push({x:x,y:y,t:performance.now()});
+      var preso=null;
+      S.vivi.forEach(function(o){
+        if(preso||o.colpito) return;
+        if(o.x>=o.L.xL-6 && o.x<=o.L.xR+6 && centrato(o,x,y)) preso=o;
+      });
+      if(preso){
+        suona("tonfo"); preso.colpito=true; S.capi++; S.centri++;
+        for(var n=0;n<5;n++) S.polvere.push({x:preso.x+(Math.random()-.5)*preso.L.alt, y:preso.L.y-3, dir:(Math.random()-.5)*2, t:performance.now()});
+        S.combo=Math.min(S.combo+1,3);
+        var p, txt;
+        if(preso.bianco){ suona("bianco"); p=150; txt="+150 IL BIANCO!"; S.cartucce=3; S.ricarica=0; el("gc-barra").style.display="none"; }
+        else { p=preso.L.pt*Math.max(1,S.combo); txt="+"+p+" "+preso.L.nome; }
+        S.punti+=p;
+        S.numeri.push({txt:txt, x:preso.x, y:preso.L.y-(preso.L.alt+14),
+          col:preso.bianco?"#FFE27A":"#F2EDE1", g:true, t:performance.now()});
+      }else{
+        S.combo=0; S.padella=performance.now(); suona("padella");
+      }
+      if(S.cartucce===0) avviaRicarica();
+      aggiornaHUD();
+    }
+    function avviaRicarica(){ if(S.cartucce<3 && S.ricarica<=0){ S.ricarica=1400; suona("ricarica"); } }
+    function scappato(o){
+      S.combo=0; S.fughe++; suona("fuga");
+      S.numeri.push({txt:"SCAPPATO", x:o.dir>0?o.L.xR-10:o.L.xL+10, y:o.L.y-50, col:"#FF6A55", g:false, t:performance.now()});
+      aggiornaHUD();
+      if(S.fughe>=3) fine();
+    }
+
+    /* ---------- effetti ---------- */
+    function padellaInCielo(ora){
+      var t=ora-S.padella; if(t>1100){ S.padella=0; return; }
+      var su=Math.min(1,t/160), giu=t>800?1-(t-800)/300:1;
+      var lp=Math.min(W*.24,120), hp=lp*((PADELLA&&PADELLA.naturalHeight)||196)/((PADELLA&&PADELLA.naturalWidth)||300);
+      var cyp=H*.14;
+      cx.save(); cx.globalAlpha=giu;
+      cx.translate(W/2, cyp-(1-su)*40);
+      cx.rotate(Math.sin(t/90)*.12*giu);
+      var k=.6+.4*(su<1?1.25*su:1)+(t<260?Math.sin(t/260*Math.PI)*.12:0);
+      cx.scale(k,k);
+      if(PADELLA && PADELLA.complete && PADELLA.naturalWidth) cx.drawImage(PADELLA,-lp/2,-hp/2,lp,hp);
+      cx.restore();
+      cx.save(); cx.globalAlpha=giu;
+      cx.font="700 "+Math.round(Math.min(W*.16,86))+"px Arial Narrow, Impact, sans-serif";
+      cx.textAlign="center"; cx.lineWidth=7; cx.strokeStyle="rgba(0,0,0,.65)"; cx.fillStyle="#FF4A33";
+      var ty=cyp+hp*.75+Math.min(W*.13,70);
+      cx.strokeText("PADELLA",W/2,ty); cx.fillText("PADELLA",W/2,ty);
+      cx.restore();
+    }
+    function effetti(ora){
+      if(S.padella) padellaInCielo(ora);
+      S.polvere=S.polvere.filter(function(d){ return ora-d.t<600; });
+      S.polvere.forEach(function(d){
+        var k=(ora-d.t)/600;
+        cx.globalAlpha=(1-k)*.45; cx.fillStyle="#D9C79A";
+        cx.beginPath(); cx.arc(d.x-d.dir*k*26, d.y-k*8, 4+k*14, 0, 7); cx.fill(); cx.globalAlpha=1;
+      });
+      S.lampi=S.lampi.filter(function(l){ return ora-l.t<130; });
+      S.lampi.forEach(function(l){
+        var k=1-(ora-l.t)/130;
+        var g=cx.createRadialGradient(l.x,l.y,0,l.x,l.y,70*k+18);
+        g.addColorStop(0,"rgba(255,242,200,"+(.9*k)+")"); g.addColorStop(1,"rgba(255,180,60,0)");
+        cx.fillStyle=g; cx.beginPath(); cx.arc(l.x,l.y,70*k+18,0,7); cx.fill();
+      });
+      S.numeri=S.numeri.filter(function(n){ return ora-n.t<900; });
+      S.numeri.forEach(function(n){
+        var k=(ora-n.t)/900;
+        cx.globalAlpha=1-k;
+        cx.font="700 "+(n.g?26:15)+"px Arial Narrow, Impact, sans-serif";
+        cx.fillStyle=n.col; cx.textAlign="center"; cx.strokeStyle="rgba(0,0,0,.55)"; cx.lineWidth=3;
+        cx.strokeText(n.txt,n.x,n.y-34*k); cx.fillText(n.txt,n.x,n.y-34*k);
+        cx.globalAlpha=1;
+      });
+    }
+    function disegnaCane(ora){
+      if(!CANE || !CANE.complete || !CANE.naturalWidth) return;
+      var t=ora-S.cane.t0, su;
+      if(t<430) su=1-Math.pow(1-t/430,3);
+      else if(t<2150) su=1;
+      else su=Math.max(0,1-(t-2150)/430);
+      if(su<=0) return;
+      var w=Math.min(W*.60,290), h=w*CANE.naturalHeight/CANE.naturalWidth, base=H-6;
+      var ride = t>430 && t<2150, f = ride ? Math.sin((t-430)/1000*7.4) : 0;
+      cx.save();
+      cx.translate(W/2, base + h*(1-su));
+      cx.rotate(f*.06); cx.scale(1-f*.045, 1+f*.055);
+      cx.drawImage(CANE, -w/2, -h, w, h);
+      cx.restore();
+      if(ride && f>.25){
+        cx.save();
+        cx.font="700 "+Math.round(w*.13)+"px Arial Narrow, Impact, sans-serif";
+        cx.textAlign="center"; cx.lineWidth=4; cx.strokeStyle="rgba(0,0,0,.6)"; cx.fillStyle="#FFE27A";
+        var tx=W/2+w*.42, ty=base-h*.86;
+        cx.strokeText("AH! AH!",tx,ty); cx.fillText("AH! AH!",tx,ty);
+        cx.restore();
+      }
+    }
+
+    /* ---------- il giro ---------- */
+    function ciclo(ora){
+      if(!acceso) return;                       // chiuso il gioco, si ferma tutto
+      requestAnimationFrame(ciclo);
+      if(!W||!H) return;
+      var dt=Math.min((ora-ultimo)/1000,.05); ultimo=ora;
+      cx.save();
+      if(S&&S.scosse>0){ cx.translate((Math.random()-.5)*S.scosse,(Math.random()-.5)*S.scosse); S.scosse*=.86; }
+      if(sfondoCache) cx.drawImage(sfondoCache,0,0,W,H);
+      if(S&&S.inCorso){
+        var vivo=S.vivi.some(function(o){ return !o.colpito; });
+        if(!vivo){
+          S.prossimo-=dt*1000;
+          if(S.prossimo<=0){ spawna(); S.prossimo=Math.max(180,620/velFattore())*(.65+Math.random()*.5); }
+        }
+        if(S.ricarica>0){
+          S.ricarica-=dt*1000;
+          el("gc-barra").style.display="block";
+          el("gc-barra").firstElementChild.style.width=(100-(S.ricarica/1400*100))+"%";
+          if(S.ricarica<=0){ S.cartucce=3; el("gc-barra").style.display="none"; aggiornaHUD(); }
+        }
+      }
+      if(S){
+        S.vivi.forEach(function(o){
+          if(!o.colpito){
+            o.x+=o.dir*o.v*dt;
+            if(Math.random()<.10) S.polvere.push({x:o.x-o.dir*o.L.alt*.5, y:o.L.y-4, dir:o.dir, t:ora});
+          }else{
+            o.cad+=dt*2.6; o.x+=o.dir*o.v*dt*Math.max(0,.35-o.cad*.35);
+          }
+          disegnaCinghiale(o,ora);
+        });
+        if(S.cane) disegnaCane(ora);
+      }
+      if(macchiaCache) cx.drawImage(macchiaCache,0,0,W,H);
+      if(S){
+        S.vivi=S.vivi.filter(function(o){
+          if(o.colpito) return o.cad<2.2;
+          var fuori = o.dir>0 ? o.x > o.L.xR + o.L.alt*1.7 : o.x < o.L.xL - o.L.alt*1.7;
+          if(fuori){ scappato(o); return false; }
+          return true;
+        });
+        effetti(ora);
+      }
+      cx.restore();
+    }
+
+    /* ---------- quadro comandi ---------- */
+    function aggiornaHUD(){
+      el("gc-punti").textContent=S.punti;
+      el("gc-molt").textContent="×"+Math.max(1,S.combo);
+      el("gc-liv").textContent="Liv. "+livello();
+      var f="", i;
+      for(i=0;i<3;i++) f+='<span class="'+(i<S.fughe?"persa":"")+'">🐾</span>';
+      el("gc-fughe").innerHTML=f;
+      var c="";
+      for(i=0;i<3;i++) c+='<div class="c '+(i<S.cartucce?"":"vuota")+'"></div>';
+      el("gc-cart").innerHTML=c;
+      el("gc-ricarica").classList.toggle("lavora", S.ricarica>0);
+    }
+
+    /* ---------- classifica ---------- */
+    function lunediDellaSettimana(){
+      var d=new Date(); var g=(d.getDay()+6)%7;
+      d.setHours(0,0,0,0); d.setDate(d.getDate()-g);
+      return d.toISOString();
+    }
+    function nomeMembroGioco(id){
+      if(me && me.membro_id===id) return me.nome;
+      var t=null;
+      if(typeof membri!=="undefined" && membri) membri.forEach(function(m){ if(m.id===id) t=m.nome; });
+      return t || "—";
+    }
+    async function salvaPunteggio(){
+      var rec=0; try{ rec=parseInt(localStorage.getItem(REC_KEY)||"0",10)||0; }catch(e){}
+      if(S.punti>rec){ try{ localStorage.setItem(REC_KEY, String(S.punti)); }catch(e2){} }
+      if(!me || !me.membro_id) return;
+      try{
+        await sb.from("hn_giochi_punteggi").insert({
+          squadra_id: me.squadra_id, membro_id: me.membro_id, gioco: "cinghiale",
+          punti: S.punti, capi: S.capi, colpi: S.colpi, livello: livello(),
+          durata_ms: Date.now()-S.inizio
+        });
+      }catch(e3){}
+    }
+    async function tabellaClassifica(){
+      if(!me || !me.squadra_id) return '<div class="gc-et">Classifica non disponibile</div>';
+      var r;
+      try{
+        r=await sb.from("hn_giochi_punteggi")
+          .select("membro_id,punti")
+          .eq("squadra_id",me.squadra_id).eq("gioco","cinghiale")
+          .gte("creato_il", lunediDellaSettimana())
+          .order("punti",{ascending:false}).limit(300);
+        if(r.error) throw r.error;
+      }catch(e){
+        var rec=0; try{ rec=parseInt(localStorage.getItem(REC_KEY)||"0",10)||0; }catch(e2){}
+        return '<div class="gc-et">Senza rete · il tuo record: '+rec+'</div>';
+      }
+      var best={}, ordine=[];
+      (r.data||[]).forEach(function(x){
+        if(best[x.membro_id]===undefined){ best[x.membro_id]=x.punti; ordine.push(x.membro_id); }
+        else if(x.punti>best[x.membro_id]) best[x.membro_id]=x.punti;
+      });
+      ordine.sort(function(a,b){ return best[b]-best[a]; });
+      if(!ordine.length) return '<div class="gc-et">Ancora nessuno ha giocato questa settimana</div>';
+      var h='<table>', n=0;
+      ordine.slice(0,10).forEach(function(id){
+        n++;
+        h+='<tr class="'+((me&&me.membro_id===id)?"io":"")+'"><td class="pos">'+n+'</td><td>'+
+           nomeMembroGioco(id)+'</td><td class="p">'+best[id]+'</td></tr>';
+      });
+      return h+'</table>';
+    }
+    async function renderSezione(){
+      var box=el("gc-sez-classifica");
+      if(!box) return;
+      box.innerHTML='<div class="gc-et" style="margin-bottom:8px">Caccia al cinghiale · classifica della settimana</div><div class="loading">Carico…</div>';
+      var h=await tabellaClassifica();
+      box.innerHTML='<div class="gc-et" style="margin-bottom:8px">Caccia al cinghiale · classifica della settimana</div>'+h;
+    }
+
+    /* ---------- fine partita ---------- */
+    function fine(){
+      S.inCorso=false;
+      el("gc-barra").style.display="none";
+      S.cane={t0:performance.now()};
+      suona("cane");
+      salvaPunteggio();
+      setTimeout(mostraTabellone,2750);
+    }
+    async function mostraTabellone(){
+      if(!S) return;
+      el("gc-f-punti").textContent=S.punti;
+      el("gc-f-capi").textContent=S.capi;
+      el("gc-f-mira").textContent=(S.colpi?Math.round(S.centri/S.colpi*100):0)+"%";
+      el("gc-f-liv").textContent=livello();
+      el("gc-f-classifica").innerHTML='<div class="loading">Carico…</div>';
+      el("gc-fine").classList.remove("gc-off");
+      el("gc-f-classifica").innerHTML=await tabellaClassifica();
+    }
+
+    /* ---------- apertura e chiusura ---------- */
+    function prepara(){
+      if(avviato) return;
+      avviato=true;
+      cv=el("gc-c"); cx=cv.getContext("2d");
+      SPRITE=el("gc-i-cinghiale"); CANE=el("gc-i-cane"); PADELLA=el("gc-i-padella");
+      if(SPRITE.complete && SPRITE.naturalWidth){ CELLA=SPRITE.naturalWidth/6; ALTO=SPRITE.naturalHeight; preparaMaschera(); }
+      SPRITE.onload=function(){ CELLA=SPRITE.naturalWidth/6; ALTO=SPRITE.naturalHeight; preparaMaschera(); dimensiona(); };
+      cv.addEventListener("pointerdown", function(e){ e.preventDefault(); spara(e.clientX,e.clientY); });
+      el("gc-bot").addEventListener("pointerdown", function(e){ e.stopPropagation(); e.preventDefault(); if(S&&S.inCorso) avviaRicarica(); });
+      el("gc-parti").onclick=function(){ accendiAudio(); el("gc-via").classList.add("gc-off"); nuovaPartita(); };
+      el("gc-ancora").onclick=function(){ el("gc-fine").classList.add("gc-off"); nuovaPartita(); };
+      el("gc-esci").onclick=chiudi;
+      el("gc-audio").onclick=function(){
+        audioSi=!audioSi; accendiAudio();
+        el("gc-audio").innerHTML = audioSi ? "&#128266;" : "&#128263;";
+      };
+      window.addEventListener("resize", function(){ if(acceso) dimensiona(); });
+    }
+    function apri(){
+      prepara();
+      el("gioco").classList.add("show");
+      acceso=true;
+      S=null;
+      el("gc-via").classList.remove("gc-off");
+      el("gc-fine").classList.add("gc-off");
+      setTimeout(function(){
+        dimensiona();
+        ultimo=performance.now();
+        requestAnimationFrame(ciclo);
+      },30);
+    }
+    function chiudi(){
+      acceso=false;                       // ferma il disegno: niente batteria consumata a vuoto
+      if(S) S.inCorso=false;
+      el("gioco").classList.remove("show");
+    }
+
+    return { apri:apri, sezione:renderSezione, chiudi:chiudi };
+  })();
+
   if(document.readyState!=="loading") init();
   else document.addEventListener("DOMContentLoaded", init);
 })();
