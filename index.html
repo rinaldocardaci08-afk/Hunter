@@ -792,12 +792,81 @@
 #gioco .gc-esiti div{text-align:center;}
 #gioco .gc-esiti b{display:block; font-family:'Arial Narrow',Impact,sans-serif; font-size:26px;}
 #gioco .gc-esiti span{font-size:9.5px; letter-spacing:2px; opacity:.6; text-transform:uppercase;}
-#gioco table, #gc-sez-classifica table{width:100%; max-width:340px; border-collapse:collapse; font-size:14px;}
-#gioco td, #gc-sez-classifica td{padding:7px 8px; border-bottom:1px solid #ffffff12;}
-#gioco tr.io td, #gc-sez-classifica tr.io td{color:var(--gold); font-weight:700; background:#e0b8781a;}
-#gioco td.p, #gc-sez-classifica td.p{text-align:right; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px;}
-#gioco td.pos, #gc-sez-classifica td.pos{width:26px; opacity:.5;}
-#gc-sez-classifica{margin-top:18px;}
+#gioco table{width:100%; max-width:340px; border-collapse:collapse; font-size:14px;}
+#gc-sez table{width:100%; border-collapse:collapse; font-size:14px;}
+#gioco td, #gc-sez td{padding:7px 8px; border-bottom:1px solid #ffffff12;}
+#gioco tr.io td, #gc-sez tr.io td{color:var(--gold); font-weight:700; background:#e0b8781a;}
+#gioco td.p, #gc-sez td.p{text-align:right; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px;}
+#gioco td.pos, #gc-sez td.pos{width:26px; opacity:.5;}
+#gc-sez{margin-top:16px; display:flex; flex-direction:column; gap:12px;}
+#gc-sez .gc-riq{background:#ffffff08; border:1px solid var(--dark3); border-radius:10px; padding:12px 12px 8px;}
+#gc-sez .gc-riq .gc-et{margin-bottom:8px; display:block;}
+#gc-sez .gc-griglia{display:grid; grid-template-columns:1fr; gap:12px;}
+@media (min-width:620px){ #gc-sez .gc-griglia{grid-template-columns:1fr 1fr;} }
+#gc-sez .gc-coppe{display:flex; gap:22px; align-items:center; margin-bottom:6px;}
+#gc-sez .gc-coppe span{font-size:22px;}
+#gc-sez .gc-coppe b{font-family:'Arial Narrow',Impact,sans-serif; font-size:26px; color:var(--gold); margin-left:6px;}
+#gc-sez .gc-elenco{font-size:12.5px; line-height:1.7; color:var(--cream); opacity:.85;}
+#gc-sez .gc-elenco b{color:var(--gold);}
+
+
+/* ================= GIOCHI · CACCIA ALL'ANATRA ================= */
+#gioco2{position:fixed; inset:0; z-index:2800; display:none; background:#0E1A14;
+  overflow:hidden; touch-action:manipulation; user-select:none; -webkit-user-select:none;}
+#gioco2.show{display:block;}
+#gioco2 img.gc-src{display:none;}
+#gioco2 canvas{position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none;}
+#ga-top{position:absolute; top:0; left:0; right:0; z-index:3;
+  padding:calc(env(safe-area-inset-top) + 8px) 12px 8px;
+  display:flex; align-items:flex-start; justify-content:space-between; pointer-events:none;
+  background:linear-gradient(#0b1422aa,#0b142200);}
+#gioco2 .gc-et{font-size:10px; letter-spacing:2.5px; opacity:.7; text-transform:uppercase;
+  color:var(--cream); text-shadow:0 1px 2px #000;}
+#ga-punti{font-family:'Arial Narrow',Impact,sans-serif; font-weight:700; font-size:38px;
+  line-height:.95; color:var(--cream); text-shadow:0 2px 3px #00000080;}
+#ga-molt{color:var(--gold); font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; text-shadow:0 1px 2px #000;}
+#ga-fughe{display:flex; gap:4px; justify-content:flex-end; margin-top:4px; font-size:16px;}
+#ga-fughe span.persa{opacity:.22; filter:grayscale(1);}
+#ga-audio{pointer-events:auto; font-size:19px; margin-top:9px; padding:5px 8px; border-radius:8px;
+  background:#00000055; border:1px solid #ffffff20; display:inline-block;}
+#ga-esci{pointer-events:auto; background:#00000066; border:1px solid #ffffff25; color:var(--cream);
+  font-size:13px; padding:7px 12px; border-radius:8px; margin-bottom:8px;}
+#ga-bot{position:absolute; left:0; right:0; bottom:0; z-index:3;
+  padding:10px 14px calc(env(safe-area-inset-bottom) + 12px);
+  display:flex; align-items:center; gap:14px; background:linear-gradient(#0b142200,#0b1422e6);}
+#ga-cart{display:flex; gap:9px; flex:1;}
+/* cartucce da calibro 12: bossolo rosso e fondello d'ottone */
+#ga-cart .c{width:100%; max-width:42px; height:34px; border-radius:5px 5px 3px 3px; position:relative;
+  background:linear-gradient(#e35c43,#a8301f); border-bottom:11px solid var(--gold);
+  box-shadow:inset 0 3px 0 #ffffff40, inset 0 -3px 0 #00000030, 0 2px 4px #00000060;}
+#ga-cart .c.vuota{background:#ffffff10; border-bottom-color:#ffffff20; box-shadow:none; opacity:.5;}
+#ga-ricarica{font-family:'Arial Narrow',Impact,sans-serif; font-size:15px; letter-spacing:2px;
+  padding:10px 14px; border:1.5px solid var(--gold); color:var(--gold); border-radius:6px; background:#00000040;}
+#ga-barra{position:absolute; left:14px; right:14px; z-index:3;
+  bottom:calc(env(safe-area-inset-bottom) + 6px); height:3px; background:#ffffff18;
+  border-radius:2px; overflow:hidden; display:none;}
+#ga-barra i{display:block; height:100%; width:0; background:var(--gold);}
+#gioco2 .gc-schermata{position:absolute; inset:0; z-index:4; display:flex; flex-direction:column;
+  align-items:center; gap:13px; padding:26px; text-align:center; color:var(--cream);
+  background:#0a1119ee; justify-content:center;}
+#gioco2 .gc-schermata.gc-off{display:none;}
+#ga-fine{justify-content:flex-start; padding-top:6vh; padding-bottom:150px; overflow-y:auto;}
+#gioco2 .gc-tit{font-family:'Arial Narrow',Impact,sans-serif; font-weight:700; letter-spacing:2px;
+  line-height:.92; font-size:clamp(32px,11vw,54px);}
+#gioco2 .gc-tit small{display:block; font-size:12px; letter-spacing:6px; opacity:.6; font-weight:400; margin-bottom:6px;}
+#gioco2 .gc-regole{font-size:14px; line-height:1.65; max-width:330px; opacity:.88;}
+#gioco2 .gc-regole b{color:#7FD948;}
+#gioco2 .gc-vai{font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; letter-spacing:3px;
+  padding:14px 36px; border-radius:8px; background:#4FA3D8; color:#06202e; border:none; font-weight:700;}
+#gioco2 .gc-esiti{display:flex; gap:24px; margin:2px 0 4px;}
+#gioco2 .gc-esiti div{text-align:center;}
+#gioco2 .gc-esiti b{display:block; font-family:'Arial Narrow',Impact,sans-serif; font-size:26px;}
+#gioco2 .gc-esiti span{font-size:9.5px; letter-spacing:2px; opacity:.6; text-transform:uppercase;}
+#gioco2 table{width:100%; max-width:340px; border-collapse:collapse; font-size:14px;}
+#gioco2 td{padding:7px 8px; border-bottom:1px solid #ffffff12;}
+#gioco2 tr.io td{color:var(--gold); font-weight:700; background:#e0b8781a;}
+#gioco2 td.p{text-align:right; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px;}
+#gioco2 td.pos{width:26px; opacity:.5;}
 
 </style>
 </head>
@@ -1484,14 +1553,13 @@
             <div class="nm">Caccia al cinghiale</div>
             <div class="ds">Tre linee, tre colpi, mira svelta</div>
           </button>
-          <button class="tile soon" data-soon="Nuovi giochi">
-            <span class="badge">presto</span>
-            <div class="ic">🕹️</div>
-            <div class="nm">Altri giochi</div>
-            <div class="ds">Se ne aggiungeranno</div>
+          <button class="tile" data-gioco="anatra">
+            <div class="ic">🦆</div>
+            <div class="nm">Caccia all'anatra</div>
+            <div class="ds">Dal laghetto, tre colpi, rosata</div>
           </button>
         </div>
-        <div id="gc-sez-classifica"></div>
+        <div id="gc-sez"></div>
       </div>
     </section>
 
@@ -1599,6 +1667,57 @@
     <div class="gc-et">Classifica della settimana</div>
     <div id="gc-f-classifica" style="width:100%; display:flex; justify-content:center"></div>
     <button class="gc-vai" id="gc-ancora">UN'ALTRA</button>
+  </div>
+</div>
+
+
+<!-- ================= GIOCO: CACCIA ALL'ANATRA ================= -->
+<div id="gioco2">
+  <canvas id="ga-c"></canvas>
+  <img class="gc-src" id="ga-i-anatre" src="anatre.png" alt="">
+
+  <div id="ga-top">
+    <div>
+      <button id="ga-esci">‹ Esci</button>
+      <div class="gc-et">Punti</div>
+      <div id="ga-punti">0</div>
+      <div id="ga-molt">×1</div>
+    </div>
+    <div style="text-align:right">
+      <div class="gc-et">Scappate</div>
+      <div id="ga-fughe"></div>
+      <div class="gc-et" style="margin-top:8px" id="ga-liv">Liv. 1</div>
+      <div id="ga-audio">&#128266;</div>
+    </div>
+  </div>
+
+  <div id="ga-bot">
+    <div id="ga-cart"></div>
+    <div id="ga-ricarica">RICARICA</div>
+  </div>
+  <div id="ga-barra"><i></i></div>
+
+  <div class="gc-schermata" id="ga-via">
+    <div class="gc-tit"><small>ZANNALUNGA</small>CACCIA ALL'ANATRA</div>
+    <div class="gc-regole">
+      Le anatre alzano dal laghetto: <b>da destra, da sinistra e dritte in su</b>.<br><br>
+      Tocca sopra per sparare. Hai <b>3 colpi</b>, poi si ricarica.<br>
+      Quella che sale di petto vale il doppio.<br>
+      <b>5 anatre scappate</b> e si torna a casa.
+    </div>
+    <button class="gc-vai" id="ga-parti">CARICA E PARTI</button>
+  </div>
+
+  <div class="gc-schermata gc-off" id="ga-fine">
+    <div class="gc-tit"><small>SI TORNA A CASA</small><span id="ga-f-punti">0</span></div>
+    <div class="gc-esiti">
+      <div><b id="ga-f-capi">0</b><span>Anatre</span></div>
+      <div><b id="ga-f-mira">0%</b><span>Mira</span></div>
+      <div><b id="ga-f-liv">1</b><span>Livello</span></div>
+    </div>
+    <div class="gc-et">Classifica della settimana</div>
+    <div id="ga-f-classifica" style="width:100%; display:flex; justify-content:center"></div>
+    <button class="gc-vai" id="ga-ancora">UN'ALTRA</button>
   </div>
 </div>
 
@@ -2275,7 +2394,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.77";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.78";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12847,7 +12966,7 @@
     });
     // GIOCHI: la piastrella apre il gioco a schermo pieno
     document.querySelectorAll("[data-gioco]").forEach(function(t){
-      t.onclick=function(){ GIOCHI.apri(); };
+      t.onclick=function(){ if(t.dataset.gioco==="anatra") GIOCHI2.apri(); else GIOCHI.apri(); };
     });
     // pulsanti "‹ Home" nelle sezioni
     document.querySelectorAll("[data-home]").forEach(function(b){
@@ -13482,11 +13601,30 @@
       el("gc-ricarica").classList.toggle("lavora", S.ricarica>0);
     }
 
-    /* ---------- classifica ---------- */
-    function lunediDellaSettimana(){
-      var d=new Date(); var g=(d.getDay()+6)%7;
-      d.setHours(0,0,0,0); d.setDate(d.getDate()-g);
-      return d.toISOString();
+    /* ---------- classifiche e trofei ----------
+       Una classifica per gioco, non una sola mescolata: un punto d'anatra
+       e un punto di cinghiale non sono la stessa moneta.
+       Settimanali (si azzerano il lunedi') + generali di sempre.
+       I trofei NON stanno in una tabella: si ricavano dallo storico dei
+       punteggi, cosi' bacheca e classifica non possono mai dire due cose
+       diverse. Si vince la settimana con almeno 3 partite in quel gioco. */
+    var MIN_PARTITE=3;
+    var NOMEGIOCO={cinghiale:"Cinghiali", anatra:"Anatre"};
+    function lunediGiochi(d){
+      var x=new Date(d), g=(x.getDay()+6)%7;
+      x.setHours(0,0,0,0); x.setDate(x.getDate()-g);
+      return x;
+    }
+    function lunediDellaSettimana(){ return lunediGiochi(new Date()).toISOString(); }
+    function chiaveSettimana(iso){
+      var x=lunediGiochi(iso);
+      return x.getFullYear()+"-"+("0"+(x.getMonth()+1)).slice(-2)+"-"+("0"+x.getDate()).slice(-2);
+    }
+    function settimanaAParole(chiave){
+      var p=chiave.split("-"), d=new Date(+p[0],+p[1]-1,+p[2]);
+      var mesi=["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio",
+                "agosto","settembre","ottobre","novembre","dicembre"];
+      return "settimana del "+d.getDate()+" "+mesi[d.getMonth()];
     }
     function nomeMembroGioco(id){
       if(me && me.membro_id===id) return me.nome;
@@ -13494,39 +13632,22 @@
       if(typeof membri!=="undefined" && membri) membri.forEach(function(m){ if(m.id===id) t=m.nome; });
       return t || "—";
     }
-    async function salvaPunteggio(){
-      var rec=0; try{ rec=parseInt(localStorage.getItem(REC_KEY)||"0",10)||0; }catch(e){}
-      if(S.punti>rec){ try{ localStorage.setItem(REC_KEY, String(S.punti)); }catch(e2){} }
+    function chiaveRecord(gioco){ return "hunter_gioco_"+gioco+"_record"; }
+
+    async function salvaPunteggio(gioco, d){
+      var k=chiaveRecord(gioco), rec=0;
+      try{ rec=parseInt(localStorage.getItem(k)||"0",10)||0; }catch(e){}
+      if(d.punti>rec){ try{ localStorage.setItem(k, String(d.punti)); }catch(e2){} }
       if(!me || !me.membro_id) return;
       try{
         await sb.from("hn_giochi_punteggi").insert({
-          squadra_id: me.squadra_id, membro_id: me.membro_id, gioco: "cinghiale",
-          punti: S.punti, capi: S.capi, colpi: S.colpi, livello: livello(),
-          durata_ms: Date.now()-S.inizio
+          squadra_id: me.squadra_id, membro_id: me.membro_id, gioco: gioco,
+          punti: d.punti, capi: d.capi, colpi: d.colpi, livello: d.livello,
+          durata_ms: d.durata
         });
       }catch(e3){}
     }
-    async function tabellaClassifica(){
-      if(!me || !me.squadra_id) return '<div class="gc-et">Classifica non disponibile</div>';
-      var r;
-      try{
-        r=await sb.from("hn_giochi_punteggi")
-          .select("membro_id,punti")
-          .eq("squadra_id",me.squadra_id).eq("gioco","cinghiale")
-          .gte("creato_il", lunediDellaSettimana())
-          .order("punti",{ascending:false}).limit(300);
-        if(r.error) throw r.error;
-      }catch(e){
-        var rec=0; try{ rec=parseInt(localStorage.getItem(REC_KEY)||"0",10)||0; }catch(e2){}
-        return '<div class="gc-et">Senza rete · il tuo record: '+rec+'</div>';
-      }
-      var best={}, ordine=[];
-      (r.data||[]).forEach(function(x){
-        if(best[x.membro_id]===undefined){ best[x.membro_id]=x.punti; ordine.push(x.membro_id); }
-        else if(x.punti>best[x.membro_id]) best[x.membro_id]=x.punti;
-      });
-      ordine.sort(function(a,b){ return best[b]-best[a]; });
-      if(!ordine.length) return '<div class="gc-et">Ancora nessuno ha giocato questa settimana</div>';
+    function tabellaDa(best, ordine){
       var h='<table>', n=0;
       ordine.slice(0,10).forEach(function(id){
         n++;
@@ -13535,21 +13656,116 @@
       });
       return h+'</table>';
     }
-    async function renderSezione(){
-      var box=el("gc-sez-classifica");
-      if(!box) return;
-      box.innerHTML='<div class="gc-et" style="margin-bottom:8px">Caccia al cinghiale · classifica della settimana</div><div class="loading">Carico…</div>';
-      var h=await tabellaClassifica();
-      box.innerHTML='<div class="gc-et" style="margin-bottom:8px">Caccia al cinghiale · classifica della settimana</div>'+h;
+    function miglioriPerMembro(righe){
+      var best={}, ordine=[];
+      righe.forEach(function(x){
+        if(best[x.membro_id]===undefined){ best[x.membro_id]=x.punti; ordine.push(x.membro_id); }
+        else if(x.punti>best[x.membro_id]) best[x.membro_id]=x.punti;
+      });
+      ordine.sort(function(a,b){ return best[b]-best[a]; });
+      return {best:best, ordine:ordine};
+    }
+    async function tabellaClassifica(gioco){
+      if(!me || !me.squadra_id) return '<div class="gc-et">Classifica non disponibile</div>';
+      var r;
+      try{
+        r=await sb.from("hn_giochi_punteggi")
+          .select("membro_id,punti")
+          .eq("squadra_id",me.squadra_id).eq("gioco",gioco)
+          .gte("creato_il", lunediDellaSettimana())
+          .order("punti",{ascending:false}).limit(300);
+        if(r.error) throw r.error;
+      }catch(e){
+        var rec=0; try{ rec=parseInt(localStorage.getItem(chiaveRecord(gioco))||"0",10)||0; }catch(e2){}
+        return '<div class="gc-et">Senza rete · il tuo record: '+rec+'</div>';
+      }
+      var m=miglioriPerMembro(r.data||[]);
+      if(!m.ordine.length) return '<div class="gc-et">Ancora nessuno ha giocato questa settimana</div>';
+      return tabellaDa(m.best, m.ordine);
     }
 
+    function riquadro(titolo, dentro){
+      return '<div class="gc-riq"><div class="gc-et">'+titolo+'</div>'+dentro+'</div>';
+    }
+    async function renderSezione(){
+      var box=el("gc-sez");
+      if(!box) return;
+      box.innerHTML='<div class="loading">Carico…</div>';
+      if(!me || !me.squadra_id){ box.innerHTML='<div class="gc-et">Classifiche non disponibili</div>'; return; }
+      var r;
+      try{
+        r=await sb.from("hn_giochi_punteggi")
+          .select("membro_id,gioco,punti,creato_il")
+          .eq("squadra_id",me.squadra_id)
+          .order("creato_il",{ascending:false}).limit(3000);
+        if(r.error) throw r.error;
+      }catch(e){
+        var s1=0,s2=0;
+        try{ s1=parseInt(localStorage.getItem(chiaveRecord("cinghiale"))||"0",10)||0;
+             s2=parseInt(localStorage.getItem(chiaveRecord("anatra"))||"0",10)||0; }catch(e2){}
+        box.innerHTML=riquadro("Senza rete","<div style='font-size:13px;opacity:.8'>I tuoi record sul telefono — cinghiali "+s1+" · anatre "+s2+"</div>");
+        return;
+      }
+      var righe=r.data||[], oggi=chiaveSettimana(new Date());
+      var settimana={}, sempre={}, conta={}, punteggi={};
+      righe.forEach(function(x){
+        var k=chiaveSettimana(x.creato_il), g=x.gioco||"cinghiale";
+        (sempre[g]=sempre[g]||[]).push(x);
+        if(k===oggi) (settimana[g]=settimana[g]||[]).push(x);
+        var kk=k+"|"+g;
+        conta[kk]=conta[kk]||{};
+        conta[kk][x.membro_id]=(conta[kk][x.membro_id]||0)+1;
+        punteggi[kk]=punteggi[kk]||{};
+        if(punteggi[kk][x.membro_id]===undefined || x.punti>punteggi[kk][x.membro_id])
+          punteggi[kk][x.membro_id]=x.punti;
+      });
+      // TROFEI: settimane gia' chiuse, almeno MIN_PARTITE partite, punteggio piu' alto
+      var miei=[];
+      Object.keys(conta).forEach(function(kk){
+        var p=kk.split("|"), sett=p[0], g=p[1];
+        if(sett===oggi) return;                 // la settimana in corso non e' finita
+        var vincitore=null, top=-1;
+        Object.keys(punteggi[kk]).forEach(function(id){
+          if(conta[kk][id] < MIN_PARTITE) return;
+          if(punteggi[kk][id] > top){ top=punteggi[kk][id]; vincitore=id; }
+        });
+        if(vincitore && me && vincitore===me.membro_id) miei.push({sett:sett, gioco:g, punti:top});
+      });
+      miei.sort(function(a,b){ return a.sett<b.sett?1:-1; });
+      var cin=miei.filter(function(t){ return t.gioco==="cinghiale"; }).length;
+      var ana=miei.filter(function(t){ return t.gioco==="anatra"; }).length;
+      var htrofei='<div class="gc-coppe"><div><span>🏆🐗</span><b>'+cin+'</b></div>'+
+                  '<div><span>🏆🦆</span><b>'+ana+'</b></div></div>';
+      if(miei.length){
+        htrofei+='<div class="gc-elenco">'+miei.slice(0,8).map(function(t){
+          return '<div>'+(t.gioco==="anatra"?"🦆":"🐗")+' '+NOMEGIOCO[t.gioco]+' · '+
+                 settimanaAParole(t.sett)+' <b>'+t.punti+'</b></div>'; }).join("")+'</div>';
+      }else{
+        htrofei+='<div class="gc-elenco"><div>Nessun trofeo ancora. Si vince la settimana con almeno '+
+                 MIN_PARTITE+' partite in quel gioco.</div></div>';
+      }
+      function blocco(dati){
+        if(!dati || !dati.length) return '<div class="gc-et" style="opacity:.5">Nessuno ancora</div>';
+        var m=miglioriPerMembro(dati);
+        return tabellaDa(m.best, m.ordine);
+      }
+      box.innerHTML =
+        riquadro("🏆 Bacheca trofei personali", htrofei)+
+        '<div class="gc-griglia">'+
+          riquadro("Classifica settimanale · Cinghiali", blocco(settimana.cinghiale))+
+          riquadro("Classifica settimanale · Anatre",    blocco(settimana.anatra))+
+          riquadro("Classifica generale · Cinghiali",    blocco(sempre.cinghiale))+
+          riquadro("Classifica generale · Anatre",       blocco(sempre.anatra))+
+        '</div>';
+    }
     /* ---------- fine partita ---------- */
     function fine(){
       S.inCorso=false;
       el("gc-barra").style.display="none";
       S.cane={t0:performance.now()};
       suona("cane");
-      salvaPunteggio();
+      salvaPunteggio("cinghiale", {punti:S.punti, capi:S.capi, colpi:S.colpi,
+                                   livello:livello(), durata:Date.now()-S.inizio});
       setTimeout(mostraTabellone,2750);
     }
     async function mostraTabellone(){
@@ -13560,7 +13776,7 @@
       el("gc-f-liv").textContent=livello();
       el("gc-f-classifica").innerHTML='<div class="loading">Carico…</div>';
       el("gc-fine").classList.remove("gc-off");
-      el("gc-f-classifica").innerHTML=await tabellaClassifica();
+      el("gc-f-classifica").innerHTML=await tabellaClassifica("cinghiale");
     }
 
     /* ---------- apertura e chiusura ---------- */
@@ -13624,7 +13840,491 @@
       el("gioco").classList.remove("show");
     }
 
-    return { apri:apri, sezione:renderSezione, chiudi:chiudi };
+    return { apri:apri, sezione:renderSezione, chiudi:chiudi,
+             classifica:tabellaClassifica, salva:salvaPunteggio };
+  })();
+
+
+  /* ================= GIOCHI · CACCIA ALL'ANATRA =================
+     Stesso impianto del cinghiale, chiuso in un involucro suo:
+     fuori escono solo GIOCHI2.apri e GIOCHI2.chiudi. */
+  var GIOCHI2 = (function(){
+
+var cvA=null, cxA=null;                 // presi quando si apre il gioco, non prima
+var ANATREA=null, CANEA=null;
+var WA=0,HA=0,DPRA=1, ORIZZONTEA=0, sfondoCacheA=null, canneCacheA=null;
+var CELLAA=251, ALTOA=170, POSEA=5;            // 5 caselle: 4 di lato + 1 di petto
+var VOLOA=[4,2,0,1];                          // battuta d'ali: giu' - mezzo - su - mezzo
+var PETTOA=3;
+var MASCHERAA=null, MWA=0, MHA=0;
+var SA=null, ultimoA=0;
+
+function elA(i){ return document.getElementById(i); }
+function semeA(n){ var s=n*9301+49297; return function(){ s=(s*9301+49297)%233280; return s/233280; }; }
+
+/* ---------- misure ---------- */
+function dimensionaA(){
+  DPRA=Math.min(window.devicePixelRatio||1,2.5);
+  WA=cvA.clientWidth; HA=cvA.clientHeight;
+  if(!WA||!HA) return;
+  cvA.width=Math.round(WA*DPRA); cvA.height=Math.round(HA*DPRA);
+  cxA.setTransform(DPRA,0,0,DPRA,0,0);
+  ORIZZONTEA=HA*.60;
+  sfondoCacheA=disegnaSfondoA(); canneCacheA=disegnaCanneA();
+}
+function telaA(){
+  var t=document.createElement('canvas');
+  t.width=Math.round(WA*DPRA); t.height=Math.round(HA*DPRA);
+  var g=t.getContext('2d'); g.setTransform(DPRA,0,0,DPRA,0,0);
+  return {t:t,g:g};
+}
+function misuraSpriteA(){
+  if(!ANATREA.naturalWidth) return;
+  CELLAA=ANATREA.naturalWidth/POSEA; ALTOA=ANATREA.naturalHeight;
+  try{
+    var t=document.createElement('canvas'); t.width=ANATREA.naturalWidth; t.height=ALTOA;
+    var g=t.getContext('2d'); g.drawImage(ANATREA,0,0);
+    var d=g.getImageData(0,0,t.width,t.height).data;
+    MWA=t.width; MHA=t.height; MASCHERAA=new Uint8Array(MWA*MHA);
+    for(var i=0,j=3;i<MASCHERAA.length;i++,j+=4) MASCHERAA[i]=d[j];
+  }catch(e){ MASCHERAA=null; }
+}
+
+/* ---------- il laghetto ---------- */
+function disegnaSfondoA(){
+  var o=telaA(), t=o.t, g=o.g, x, n;
+  var cielo=g.createLinearGradient(0,0,0,ORIZZONTEA);
+  cielo.addColorStop(0,'#1E5C93'); cielo.addColorStop(.55,'#6FA9D2'); cielo.addColorStop(1,'#CBD9C8');
+  g.fillStyle=cielo; g.fillRect(0,0,WA,ORIZZONTEA);
+  // sole basso
+  var sole=g.createRadialGradient(WA*.76,ORIZZONTEA*.42,0,WA*.76,ORIZZONTEA*.42,HA*.20);
+  sole.addColorStop(0,'rgba(255,238,190,.95)'); sole.addColorStop(1,'rgba(255,220,150,0)');
+  g.fillStyle=sole; g.beginPath(); g.arc(WA*.76,ORIZZONTEA*.42,HA*.20,0,7); g.fill();
+  // nuvole
+  var r=semeA(5); g.fillStyle='rgba(255,255,255,.75)';
+  for(n=0;n<4;n++){
+    var cxn=r()*WA, cyn=ORIZZONTEA*(.10+r()*.35), sc=.45+r()*.8;
+    [[0,0,24],[20,5,18],[-22,6,17],[7,-11,15]].forEach(function(p){
+      g.beginPath(); g.arc(cxn+p[0]*sc, cyn+p[1]*sc, p[2]*sc, 0, 7); g.fill(); });
+  }
+  // colline dietro il lago
+  g.fillStyle='#3E6B47';
+  g.beginPath(); g.moveTo(0,ORIZZONTEA);
+  for(x=0;x<=WA;x+=WA/9) g.lineTo(x, ORIZZONTEA - 26 - Math.sin(x/WA*5.2)*22);
+  g.lineTo(WA,ORIZZONTEA); g.closePath(); g.fill();
+  g.fillStyle='#2E5238';
+  g.beginPath(); g.moveTo(0,ORIZZONTEA);
+  for(x=0;x<=WA;x+=WA/7) g.lineTo(x, ORIZZONTEA - 10 - Math.sin(2+x/WA*4.1)*12);
+  g.lineTo(WA,ORIZZONTEA); g.closePath(); g.fill();
+  // acqua
+  var acqua=g.createLinearGradient(0,ORIZZONTEA,0,HA);
+  acqua.addColorStop(0,'#2C5F7A'); acqua.addColorStop(.5,'#22506A'); acqua.addColorStop(1,'#173C52');
+  g.fillStyle=acqua; g.fillRect(0,ORIZZONTEA,WA,HA-ORIZZONTEA);
+  // riflesso del sole e increspature
+  var q=semeA(17);
+  g.fillStyle='rgba(255,235,180,.20)';
+  for(n=0;n<16;n++){
+    var yy=ORIZZONTEA+2+n*((HA-ORIZZONTEA)/16), lw=(WA*.16)*(1-n/22);
+    g.fillRect(WA*.76-lw/2+(q()-.5)*18, yy, lw, 2.4);
+  }
+  g.fillStyle='rgba(255,255,255,.13)';
+  for(n=0;n<40;n++){
+    var yy2=ORIZZONTEA+4+q()*(HA-ORIZZONTEA-8);
+    g.fillRect(q()*WA, yy2, 10+q()*46, 1.6);
+  }
+  return t;
+}
+function cannaA(g,x,alt,r){
+  var piega=(r()-.5)*alt*.22;
+  g.strokeStyle='#2F5B2A'; g.lineWidth=3.2;
+  g.beginPath(); g.moveTo(x,6); g.quadraticCurveTo(x+piega*.5,-alt*.55, x+piega,-alt); g.stroke();
+  // foglie
+  g.strokeStyle='#3F7A32'; g.lineWidth=2.6;
+  [.35,.6].forEach(function(f){
+    var lato=r()<.5?1:-1;
+    g.beginPath(); g.moveTo(x+piega*f,-alt*f);
+    g.quadraticCurveTo(x+piega*f+lato*alt*.28, -alt*(f+.18), x+piega*f+lato*alt*.42, -alt*(f+.05));
+    g.stroke();
+  });
+  if(r()<.55){                       // la pannocchia della tifa
+    g.fillStyle='#6B4A24';
+    g.beginPath(); g.ellipse(x+piega,-alt-alt*.06, 3.4, alt*.12, 0,0,7); g.fill();
+  }
+}
+function disegnaCanneA(){
+  var o=telaA(), t=o.t, g=o.g;
+  var base=HA-8, r=semeA(29);
+  var varco=Math.min(WA*.60,290)*.46;      // il varco da cui esce il cane
+  g.save(); g.translate(0,base);
+  for(var x=-10;x<WA+10;x+=9+r()*8){
+    if(Math.abs(x-WA/2)<varco) continue;   // qui le canne si aprono
+    cannaA(g,x, (40+r()*70)*Math.min(Math.max(WA/420,.7),1.3), r);
+  }
+  g.restore();
+  // ciuffo basso davanti al cane
+  g.save(); g.translate(0,base+8);
+  for(var x2=WA/2-varco-16;x2<WA/2+varco+16;x2+=8+r()*7) cannaA(g,x2,(16+r()*16),r);
+  g.restore();
+  return t;
+}
+
+/* ---------- l'anatra ---------- */
+function disegnaAnatraA(o,ora){
+  if(!ANATREA.complete||!ANATREA.naturalWidth) return;
+  var s=o.scala, larg=CELLAA*s, alt=ALTOA*s;
+  var posa;
+  if(o.tipo==='su') posa=PETTOA;
+  else posa=VOLOA[Math.floor(ora/(110/velFattoreA()))%VOLOA.length];
+  if(o.colpitaA) posa=VOLOA[0];
+  o.posa=posa;
+  cxA.save();
+  cxA.translate(o.x,o.y);
+  if(o.colpitaA){
+    cxA.rotate(o.dir*Math.min(o.cad*2.2,1)*1.9);        // ruota a testa in giu' e precipita
+  }
+  cxA.scale(o.dir,1);
+  cxA.drawImage(ANATREA, posa*CELLAA, 0, CELLAA, ALTOA, -larg/2, -alt/2, larg, alt);
+  cxA.restore();
+}
+function colpitaA(o,x,y){
+  var s=o.scala, larg=CELLAA*s, alt=ALTOA*s;
+  var dx=(x-o.x)*o.dir, dy=y-o.y;
+  var u=(dx/larg+.5)*CELLAA, v=(dy/alt+.5)*ALTOA;
+  if(!MASCHERAA) return Math.abs(dx)<larg*.40 && Math.abs(dy)<alt*.40;
+  var tol=11/s, ox=[0,tol,-tol,0,0], oy=[0,0,0,tol,-tol];
+  for(var i=0;i<5;i++){
+    var uu=Math.round(u+ox[i]), vv=Math.round(v+oy[i]);
+    if(uu<0||vv<0||uu>=CELLAA||vv>=MHA) continue;
+    if(MASCHERAA[vv*MWA+Math.round((o.posa||0)*CELLAA+uu)]>40) return true;
+  }
+  return false;
+}
+
+/* ---------- suoni ---------- */
+var ACA=null, audioSiA=true;
+function accendiAudioA(){
+  if(!ACA){ try{ ACA=new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ ACA=null; } }
+  if(ACA&&ACA.state==='suspended') ACA.resume();
+}
+function rumoreA(dur){
+  var n=Math.max(1,Math.floor(ACA.sampleRate*dur)), b=ACA.createBuffer(1,n,ACA.sampleRate), d=b.getChannelData(0);
+  for(var i=0;i<n;i++) d[i]=(Math.random()*2-1)*(1-i/n);
+  var s=ACA.createBufferSource(); s.buffer=b; return s;
+}
+function notaA(tipo,f0,f1,dur,vol,t0){
+  var o=ACA.createOscillator(), g=ACA.createGain(), t=t0||ACA.currentTime;
+  o.type=tipo; o.frequency.setValueAtTime(f0,t);
+  if(f1!==f0) o.frequency.exponentialRampToValueAtTime(Math.max(20,f1),t+dur);
+  g.gain.setValueAtTime(vol,t); g.gain.exponentialRampToValueAtTime(.0008,t+dur);
+  o.connect(g); g.connect(ACA.destination); o.start(t); o.stop(t+dur+.02);
+}
+function suonaA(che){
+  if(!audioSiA||!ACA) return;
+  var t=ACA.currentTime, s,f,g;
+  if(che==='sparo'){
+    s=rumoreA(.24); f=ACA.createBiquadFilter(); g=ACA.createGain();
+    f.type='lowpass'; f.frequency.setValueAtTime(2800,t); f.frequency.exponentialRampToValueAtTime(300,t+.2);
+    g.gain.setValueAtTime(.8,t); g.gain.exponentialRampToValueAtTime(.001,t+.24);
+    s.connect(f); f.connect(g); g.connect(ACA.destination); s.start(t); s.stop(t+.26);
+    notaA('sine',140,40,.2,.55,t);
+  }
+  else if(che==='qua'){ notaA('sawtooth',430,300,.10,.16,t); notaA('sawtooth',380,260,.10,.14,t+.14); }
+  else if(che==='tonfo'){ notaA('sine',260,70,.2,.4,t); }
+  else if(che==='plof'){
+    s=rumoreA(.3); f=ACA.createBiquadFilter(); g=ACA.createGain();
+    f.type='bandpass'; f.frequency.setValueAtTime(700,t); f.frequency.exponentialRampToValueAtTime(180,t+.28);
+    g.gain.setValueAtTime(.5,t); g.gain.exponentialRampToValueAtTime(.001,t+.3);
+    s.connect(f); f.connect(g); g.connect(ACA.destination); s.start(t); s.stop(t+.32);
+  }
+  else if(che==='ricarica'){
+    [0,.19].forEach(function(d){
+      var s2=rumoreA(.05), g2=ACA.createGain(), f2=ACA.createBiquadFilter();
+      f2.type='bandpass'; f2.frequency.value=2100;
+      g2.gain.setValueAtTime(.5,t+d); g2.gain.exponentialRampToValueAtTime(.001,t+d+.05);
+      s2.connect(f2); f2.connect(g2); g2.connect(ACA.destination); s2.start(t+d); s2.stop(t+d+.06); });
+  }
+  else if(che==='fuga'){ notaA('sawtooth',380,140,.4,.14,t); }
+  else if(che==='cane'){ for(var i=0;i<7;i++) notaA('square', i%2?720:520, i%2?640:470, .07,.16, t+.5+i*.13); }
+}
+
+/* ---------- partita ---------- */
+function velFattoreA(){ return Math.min(1.15*Math.pow(1.165, livelloA()-1), 3.4); }
+function livelloA(){ return Math.floor(SA.capi/5)+1; }
+function nuovaPartitaA(){
+  SA={ vivi:[], punti:0, capi:0, colpi:0, centri:0, fughe:0, combo:0, cartucce:3,
+      ricarica:0, prossimo:300, scosse:0, lampi:[], numeri:[], piume:[], rosate:[],
+      onde:[], cane:null, inizio:Date.now(), inCorso:true };
+  elA('ga-fine').classList.add('gc-off');
+  aggiornaHUDA();
+}
+function spawnaA(){
+  var k=Math.min(Math.max(WA/420,.62),1.4), r=Math.random();
+  var o={ colpitaA:false, cad:0, t:Math.random()*6 };
+  if(r<.30){                                   // di petto, dritta in su
+    o.tipo='su'; o.scala=(96*k)/ALTOA; o.dir=1;
+    o.x=WA*(.2+Math.random()*.6); o.y=HA*.92;
+    o.vx=0; o.vy=-HA*.30*velFattoreA(); o.amp=34; o.pt=40;
+  }else{
+    o.tipo='lato'; o.scala=(84*k)/ALTOA;
+    var daSx=Math.random()<.5;
+    o.dir=daSx?1:-1;
+    o.x=daSx?-CELLAA*o.scala:WA+CELLAA*o.scala;
+    o.y=HA*(.14+Math.random()*.34);
+    o.vx=o.dir*WA*.29*velFattoreA()*(.85+Math.random()*.3);
+    o.vy=0; o.amp=26+Math.random()*34; o.pt=20;
+  }
+  o.y0=o.y;
+  SA.vivi.push(o);
+  suonaA('qua');
+}
+function sparaA(x,y){
+  if(!SA||!SA.inCorso) return;
+  if(SA.cartucce<=0){ if(SA.ricarica<=0) avviaRicaricaA(); return; }
+  suonaA('sparo'); SA.cartucce--; SA.colpi++; SA.scosse=7;
+  SA.lampi.push({x:x,y:y,t:performance.now()});
+  var presa=null;
+  SA.vivi.forEach(function(o){ if(!presa && !o.colpitaA && colpitaA(o,x,y)) presa=o; });
+  if(presa){
+    suonaA('tonfo'); presa.colpitaA=true; SA.capi++; SA.centri++;
+    SA.combo=Math.min(SA.combo+1,3);
+    // la rosata che impatta
+    SA.rosate.push({x:x,y:y,t:performance.now(),ang:Math.random()*6,sc:Math.min(Math.max(WA/420,.8),1.5)});
+    for(var n=0;n<7;n++) SA.piume.push({x:presa.x+(Math.random()-.5)*40, y:presa.y+(Math.random()-.5)*30,
+      vx:(Math.random()-.5)*40, vy:-10-Math.random()*30, t:performance.now(), r:Math.random()*6});
+    var p=presa.pt*Math.max(1,SA.combo);
+    SA.punti+=p;
+    SA.numeri.push({txt:'+'+p+(presa.tipo==='su'?' DI PETTOA':''), x:presa.x, y:presa.y-40,
+      col:presa.tipo==='su'?'#FFE27A':'#F2EDE1', g:true, t:performance.now()});
+  }else{
+    SA.combo=0;
+    SA.numeri.push({txt:'PADELLA', x:x, y:y, col:'#FF6A55', g:false, t:performance.now()});
+  }
+  if(SA.cartucce===0) avviaRicaricaA();
+  aggiornaHUDA();
+}
+function avviaRicaricaA(){ if(SA.cartucce<3 && SA.ricarica<=0){ SA.ricarica=1400; suonaA('ricarica'); } }
+function scappataA(o){
+  SA.combo=0; SA.fughe++; suonaA('fuga');
+  SA.numeri.push({txt:'SCAPPATA', x:Math.min(Math.max(o.x,60),WA-60), y:Math.max(o.y,60), col:'#FF6A55', g:false, t:performance.now()});
+  aggiornaHUDA();
+  if(SA.fughe>=5) fineA();
+}
+
+/* ---------- effettiA ---------- */
+function effettiA(ora){
+  // rosata: i pallini che impattano
+  SA.rosate=SA.rosate.filter(function(r){ return ora-r.t<1100; });
+  SA.rosate.forEach(function(r){
+    var e=(ora-r.t)/1100;                       // 0 = appena sparato, 1 = sparita
+    var apri=Math.min(1,e*4.2);                 // si apre in fretta, poi resta ferma
+    var rag=(14+apri*46)*r.sc;
+    cxA.globalAlpha = e<.55 ? 1 : 1-(e-.55)/.45; // resta piena per mezzo secondo
+    for(var i=0;i<18;i++){
+      var a=r.ang+i*.349, d=rag*(.45+((i*37)%13)/14);
+      var px=r.x+Math.cos(a)*d, py=r.y+Math.sin(a)*d;
+      cxA.fillStyle='rgba(255,240,190,.85)';     // alone caldo dietro il pallino
+      cxA.beginPath(); cxA.arc(px,py,(5.2-apri*1.4)*r.sc,0,7); cxA.fill();
+      cxA.fillStyle=i%3?'#1E1E1E':'#5A5A5A';
+      cxA.beginPath(); cxA.arc(px,py,(3.4-apri*.9)*r.sc,0,7); cxA.fill();
+    }
+    cxA.strokeStyle='rgba(255,236,170,'+(1-e)*.85+')'; cxA.lineWidth=3.2*r.sc;
+    cxA.beginPath(); cxA.arc(r.x,r.y,rag*.86,0,7); cxA.stroke();
+    cxA.strokeStyle='rgba(255,255,255,'+(1-e)*.5+')'; cxA.lineWidth=1.6*r.sc;
+    cxA.beginPath(); cxA.arc(r.x,r.y,rag*.55,0,7); cxA.stroke();
+    cxA.globalAlpha=1;
+  });
+  // piume
+  SA.piume=SA.piume.filter(function(p){ return ora-p.t<1600; });
+  SA.piume.forEach(function(p){
+    var k=(ora-p.t)/1600;
+    cxA.save(); cxA.globalAlpha=1-k;
+    cxA.translate(p.x+p.vx*k+Math.sin(k*9+p.r)*12, p.y+p.vy*k+k*k*160);
+    cxA.rotate(Math.sin(k*7+p.r)*.8);
+    cxA.fillStyle='#E8DFC8';
+    cxA.beginPath(); cxA.ellipse(0,0,7,2.6,0,0,7); cxA.fill();
+    cxA.restore();
+  });
+  // onde sull'acqua
+  SA.onde=SA.onde.filter(function(w){ return ora-w.t<1200; });
+  SA.onde.forEach(function(w){
+    var k=(ora-w.t)/1200;
+    cxA.strokeStyle='rgba(255,255,255,'+(1-k)*.5+')'; cxA.lineWidth=2;
+    cxA.beginPath(); cxA.ellipse(w.x, w.y, 8+k*54, (8+k*54)*.28, 0,0,7); cxA.stroke();
+  });
+  // lampi di sparo
+  SA.lampi=SA.lampi.filter(function(l){ return ora-l.t<130; });
+  SA.lampi.forEach(function(l){
+    var k=1-(ora-l.t)/130;
+    var g=cxA.createRadialGradient(l.x,l.y,0,l.x,l.y,70*k+18);
+    g.addColorStop(0,'rgba(255,242,200,'+(.9*k)+')'); g.addColorStop(1,'rgba(255,180,60,0)');
+    cxA.fillStyle=g; cxA.beginPath(); cxA.arc(l.x,l.y,70*k+18,0,7); cxA.fill();
+  });
+  // scritte
+  SA.numeri=SA.numeri.filter(function(n){ return ora-n.t<900; });
+  SA.numeri.forEach(function(n){
+    var k=(ora-n.t)/900;
+    cxA.globalAlpha=1-k;
+    cxA.font='700 '+(n.g?25:15)+'px Arial Narrow, Impact, sans-serif';
+    cxA.fillStyle=n.col; cxA.textAlign='center'; cxA.strokeStyle='rgba(0,0,0,.55)'; cxA.lineWidth=3;
+    cxA.strokeText(n.txt,n.x,n.y-34*k); cxA.fillText(n.txt,n.x,n.y-34*k);
+    cxA.globalAlpha=1;
+  });
+}
+function disegnaCaneA(ora){
+  if(!CANEA.complete||!CANEA.naturalWidth) return;
+  var t=ora-SA.cane.t0, su;
+  if(t<430) su=1-Math.pow(1-t/430,3);
+  else if(t<2150) su=1;
+  else su=Math.max(0,1-(t-2150)/430);
+  if(su<=0) return;
+  var w=Math.min(WA*.60,290), h=w*CANEA.naturalHeight/CANEA.naturalWidth, base=HA-4;
+  var ride=t>430&&t<2150, f=ride?Math.sin((t-430)/1000*7.4):0;
+  cxA.save();
+  cxA.translate(WA/2, base+h*(1-su));
+  cxA.rotate(f*.06); cxA.scale(1-f*.045,1+f*.055);
+  cxA.drawImage(CANEA,-w/2,-h,w,h);
+  cxA.restore();
+  if(ride&&f>.25){
+    cxA.save();
+    cxA.font='700 '+Math.round(w*.13)+'px Arial Narrow, Impact, sans-serif';
+    cxA.textAlign='center'; cxA.lineWidth=4; cxA.strokeStyle='rgba(0,0,0,.6)'; cxA.fillStyle='#FFE27A';
+    cxA.strokeText('AH! AH!',WA/2+w*.42,base-h*.86); cxA.fillText('AH! AH!',WA/2+w*.42,base-h*.86);
+    cxA.restore();
+  }
+}
+
+/* ---------- il giro ---------- */
+function cicloA(ora){
+  if(!accesoA) return;                        // chiuso il gioco, si ferma tutto
+  requestAnimationFrame(cicloA);
+  if(!WA||!HA) return;
+  var dt=Math.min((ora-ultimoA)/1000,.05); ultimoA=ora;
+  cxA.save();
+  if(SA&&SA.scosse>0){ cxA.translate((Math.random()-.5)*SA.scosse,(Math.random()-.5)*SA.scosse); SA.scosse*=.86; }
+  if(sfondoCacheA) cxA.drawImage(sfondoCacheA,0,0,WA,HA);
+  if(SA&&SA.inCorso){
+    if(!SA.vivi.some(function(o){ return !o.colpitaA; })){
+      SA.prossimo-=dt*1000;
+      if(SA.prossimo<=0){ spawnaA(); SA.prossimo=Math.max(200,700/velFattoreA())*(.7+Math.random()*.5); }
+    }
+    if(SA.ricarica>0){
+      SA.ricarica-=dt*1000;
+      elA('ga-barra').style.display='block';
+      elA('ga-barra').firstElementChild.style.width=(100-(SA.ricarica/1400*100))+'%';
+      if(SA.ricarica<=0){ SA.cartucce=3; elA('ga-barra').style.display='none'; aggiornaHUDA(); }
+    }
+  }
+  if(SA){
+    SA.vivi.forEach(function(o){
+      if(!o.colpitaA){
+        o.t+=dt;
+        if(o.tipo==='su'){ o.y+=o.vy*dt; o.x+=Math.cos(o.t*3)*o.amp*dt; }
+        else { o.x+=o.vx*dt; o.y=o.y0+Math.sin(o.t*2.3)*o.amp; }
+      }else{
+        o.cad+=dt;
+        o.y+=(60+o.cad*520)*dt;                 // precipita
+        o.x+=o.vx*dt*.15;
+      }
+      disegnaAnatraA(o,ora);
+    });
+    if(SA.cane) disegnaCaneA(ora);
+  }
+  if(canneCacheA) cxA.drawImage(canneCacheA,0,0,WA,HA);
+  if(SA){
+    SA.vivi=SA.vivi.filter(function(o){
+      if(o.colpitaA){
+        if(o.y>ORIZZONTEA+(HA-ORIZZONTEA)*.35){
+          SA.onde.push({x:o.x,y:o.y,t:ora}); suonaA('plof');
+          return false;
+        }
+        return true;
+      }
+      var fuori = o.tipo==='su' ? (o.y < -ALTOA*o.scala)
+                : (o.dir>0 ? o.x > WA+CELLAA*o.scala : o.x < -CELLAA*o.scala);
+      if(fuori){ scappataA(o); return false; }
+      return true;
+    });
+    effettiA(ora);
+  }
+  cxA.restore();
+}
+
+/* ---------- quadro ---------- */
+function aggiornaHUDA(){
+  elA('ga-punti').textContent=SA.punti;
+  elA('ga-molt').textContent='×'+Math.max(1,SA.combo);
+  elA('ga-liv').textContent='Liv. '+livelloA();
+  var f='',i;
+  for(i=0;i<5;i++) f+='<span class="'+(i<SA.fughe?'persa':'')+'">🦆</span>';
+  elA('ga-fughe').innerHTML=f;
+  var c='';
+  for(i=0;i<3;i++) c+='<div class="c '+(i<SA.cartucce?'':'vuota')+'"></div>';
+  elA('ga-cart').innerHTML=c;
+  elA('ga-ricarica').classList.toggle('lavora',SA.ricarica>0);
+}
+function fineA(){
+  SA.inCorso=false; elA('ga-barra').style.display='none';
+  SA.cane={t0:performance.now()}; suonaA('cane');
+  GIOCHI.salva("anatra", {punti:SA.punti, capi:SA.capi, colpi:SA.colpi,
+                          livello:livelloA(), durata:Date.now()-SA.inizio});
+  setTimeout(async function(){
+    elA('ga-f-punti').textContent=SA.punti;
+    elA('ga-f-capi').textContent=SA.capi;
+    elA('ga-f-mira').textContent=(SA.colpi?Math.round(SA.centri/SA.colpi*100):0)+'%';
+    elA('ga-f-liv').textContent=livelloA();
+    var finti=[['Peppe',980],['Mimmo',720],['Saverio',600],['Nino',430],['Turi',300]];
+    var righe=finti.concat([['TU',SA.punti]]).sort(function(a,b){ return b[1]-a[1]; }).slice(0,6);
+    elA('ga-f-classifica').innerHTML=righe.map(function(r,i){
+      return '<tr class="'+(r[0]==='TU'?'io':'')+'"><td class="pos">'+(i+1)+'</td><td>'+r[0]+'</td><td class="p">'+r[1]+'</td></tr>';
+    }).join('');
+    elA('ga-fine').classList.remove('gc-off');
+  },2750);
+}
+
+/* ---------- apertura e chiusura ---------- */
+  var accesoA=false, prontoA=false;
+  function preparaA(){
+    if(prontoA) return;
+    prontoA=true;
+    cvA=elA('ga-c'); cxA=cvA.getContext('2d');
+    ANATREA=elA('ga-i-anatre'); CANEA=elA('gc-i-cane');
+    if(ANATREA.complete) misuraSpriteA();
+    ANATREA.onload=function(){ misuraSpriteA(); dimensionaA(); };
+    cvA.addEventListener('pointerdown',function(e){ e.preventDefault(); sparaA(e.clientX,e.clientY); });
+    elA('ga-bot').addEventListener('pointerdown',function(e){ e.stopPropagation(); e.preventDefault(); if(SA&&SA.inCorso) avviaRicaricaA(); });
+    elA('ga-parti').onclick=function(){ accendiAudioA(); elA('ga-via').classList.add('gc-off'); nuovaPartitaA(); };
+    elA('ga-ancora').onclick=function(){ elA('ga-fine').classList.add('gc-off'); nuovaPartitaA(); };
+    elA('ga-esci').onclick=chiudiA;
+    elA('ga-audio').onclick=function(){ audioSiA=!audioSiA; accendiAudioA();
+      elA('ga-audio').innerHTML=audioSiA?'&#128266;':'&#128263;'; };
+    /* niente zoom mentre si gioca: il meta viewport non basta su iPhone */
+    var boxA=document.getElementById('gioco2');
+    ['gesturestart','gesturechange','gestureend'].forEach(function(ev){
+      boxA.addEventListener(ev,function(e){ e.preventDefault(); },{passive:false}); });
+    boxA.addEventListener('touchstart',function(e){ if(e.touches.length>1) e.preventDefault(); },{passive:false});
+    boxA.addEventListener('touchmove', function(e){ if(e.touches.length>1) e.preventDefault(); },{passive:false});
+    var ultimoToccoA=0;
+    cvA.addEventListener('touchend',function(e){
+      var t=Date.now(); if(t-ultimoToccoA<350) e.preventDefault(); ultimoToccoA=t; },{passive:false});
+    window.addEventListener('resize',function(){ if(accesoA) dimensionaA(); });
+    if(window.visualViewport) window.visualViewport.addEventListener('resize',function(){ if(accesoA) dimensionaA(); });
+  }
+  function apriA(){
+    preparaA();
+    try{ window.scrollTo(0,0); }catch(e){}
+    document.getElementById('gioco2').classList.add('show');
+    accesoA=true; SA=null;
+    elA('ga-via').classList.remove('gc-off');
+    elA('ga-fine').classList.add('gc-off');
+    setTimeout(function(){ dimensionaA(); ultimoA=performance.now(); requestAnimationFrame(cicloA); },30);
+  }
+  function chiudiA(){
+    accesoA=false;
+    if(SA) SA.inCorso=false;
+    document.getElementById('gioco2').classList.remove('show');
+  }
+  return { apri:apriA, chiudi:chiudiA };
+
   })();
 
   if(document.readyState!=="loading") init();
