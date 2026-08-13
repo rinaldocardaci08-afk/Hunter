@@ -425,6 +425,18 @@
     border-radius:8px; padding:8px 14px; font-size:13px; font-weight:600; flex-shrink:0;}
 
   /* ---------- CLASSIFICA ---------- */
+  /* ---------- IL MEZZO ---------- */
+  #autobox{margin-bottom:14px;}
+  #autobox .auto{background:var(--dark2); border:1px solid var(--dark3); border-radius:14px; padding:13px;}
+  #autobox .auto.attiva{background:#2d3a2a; border-color:#4d6141;}
+  #autobox .riga{display:flex; align-items:center; gap:12px;}
+  #autobox .fre{width:52px; height:52px; border-radius:50%; background:#1a2a18; border:2px solid #4d6141;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    font-size:24px; color:#7be0a8; transition:transform .35s ease;}
+  #autobox .dist{font-size:22px; font-weight:700; color:#fff; line-height:1.1;}
+  #autobox .lab{font-size:11px; color:var(--muted);}
+  #autobox .quando{font-size:10.5px; color:var(--muted); margin-top:2px;}
+
   /* ---------- ASSEGNAZIONE DELLE POSTE ---------- */
   .posriga{display:flex; align-items:center; gap:10px; background:var(--dark2);
     border:1px solid var(--dark3); border-radius:11px; padding:10px 11px; margin-bottom:6px;}
@@ -925,6 +937,9 @@
             <div class="b" id="home-utente">—</div>
           </div>
         </div>
+
+        <!-- IL MEZZO: sempre a portata, funziona senza rete -->
+        <div id="autobox"></div>
 
         <div class="grid">
           <button class="tile" data-go="bacheca">
@@ -2105,7 +2120,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.71";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.72";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2744,6 +2759,7 @@
         }
       }
       aggiungiAllaTracciata(pos);   // registro il cammino della tracciata
+      if(parcheggio) aggiornaFrecciaAuto();
       controllaRitrovoVicino();  // se sono al ritrovo mi segno presente da solo
       if(mode==="schema") drawSchema();
     }, function(err){
@@ -3514,9 +3530,13 @@
     }
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     document.querySelectorAll("nav.tabs button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===v); });
-    // il GPS si accende solo dove serve
+    // il GPS si accende solo dove serve. In home serve se ho segnato il mezzo:
+    // la freccia deve puntare anche stando fermi sull'elenco.
     if(v==="mappa") serveGPS("mappa");
+    else if(v==="home"){ caricaParcheggio(); if(parcheggio) serveGPS("auto"); else nonServeGPS(); }
     else if(v!=="giornata") nonServeGPS();
+    if(v==="home") setTimeout(renderAuto, 30);
+    else if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
 
     if(v==="mappa"){
       setTimeout(function(){
@@ -5158,6 +5178,29 @@
       if(capo) h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">🌲 Scegli le aree da segnalare</button>';
     }
 
+    // --- IL MIO TRATTO (se il capo mi ha affidato una sezione) ---
+    var bsOra = battutaInCorso();
+    if(bsOra && !capo){
+      var miei = mieSezioni(bsOra);
+      if(miei.length){
+        var arT = aree.find(function(x){ return x.id === bsOra.area_id; });
+        var cpv = coperturaMieSezioni(bsOra);
+        h+='<div class="sechead">Il tuo tratto</div>';
+        h+='<div class="card" data-viceapri="'+bsOra.id+'" style="background:#3a3560; border:1px solid #7B5EA7; cursor:pointer">';
+        h+='<div style="display:flex; align-items:center; gap:11px">';
+        h+='<span style="font-size:22px">\ud83d\udc64</span>';
+        h+='<div style="flex:1; min-width:0">';
+        h+='<div style="font-size:15px; color:#fff; font-weight:700">'
+          + miei.map(function(sid){ var st=settori.find(function(x){return x.id===sid;}); return esc(st?st.nome:"sezione"); }).join(", ")
+          + '</div>';
+        h+='<div style="font-size:11.5px; color:#c9b3e0">'+esc(arT?arT.nome:'')
+          + ' \u00b7 '+cpv.assegnate+' di '+cpv.poste+' poste coperte</div>';
+        h+='</div>';
+        h+='<span style="font-size:15px; color:#c9b3e0">\u203a</span>';
+        h+='</div></div>';
+      }
+    }
+
     // --- IL MIO INCARICO (per tutti, appena assegnato) ---
     var mia0 = laMiaPosta();
     if(mia0 && !mia0.posta_id){
@@ -5472,6 +5515,9 @@
     });
     var bib=root.querySelector("#gi-iniziabattuta");
     if(bib) bib.onclick=apriSceltaBattuta;
+    root.querySelectorAll("[data-viceapri]").forEach(function(b){
+      b.onclick=function(){ apriAssegnazioni(b.dataset.viceapri); };
+    });
     root.querySelectorAll("[data-bsapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.bsapri); };
     });
@@ -6099,6 +6145,130 @@
     }
   }
 
+  /* ===== IL MEZZO: DOVE HO PARCHEGGIATO =====
+     Tutto sul telefono, niente rete: chi si perde e' proprio dove il segnale
+     non c'e', e una cosa che funziona solo con la linea non serve a niente.
+     La freccia lavora col solo GPS, senza scaricare mappe. */
+  var AUTO_KEY = "hunter_parcheggio";
+  var parcheggio = null;
+  var autoTimer = null;
+
+  function caricaParcheggio(){
+    try{
+      var c = JSON.parse(localStorage.getItem(AUTO_KEY));
+      if(c && typeof c.lat === "number") parcheggio = c;
+    }catch(e){}
+  }
+  function salvaParcheggio(){
+    if(!pos){ toast("Aspetta il segnale GPS"); return; }
+    parcheggio = {lat:pos.lat, lng:pos.lng, quando:Date.now()};
+    try{ localStorage.setItem(AUTO_KEY, JSON.stringify(parcheggio)); }catch(e){}
+    renderAuto();
+    toast("Segnato dove hai parcheggiato");
+  }
+  function dimenticaParcheggio(){
+    if(!confirm("Cancellare il punto del mezzo?")) return;
+    parcheggio = null;
+    try{ localStorage.removeItem(AUTO_KEY); }catch(e){}
+    renderAuto();
+  }
+
+  function daQuandoParcheggiato(){
+    if(!parcheggio || !parcheggio.quando) return "";
+    var min = Math.round((Date.now() - parcheggio.quando)/60000);
+    if(min < 1) return "adesso";
+    if(min < 60) return min + " minuti fa";
+    var h = Math.floor(min/60);
+    if(h < 24) return h + (h===1 ? " ora fa" : " ore fa");
+    return Math.floor(h/24) + " giorni fa";
+  }
+
+  function renderAuto(){
+    var box = document.getElementById("autobox");
+    if(!box) return;
+    caricaParcheggio();
+    var h = "";
+    if(!parcheggio){
+      h += '<div class="auto"><div class="riga">';
+      h += '<div class="fre" style="color:var(--muted); border-color:var(--dark3); background:var(--dark3)">\ud83d\ude97</div>';
+      h += '<div style="flex:1; min-width:0">';
+      h += '<div style="font-size:13.5px; color:var(--cream); font-weight:600">Dove hai lasciato il mezzo</div>';
+      h += '<div class="lab">Segnalo prima di entrare nel bosco: poi ti ci riporto anche senza campo.</div>';
+      h += '</div></div>';
+      h += '<button class="btn line" id="auto-segna" style="margin-top:11px">\ud83d\udccd Ho parcheggiato qui</button>';
+      h += '</div>';
+    }else{
+      var d = pos ? Math.round(distM(pos, parcheggio)) : null;
+      var g = pos ? bearing(pos, parcheggio) : 0;
+      h += '<div class="auto attiva"><div class="riga">';
+      h += '<div class="fre" id="auto-freccia" style="transform:rotate('+Math.round(g)+'deg)">\u2191</div>';
+      h += '<div style="flex:1; min-width:0">';
+      if(d === null){
+        h += '<div style="font-size:14px; color:#fff; font-weight:700">Cerco il segnale…</div>';
+        h += '<div class="lab">Il mezzo \u00e8 segnato, aspetto il GPS per darti la direzione.</div>';
+      }else{
+        h += '<div class="dist">' + (d >= 1000 ? (d/1000).toFixed(2).replace(".",",")+" km" : d+" m") + '</div>';
+        h += '<div class="lab">dal tuo mezzo \u00b7 segui la freccia</div>';
+      }
+      h += '<div class="quando">segnato ' + daQuandoParcheggiato() + '</div>';
+      h += '</div></div>';
+      h += '<div class="btnrow" style="margin-top:11px">';
+      h += '<button class="btn line" id="auto-mappa" style="font-size:12px; padding:9px">\ud83d\uddfa\ufe0f Sulla mappa</button>';
+      h += '<button class="btn line" id="auto-rifai" style="font-size:12px; padding:9px">\ud83d\udccd Sposta qui</button>';
+      h += '</div>';
+      h += '<button class="btn line" id="auto-scorda" style="margin-top:7px; font-size:11.5px; padding:8px">Cancella il punto</button>';
+      h += '</div>';
+    }
+    box.innerHTML = h;
+
+    var b1 = document.getElementById("auto-segna");
+    if(b1) b1.onclick = function(){ serveGPS("auto"); salvaParcheggio(); };
+    var b2 = document.getElementById("auto-rifai");
+    if(b2) b2.onclick = function(){ serveGPS("auto"); salvaParcheggio(); };
+    var b3 = document.getElementById("auto-scorda");
+    if(b3) b3.onclick = dimenticaParcheggio;
+    var b4 = document.getElementById("auto-mappa");
+    if(b4) b4.onclick = mostraParcheggioInMappa;
+
+    // finche' sono in home tengo viva la freccia
+    if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
+    if(parcheggio && document.getElementById("v-home").classList.contains("active")){
+      serveGPS("auto");
+      autoTimer = setInterval(aggiornaFrecciaAuto, 3000);
+    }
+  }
+
+  function aggiornaFrecciaAuto(){
+    if(!parcheggio || !pos) return;
+    if(!document.getElementById("v-home").classList.contains("active")){
+      if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
+      return;
+    }
+    var f = document.getElementById("auto-freccia");
+    if(!f) return;
+    f.style.transform = "rotate(" + Math.round(bearing(pos, parcheggio)) + "deg)";
+    var d = Math.round(distM(pos, parcheggio));
+    var box = document.getElementById("autobox");
+    var dv = box ? box.querySelector(".dist") : null;
+    if(dv) dv.textContent = (d >= 1000 ? (d/1000).toFixed(2).replace(".",",")+" km" : d+" m");
+  }
+
+  var autoMarker = null;
+  function mostraParcheggioInMappa(){
+    if(!parcheggio){ return; }
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      if(autoMarker){ try{ map.removeLayer(autoMarker); }catch(e){} }
+      autoMarker = L.marker([parcheggio.lat, parcheggio.lng], {icon:L.divIcon({className:"", iconSize:[36,36], iconAnchor:[18,18],
+        html:'<div style="width:36px;height:36px;border-radius:50%;background:#1D9E75;border:3px solid #fff;'
+           + 'display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 6px rgba(0,0,0,.5)">\ud83d\ude97</div>'}),
+        zIndexOffset:1300}).addTo(map);
+      map.setView([parcheggio.lat, parcheggio.lng], 17);
+      toast("Il tuo mezzo");
+    }, 260);
+  }
+
   /* ===== ASSEGNARE LE POSTE =====
      Le assegnazioni stanno PER GIORNATA in hn_assegnazioni: un campo fisso
      sulla posta perderebbe lo storico, e senza storico non si sa chi c'era
@@ -6275,6 +6445,89 @@
     return adesioni.filter(function(a){ return a.presente; });
   }
 
+  /* LA DELEGA AL VICECAPOBATTUTA.
+     Il capo affida una SEZIONE a un vice, per quella battuta: la stessa
+     sezione puo' avere un vice diverso la mattina e il pomeriggio. Gli uomini
+     non si assegnano: il vice pesca fra i presenti ancora senza incarico, e
+     chi finisce nella sua sezione diventa suo. Due vice non possono prendere
+     lo stesso uomo perche' il database lo impedisce.
+     Il capo resta padrone di tutto e puo' sempre correggere. */
+  function viceDiSezione(bs, settoreId){
+    if(!bs || !bs.sezioni_vice) return null;
+    return bs.sezioni_vice[settoreId] || null;
+  }
+  function sonoVicediSezione(bs, settoreId){
+    return !!me && viceDiSezione(bs, settoreId) === me.membro_id;
+  }
+  /* le sezioni affidate a me in questa battuta */
+  function mieSezioni(bs){
+    if(!bs || !bs.sezioni_vice || !me) return [];
+    return Object.keys(bs.sezioni_vice).filter(function(k){
+      return bs.sezioni_vice[k] === me.membro_id; });
+  }
+  function puoAssegnareInSezione(bs, settoreId){
+    if(puoGestireBattute()) return true;              // il capo puo' sempre
+    return sonoVicediSezione(bs, settoreId);
+  }
+  /* chi puo' fare il vice: chi ha quella carica ed e' presente oggi */
+  function viciDisponibili(){
+    return adesioni.filter(function(a){
+      if(!a.presente) return false;
+      var m = membri.find(function(x){ return x.id === a.membro_id; });
+      return m && (m.ruolo === "vicecapobattuta" || m.ruolo === "vicecapocaccia" || m.ruolo === "capocaccia");
+    });
+  }
+
+  async function affidaSezione(settoreId, membroId){
+    var bs = battutaSvoltaDi(bsAperta);
+    if(!bs || !puoGestireBattute()) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var mappa = Object.assign({}, bs.sezioni_vice || {});
+    if(membroId) mappa[settoreId] = membroId; else delete mappa[settoreId];
+    try{
+      var r = await sb.from("hn_battute_svolte")
+                .update({sezioni_vice:mappa}).eq("id", bs.id).select().single();
+      if(r.error) throw r.error;
+      var k = battuteSvolte.findIndex(function(x){ return x.id === bs.id; });
+      if(k>=0) battuteSvolte[k] = r.data;
+      document.getElementById("m-chiposta").classList.remove("show");
+      renderAssegnazioni();
+      toast(membroId ? ("Affidata a " + nomeDi(membroId)) : "Delega tolta");
+    }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+  function apriSceltaVice(settoreId){
+    var bs = battutaSvoltaDi(bsAperta);
+    if(!bs || !puoGestireBattute()) return;
+    var st = settori.find(function(x){ return x.id === settoreId; });
+    var ora = viceDiSezione(bs, settoreId);
+    var cand = viciDisponibili();
+    var h = '<div class="hint" style="margin-bottom:10px">Chi comanda questo tratto oggi. Distribuir\u00e0 lui le poste della sezione, pescando fra i presenti liberi.</div>';
+    if(!cand.length){
+      h += '<div class="hint">Nessun vicecapobattuta presente oggi. La carica si d\u00e0 in Squadra.</div>';
+    }
+    cand.forEach(function(c){
+      var suo = Object.keys(bs.sezioni_vice||{}).filter(function(k){
+        return bs.sezioni_vice[k]===c.membro_id && k!==settoreId; }).length;
+      var on = (ora === c.membro_id);
+      h += '<div class="posriga'+(on?" presa":"")+'" data-vice="'+c.membro_id+'" style="cursor:pointer">';
+      h += '<span class="pallino" style="background:'+(on?"#1D9E75":"transparent")+'">'+(on?"\u2713":"\u00b7")+'</span>';
+      h += '<div class="chi"><div class="n">'+esc(nomeDi(c.membro_id))+'</div>';
+      h += '<div class="s">'+(on ? "comanda questo tratto"
+            : (suo ? ("ha gi\u00e0 " + suo + " sezion" + (suo===1?"e":"i")) : "libero"))+'</div></div></div>';
+    });
+    document.getElementById("m-cp-tit").textContent = st ? st.nome : "Sezione";
+    document.getElementById("m-cp-hint").textContent = "A chi la affidi?";
+    document.getElementById("m-cp-lista").innerHTML = h;
+    document.getElementById("m-cp-libera").style.display = ora ? "block" : "none";
+    document.getElementById("m-cp-libera").textContent = "Togli la delega";
+    document.getElementById("m-cp-lista").querySelectorAll("[data-vice]").forEach(function(b){
+      b.onclick = function(){ affidaSezione(settoreId, b.dataset.vice); };
+    });
+    document.getElementById("m-cp-libera").onclick = function(){ affidaSezione(settoreId, null); };
+    document.getElementById("m-chiposta").classList.add("show");
+  }
+
   function coperturaBattuta(bs){
     if(!bs) return {poste:0, assegnate:0, perc:0};
     var a = aree.find(function(x){ return x.id === bs.area_id; });
@@ -6283,6 +6536,23 @@
       return x.battuta_svolta_id === bs.id && x.posta_id; }).length;
     return {poste:np, assegnate:ass, perc: np ? Math.round(100*ass/np) : 0};
   }
+  /* per il vice la percentuale e' quella dei SUOI tratti: la copertura della
+     mappa intera non e' cosa sua e lo confonderebbe */
+  function coperturaMieSezioni(bs){
+    if(!bs) return {poste:0, assegnate:0, perc:0};
+    var a = aree.find(function(x){ return x.id === bs.area_id; });
+    var ids = mieSezioni(bs);
+    var np = 0, ass = 0;
+    ids.forEach(function(sid){
+      var st = settori.find(function(x){ return x.id === sid; });
+      if(!st) return;
+      var sue = posteDelSettore(a, st);
+      np += sue.length;
+      sue.forEach(function(p){ if(assegnazioneDi(p.id, bs.id)) ass++; });
+    });
+    return {poste:np, assegnate:ass, perc: np ? Math.round(100*ass/np) : 0};
+  }
+
   function coloreCopertura(p){
     return p >= 100 ? "#1D9E75" : (p >= 70 ? "#BA7517" : "#8a2f2f");
   }
@@ -6292,6 +6562,9 @@
     if(!giornataAperta){ toast("Serve una giornata di battuta"); return; }
     var bs = battutaSvoltaDi(bsId);
     if(!bs){ toast("Battuta non trovata"); return; }
+    if(!puoGestireBattute() && !mieSezioni(bs).length){
+      toast("Non hai tratti affidati in questa battuta"); return;
+    }
     bsAperta = bsId;
     apAreaId = bs.area_id;
     scambioDa = null;
@@ -6309,17 +6582,19 @@
     var a = aree.find(function(x){ return x.id === apAreaId; });
     if(!a || !bs){ return; }
     var root = document.getElementById("poste-scroll");
-    var cop = coperturaBattuta(bs);
+    var cop = puoGestireBattute() ? coperturaBattuta(bs) : coperturaMieSezioni(bs);
     var mieAss = incarichiDi(bs.id);
     var senza = daMettereInPosta().filter(function(x){
       return !mieAss.some(function(y){ return y.membro_id === x.membro_id; }); });
     var chiusa = !!bs.chiusa_il;
     var h = "";
 
+    var soloVice = !puoGestireBattute();
     h += '<div class="card" style="margin-bottom:12px">';
     h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">'
        + (bs.numero ? bs.numero+'ª battuta di oggi' : 'battuta')
-       + (chiusa ? ' \u00b7 <span style="color:#7be0a8">chiusa</span>' : ' \u00b7 in corso')+'</div>';
+       + (chiusa ? ' \u00b7 <span style="color:#7be0a8">chiusa</span>' : ' \u00b7 in corso')
+       + (soloVice ? ' \u00b7 <span style="color:#c9b3e0">il tuo tratto</span>' : '')+'</div>';
     h += '<div style="display:flex; align-items:baseline; gap:9px">';
     h += '<span style="font-size:26px; font-weight:700; color:'+coloreCopertura(cop.perc)+'">'+cop.perc+'%</span>';
     h += '<span style="font-size:12px; color:var(--muted)">'+cop.assegnate+' di '+cop.poste+' poste coperte</span>';
@@ -6337,6 +6612,9 @@
     h += '</div>';
     if(!chiusa && puoGestireBattute()){
       h += '<button class="btn primary" id="ap-chiudi" style="margin-top:8px">🏁 Chiudi questa battuta</button>';
+    }else if(!chiusa && soloVice){
+      h += '<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'
+         + 'La battuta la chiude il capocaccia.</div>';
     }
     h += '</div>';
 
@@ -6362,24 +6640,44 @@
       h += '</div>';
     }
 
-    // le poste, raggruppate per sezione
+    // le poste, raggruppate per sezione. Il vice vede SOLO i suoi tratti.
     var sez = settoriDi(apAreaId);
+    var soloMiei = null;
+    if(!puoGestireBattute()){
+      soloMiei = mieSezioni(bs);
+      sez = sez.filter(function(st){ return soloMiei.indexOf(st.id) >= 0; });
+    }
     var fatte = {};
     sez.forEach(function(st, i){
       var sue = posteDelSettore(a, st).sort(ordinaPoste);
       if(!sue.length) return;
       var pres = sue.filter(function(p){ return !!assegnazioneDi(p.id); }).length;
+      var vic = viceDiSezione(bs, st.id);
       h += '<div class="sechead" style="display:flex; align-items:center; gap:8px">';
       h += '<span style="background:'+coloreSettore(i)+'; width:14px; height:14px; border-radius:4px; display:inline-block"></span>';
       h += esc(st.nome);
       h += '<span style="margin-left:auto; font-size:11px; color:'+(pres===sue.length?"#7be0a8":"var(--muted)")+'">'+pres+'/'+sue.length+'</span>';
       h += '</div>';
+      if(puoGestireBattute() && !chiusa){
+        h += '<button class="btn line" data-affida="'+st.id+'" style="margin:-6px 0 8px; font-size:11.5px; padding:8px; text-align:left">'
+           + (vic ? ("\ud83d\udc64 " + esc(nomeDi(vic)) + " comanda questo tratto") : "\ud83d\udc64 Affida a un vicecapobattuta")
+           + '</button>';
+      }else if(vic){
+        h += '<div style="font-size:11px; color:#c9b3e0; margin:-6px 0 8px 2px">'
+           + (sonoVicediSezione(bs, st.id) ? "Comandi tu questo tratto" : ("Comanda " + esc(nomeDi(vic))))+'</div>';
+      }
       sue.forEach(function(p){ fatte[p.id]=true; h += rigaPosta(p); });
     });
-    var fuori = (a.poste||[]).filter(function(p){ return !fatte[p.id]; }).sort(ordinaPoste);
-    if(fuori.length){
-      h += '<div class="sechead">'+(sez.length ? "Senza sezione" : "Poste")+'</div>';
-      fuori.forEach(function(p){ h += rigaPosta(p); });
+    // le poste fuori sezione le distribuisce il capo: il vice ha il suo tratto
+    if(puoGestireBattute()){
+      var fuori = (a.poste||[]).filter(function(p){ return !fatte[p.id]; }).sort(ordinaPoste);
+      if(fuori.length){
+        h += '<div class="sechead">'+(settoriDi(apAreaId).length ? "Senza sezione" : "Poste")+'</div>';
+        fuori.forEach(function(p){ h += rigaPosta(p); });
+      }
+    }else if(!sez.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
+         + 'Non hai tratti affidati in questa battuta.</div>';
     }
 
     root.innerHTML = h;
@@ -6423,6 +6721,9 @@
     if(bm) bm.onclick = function(){ apriAreaDaBattuta(apAreaId); };
     var ba = document.getElementById("ap-annullascambio");
     if(ba) ba.onclick = function(){ scambioDa = null; renderAssegnazioni(); };
+    root.querySelectorAll("[data-affida]").forEach(function(b){
+      b.onclick = function(){ apriSceltaVice(b.dataset.affida); };
+    });
     var bc = document.getElementById("ap-chiudi");
     if(bc) bc.onclick = function(){ chiudiBattutaSvolta(bsAperta); };
     var br = document.getElementById("ap-ruoli");
