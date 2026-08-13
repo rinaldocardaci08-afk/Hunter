@@ -2134,7 +2134,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.74";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.75";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2773,7 +2773,7 @@
         }
       }
       aggiungiAllaTracciata(pos);   // registro il cammino della tracciata
-      if(parcheggio) aggiornaFrecciaAuto();
+      if(parcheggio){ registraBriciola(pos, false); aggiornaFrecciaAuto(); }
       controllaRitrovoVicino();  // se sono al ritrovo mi segno presente da solo
       if(mode==="schema") drawSchema();
     }, function(err){
@@ -6168,6 +6168,75 @@
   var parcheggio = null;
   var autoTimer = null;
 
+  /* LA DIREZIONE A PAROLE.
+     Il telefono sa dov'e' il mezzo ma non da che parte sei girato tu: la
+     freccia da sola vuol dire "il mezzo sta a sud-est", non "gira a destra".
+     La parola si legge col guanto, di corsa, e non ha bisogno di bussola. */
+  function puntoCardinale(g){
+    var d = ["NORD","NORD-EST","EST","SUD-EST","SUD","SUD-OVEST","OVEST","NORD-OVEST"];
+    return d[Math.round(((g % 360) + 360) % 360 / 45) % 8];
+  }
+
+  /* LE BRICIOLE.
+     Non si puo' registrare il cammino con lo schermo spento — e tenerlo acceso
+     in tasca fa partire telefonate. Quindi: ogni volta che l'app e' aperta e
+     il GPS aggancia, se mi sono spostato di piu' di 40 m dall'ultima briciola
+     ne lascio una. Costo zero, perche' il GPS gira solo quando l'app e' gia'
+     aperta. Non e' la strada: sono i posti dove sono passato. */
+  var BRICIOLA_MIN = 40;
+  var BRICIOLE_MAX = 80;
+
+  function registraBriciola(p, manuale){
+    if(!parcheggio || !p) return false;
+    if(!parcheggio.briciole) parcheggio.briciole = [];
+    var b = parcheggio.briciole;
+    var ultima = b.length ? b[b.length-1] : parcheggio;
+    var d = distM(ultima, p);
+    if(!manuale && d < BRICIOLA_MIN) return false;
+    if(manuale && d < 5) return false;
+    b.push({lat:p.lat, lng:p.lng, t:Date.now(), m:!!manuale});
+    if(b.length > BRICIOLE_MAX) b.splice(0, b.length - BRICIOLE_MAX);
+    // e tengo il punto piu' lontano visto: serve alla barra
+    var dm = distM(parcheggio, p);
+    if(!parcheggio.maxDist || dm > parcheggio.maxDist) parcheggio.maxDist = Math.round(dm);
+    try{ localStorage.setItem(AUTO_KEY, JSON.stringify(parcheggio)); }catch(e){}
+    return true;
+  }
+
+  /* LA BARRA: il totale e' il piu' grande fra quello che l'app ha visto e
+     quanto sono lontano adesso. Cosi' non puo' mentire: se non ha visto
+     niente, il totale diventa la distanza di adesso e la barra parte da zero. */
+  function totaleRientro(){
+    if(!parcheggio) return 0;
+    var ora = pos ? distM(pos, parcheggio) : 0;
+    return Math.max(Number(parcheggio.maxDist||0), ora);
+  }
+
+  /* la bussola vera, se il telefono ce l'ha */
+  var bussolaGradi = null;
+  var bussolaAvviata = false;
+
+  function avviaBussola(){
+    if(bussolaAvviata) return;
+    bussolaAvviata = true;
+    function ascolta(ev){
+      var h = null;
+      if(typeof ev.webkitCompassHeading === "number") h = ev.webkitCompassHeading;
+      else if(ev.absolute === true && typeof ev.alpha === "number") h = 360 - ev.alpha;
+      if(h !== null && !isNaN(h)){ bussolaGradi = ((h % 360) + 360) % 360; }
+    }
+    try{
+      if(window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission === "function"){
+        DeviceOrientationEvent.requestPermission().then(function(r){
+          if(r === "granted") window.addEventListener("deviceorientation", ascolta, true);
+        }).catch(function(){});
+      }else if(window.DeviceOrientationEvent){
+        window.addEventListener("deviceorientationabsolute", ascolta, true);
+        window.addEventListener("deviceorientation", ascolta, true);
+      }
+    }catch(e){}
+  }
+
   function caricaParcheggio(){
     try{
       var c = JSON.parse(localStorage.getItem(AUTO_KEY));
@@ -6176,7 +6245,8 @@
   }
   function salvaParcheggio(){
     if(!pos){ toast("Aspetta il segnale GPS"); return; }
-    parcheggio = {lat:pos.lat, lng:pos.lng, quando:Date.now()};
+    // punto nuovo: le briciole di prima non c'entrano piu'
+    parcheggio = {lat:pos.lat, lng:pos.lng, quando:Date.now(), briciole:[], maxDist:0};
     try{ localStorage.setItem(AUTO_KEY, JSON.stringify(parcheggio)); }catch(e){}
     renderAuto();
     toast("Segnato dove hai parcheggiato");
@@ -6282,30 +6352,67 @@
       scorda.style.display = "none";
     }else{
       document.getElementById("m-au-tit").textContent = "Il tuo mezzo";
+      avviaBussola();
       var d = pos ? Math.round(distM(pos, parcheggio)) : null;
       var g = pos ? bearing(pos, parcheggio) : 0;
-      h += '<div class="riga" style="display:flex; align-items:center; gap:14px">';
-      h += '<div id="m-au-freccia" style="width:64px; height:64px; border-radius:50%; background:#1a2a18; '
-         + 'border:2px solid #4d6141; display:flex; align-items:center; justify-content:center; '
-         + 'font-size:30px; color:#7be0a8; flex-shrink:0; transform:rotate('+Math.round(g)+'deg)">\u2191</div>';
-      h += '<div style="flex:1; min-width:0">';
+      var tot = Math.round(totaleRientro());
+      var fatti0 = (d !== null && tot > 0) ? Math.max(0, tot - d) : 0;
+      var perc = tot > 0 ? Math.min(100, Math.round(100*fatti0/tot)) : 0;
+      var nb = (parcheggio.briciole||[]).length;
+
+      // LA BUSSOLA
+      h += '<div style="display:flex; justify-content:center; margin-bottom:12px">';
+      h += '<svg id="m-au-bussola" width="170" height="170" viewBox="0 0 170 170" aria-hidden="true">';
+      h += '<g id="m-au-quadrante">';
+      h += '<circle cx="85" cy="85" r="72" fill="#16220f" stroke="#3f5a33" stroke-width="2"/>';
+      h += '<circle cx="85" cy="85" r="58" fill="none" stroke="#2b3f22" stroke-width="1"/>';
+      h += '<text x="85" y="27" text-anchor="middle" font-size="12" fill="#7a8f6b" font-weight="700">N</text>';
+      h += '<text x="150" y="90" text-anchor="middle" font-size="12" fill="#7a8f6b" font-weight="700">E</text>';
+      h += '<text x="85" y="157" text-anchor="middle" font-size="12" fill="#7a8f6b" font-weight="700">S</text>';
+      h += '<text x="20" y="90" text-anchor="middle" font-size="12" fill="#7a8f6b" font-weight="700">O</text>';
+      h += '</g>';
+      h += '<g id="m-au-ago" transform="rotate('+Math.round(g)+' 85 85)">';
+      h += '<path d="M85 34 L104 108 L85 96 L66 108 Z" fill="#5DCAA5" stroke="#0f3a2a" stroke-width="1.5" stroke-linejoin="round"/>';
+      h += '</g>';
+      h += '<circle cx="85" cy="85" r="6" fill="#0f3a2a" stroke="#5DCAA5" stroke-width="2"/>';
+      h += '</svg></div>';
+
+      // DISTANZA E DIREZIONE
+      h += '<div style="text-align:center; margin-bottom:14px">';
       if(d === null){
-        h += '<div style="font-size:16px; color:#fff; font-weight:700">Cerco il segnale\u2026</div>';
+        h += '<div style="font-size:20px; color:#fff; font-weight:700">Cerco il segnale\u2026</div>';
         h += '<div style="font-size:11.5px; color:var(--muted)">Il punto \u00e8 salvato, aspetto il GPS.</div>';
       }else{
-        h += '<div id="m-au-dist" style="font-size:26px; font-weight:700; color:#fff; line-height:1.1">'
+        h += '<div id="m-au-dist" style="font-size:34px; font-weight:700; color:#fff; line-height:1">'
            + (d>=1000 ? (d/1000).toFixed(2).replace(".",",")+" km" : d+" m")+'</div>';
-        h += '<div style="font-size:11.5px; color:var(--muted)">dal tuo mezzo \u00b7 segui la freccia</div>';
+        h += '<div id="m-au-verso" style="font-size:13px; color:#5DCAA5; letter-spacing:1px; margin-top:3px">VERSO '
+           + puntoCardinale(g)+'</div>';
       }
-      h += '<div style="font-size:10.5px; color:var(--muted); margin-top:3px">segnato '+daQuandoParcheggiato()+'</div>';
-      h += '</div></div>';
-      h += '<p class="hint" style="margin-top:12px">Funziona anche senza rete: il punto \u00e8 salvato nel telefono.</p>';
+      h += '</div>';
+
+      // LA BARRA DEL RIENTRO
+      if(d !== null && tot > 0){
+        h += '<div style="height:12px; background:#1a1610; border-radius:6px; overflow:hidden; border:1px solid var(--dark3)">';
+        h += '<div id="m-au-barra" style="width:'+perc+'%; height:100%; background:linear-gradient(90deg,#1D9E75,#5DCAA5); border-radius:6px"></div>';
+        h += '</div>';
+        h += '<div style="display:flex; justify-content:space-between; margin-top:5px">';
+        h += '<span id="m-au-fatti" style="font-size:10px; color:var(--muted)">fatti '+fatti0+' m</span>';
+        h += '<span style="font-size:10px; color:var(--muted)">'+tot+' m in tutto</span>';
+        h += '</div>';
+      }
+
+      h += '<div style="font-size:10.5px; color:var(--muted); margin-top:11px; line-height:1.5">'
+         + 'segnato '+daQuandoParcheggiato()+' \u00b7 funziona anche senza rete'
+         + (bussolaGradi===null ? '<br>Tieni il telefono col <b>nord in alto</b>: la parola verde ti dice da che parte andare.' : '<br>Bussola attiva: il quadrante gira con te.')
+         + (nb ? ('<br>'+nb+' bricio'+(nb===1?'la lasciata':'le lasciate')+' lungo la strada.') : '')
+         + '</div>';
+
       corpo.innerHTML = h;
       ok.style.display = "block";
       ok.textContent = "\ud83d\uddfa\ufe0f Vedilo sulla mappa";
       ok.disabled = false;
       altro.style.display = "block";
-      altro.textContent = "\ud83d\udccd Sposta il punto: ho parcheggiato qui";
+      altro.textContent = "\ud83e\udded Segna un passaggio";
       scorda.style.display = "block";
     }
     document.getElementById("m-auto").classList.add("show");
@@ -6325,12 +6432,28 @@
       return;
     }
     if(!parcheggio || !pos) return;
-    var f = document.getElementById("m-au-freccia");
-    if(f) f.style.transform = "rotate(" + Math.round(bearing(pos, parcheggio)) + "deg)";
+    var g = bearing(pos, parcheggio);
+    var d = Math.round(distM(pos, parcheggio));
+
+    // se la bussola c'e', il quadrante gira con me e la freccia punta davvero
+    var q = document.getElementById("m-au-quadrante");
+    if(q) q.setAttribute("transform", bussolaGradi===null ? "" : ("rotate("+Math.round(-bussolaGradi)+" 85 85)"));
+    var ago = document.getElementById("m-au-ago");
+    if(ago) ago.setAttribute("transform",
+      "rotate(" + Math.round(bussolaGradi===null ? g : (g - bussolaGradi)) + " 85 85)");
+
     var dv = document.getElementById("m-au-dist");
-    if(dv){
-      var d = Math.round(distM(pos, parcheggio));
-      dv.textContent = (d>=1000 ? (d/1000).toFixed(2).replace(".",",")+" km" : d+" m");
+    if(dv) dv.textContent = (d>=1000 ? (d/1000).toFixed(2).replace(".",",")+" km" : d+" m");
+    var vs = document.getElementById("m-au-verso");
+    if(vs) vs.textContent = "VERSO " + puntoCardinale(g);
+
+    var tot = Math.round(totaleRientro());
+    var ba = document.getElementById("m-au-barra");
+    if(ba && tot > 0){
+      var fa = Math.max(0, tot - d);
+      ba.style.width = Math.min(100, Math.round(100*fa/tot)) + "%";
+      var fl = document.getElementById("m-au-fatti");
+      if(fl) fl.textContent = "fatti " + fa + " m";
     }
   }
 
@@ -6350,12 +6473,20 @@
   }
 
   var autoMarker = null;
+  var autoBriciole = null;
   function mostraParcheggioInMappa(){
     if(!parcheggio){ return; }
     showView("mappa");
     setTimeout(function(){
       if(!map) return;
       if(autoMarker){ try{ map.removeLayer(autoMarker); }catch(e){} }
+      // le briciole: i posti dove sono passato, coi manuali piu' grandi
+      if(autoBriciole){ try{ map.removeLayer(autoBriciole); }catch(e){} }
+      autoBriciole = L.layerGroup().addTo(map);
+      (parcheggio.briciole||[]).forEach(function(b){
+        L.circleMarker([b.lat, b.lng], {radius:(b.m?7:4), color:"#fff",
+          fillColor:(b.m?"#F2C230":"#5DCAA5"), fillOpacity:1, weight:(b.m?2:1)}).addTo(autoBriciole);
+      });
       autoMarker = L.marker([parcheggio.lat, parcheggio.lng], {icon:L.divIcon({className:"", iconSize:[36,36], iconAnchor:[18,18],
         html:'<div style="width:36px;height:36px;border-radius:50%;background:#1D9E75;border:3px solid #fff;'
            + 'display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 2px 6px rgba(0,0,0,.5)">\ud83d\ude97</div>'}),
@@ -12480,7 +12611,16 @@
       if(!parcheggio){ salvaParcheggio(); apriFinestraAuto(); }
       else{ chiudiFinestraAuto(); mostraParcheggioInMappa(); }
     };
-    document.getElementById("m-au-altro").onclick=function(){ salvaParcheggio(); apriFinestraAuto(); };
+    document.getElementById("m-au-altro").onclick=function(){
+      if(!parcheggio) return;
+      if(!pos){ toast("Aspetta il segnale GPS"); return; }
+      if(registraBriciola(pos, true)){
+        apriFinestraAuto();
+        toast("Passaggio segnato");
+      }else{
+        toast("Sei gi\u00e0 sull'ultimo passaggio segnato");
+      }
+    };
     document.getElementById("m-au-scorda").onclick=function(){ dimenticaParcheggio(); apriFinestraAuto(); };
     document.getElementById("m-ib-annulla").onclick=function(){ document.getElementById("m-iniziabat").classList.remove("show"); };
     document.getElementById("m-ib-ok").onclick=function(){
