@@ -2410,7 +2410,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.81";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.82";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3040,6 +3040,12 @@
       aggiornaGuida();           // aggiorno la guida se sto seguendo un percorso
       setGps(pos.acc<=15?"ok":(pos.acc<=40?"weak":"off"), "±"+Math.round(pos.acc)+"m");
       updateUser(); updateNav();
+      // la finestra del mezzo restava a "Aspetto il segnale GPS" anche a segnale preso:
+      // era disegnata una volta sola e nessuno la rifaceva al primo fix
+      if(primoFix){
+        var mAu=document.getElementById("m-auto");
+        if(mAu && mAu.classList.contains("show")) apriFinestraAuto();
+      }
       // al primo aggancio centro la mappa su di me
       if(primoFix && map && mappaMaiCentrata){
         var a=areaAttiva();
@@ -6610,6 +6616,8 @@
 
   function apriFinestraAuto(){
     caricaParcheggio();
+    serveGPS("auto");        // il GPS puo' essere spento (Giochi, Bacheca): qui serve
+
     var corpo = document.getElementById("m-au-corpo");
     var ok = document.getElementById("m-au-ok");
     var altro = document.getElementById("m-au-altro");
@@ -6620,7 +6628,7 @@
       document.getElementById("m-au-tit").textContent = "Dove hai lasciato il mezzo";
       h += '<p class="hint" style="line-height:1.6">Registra il parcheggio: potrai usarlo <b>anche senza rete</b>. '
          + 'Ti riporter\u00e0 alla tua auto con una freccia e i metri che mancano, anche dove non c\u2019\u00e8 campo.</p>';
-      if(!pos) h += '<div class="card" style="font-size:12px; color:var(--gold); margin-top:10px">Aspetto il segnale GPS\u2026</div>';
+      if(!pos) h += '<div class="card" style="font-size:12px; color:var(--gold); margin-top:10px">GPS acceso, aspetto il primo segnale\u2026 <br>Il tasto si sblocca da solo appena arriva.</div>';
       corpo.innerHTML = h;
       ok.style.display = "block";
       ok.textContent = "\ud83d\udccd Marca il parcheggio";
