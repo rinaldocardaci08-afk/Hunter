@@ -907,6 +907,78 @@
 #gioco2 td.p{text-align:right; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px;}
 #gioco2 td.pos{width:26px; opacity:.5;}
 
+
+/* ================= BARRA RADIO E METEO IN HOME ================= */
+#radiobox{margin-bottom:10px;}
+#radiobox .radio{display:flex; align-items:center; gap:12px; width:100%; text-align:left;
+  background:linear-gradient(100deg,#2E5C22,#1D3D16); border:1px solid #6FBF4A55;
+  border-left:6px solid #7FD948; border-radius:14px; padding:12px 14px; color:#fff;}
+#radiobox .radio .em{font-size:26px;}
+#radiobox .radio .mid{flex:1; min-width:0;}
+#radiobox .radio .can{font-family:'Arial Narrow',Impact,sans-serif; font-size:25px; letter-spacing:1px; line-height:1;}
+#radiobox .radio .fq{font-size:13px; color:#CFE9B8; margin-top:2px;}
+#radiobox .radio .chi{font-size:10.5px; color:#A8CE92; margin-top:3px;}
+#radiobox .radio .oggi{background:#7FD948; color:#0d2408; font-size:9.5px; font-weight:700;
+  letter-spacing:1px; padding:3px 7px; border-radius:20px; align-self:flex-start;}
+#radiobox .radio.spenta{background:var(--dark2); border-color:var(--dark3);
+  border-left-color:var(--dark3); color:var(--muted);}
+#meteobox{margin-bottom:14px;}
+#meteobox .met{display:flex; align-items:center; gap:13px; width:100%; text-align:left;
+  background:var(--dark2); border:1px solid var(--dark3); border-radius:14px; padding:12px 13px;
+  color:var(--cream);}
+.rosa{width:60px; height:60px; border-radius:50%; border:2px solid var(--dark3); position:relative;
+  flex-shrink:0; background:radial-gradient(circle at 50% 50%, #ffffff10, transparent 70%);}
+.rosa .freccia{position:absolute; left:calc(50% - 8px); top:6px; font-size:17px; color:var(--gold);
+  transform-origin:8px 24px;}
+.rosa span{position:absolute; font-size:8px; color:var(--muted);}
+.rosa .n{top:1px; left:50%; transform:translateX(-50%);}
+.rosa .s{bottom:1px; left:50%; transform:translateX(-50%);}
+.rosa .e{right:2px; top:50%; transform:translateY(-50%);}
+.rosa .o{left:2px; top:50%; transform:translateY(-50%);}
+#meteobox .vento{font-family:'Arial Narrow',Impact,sans-serif; font-size:22px; letter-spacing:1px; line-height:1.05;}
+#meteobox .sotto{font-size:12px; color:var(--muted); margin-top:3px;}
+.mini{border-radius:11px; padding:9px 4px; text-align:center; border:1px solid #ffffff18;}
+.mini .em{font-size:15px;}
+.mini b{display:block; font-family:'Arial Narrow',Impact,sans-serif; font-size:17px; margin-top:2px;}
+.mini span{font-size:8.5px; letter-spacing:1px; text-transform:uppercase; opacity:.7;}
+.m-ora{background:#2E6B7A22; border-color:#4FC3F744;}
+.m-pio{background:#2A4A8A22; border-color:#6FA8FF44;}
+.m-raf{background:#6B5A2022; border-color:#E0B87844;}
+.m-alb{background:#7A4A1022; border-color:#E8843C44;}
+.m-tra{background:#4A2A5A22; border-color:#B98CE044;}
+.strisce{display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; margin-top:10px;}
+/* caselle della temperatura, col termometro che sale quanto il valore */
+.caselle{display:grid; grid-template-columns:1fr 1fr; gap:9px; margin-top:12px;}
+.cas{display:flex; align-items:center; gap:10px; border-radius:12px; padding:10px 11px; border:1px solid #ffffff18;}
+.cas .val{font-family:'Arial Narrow',Impact,sans-serif; font-size:26px; line-height:1;}
+.cas .et{font-size:9.5px; letter-spacing:1.5px; text-transform:uppercase; opacity:.85; margin-top:2px;}
+.cas .ds{font-size:10px; opacity:.7; margin-top:1px;}
+.term{width:14px; height:44px; border-radius:8px; background:#00000035; position:relative;
+  flex-shrink:0; border:1px solid #ffffff25;}
+.term i{position:absolute; left:2px; right:2px; bottom:9px; border-radius:5px; display:block;}
+.term b{position:absolute; left:1px; bottom:0; width:10px; height:10px; border-radius:50%;}
+.c-ora{background:linear-gradient(135deg,#2E6B7A33,#2E6B7A12); border-color:#4FC3F755;}
+.c-max{background:linear-gradient(135deg,#8A481433,#8A481412); border-color:#E08A3C55;}
+.c-min{background:linear-gradient(135deg,#2A4A8A33,#2A4A8A12); border-color:#6FA8FF55;}
+.c-per{background:linear-gradient(135deg,#5C3A7A33,#5C3A7A12); border-color:#B98CE055;}
+.ore{display:flex; gap:8px; overflow-x:auto; margin-top:12px; padding-bottom:4px;}
+.ora{min-width:52px; text-align:center; background:#00000030; border:1px solid var(--dark3);
+  border-radius:9px; padding:7px 4px;}
+.ora .h{font-size:10.5px; color:var(--muted);}
+.ora .fr{font-size:17px; color:var(--gold); margin:3px 0;}
+.ora .v{font-size:11px;}
+.ora.forte{border-color:#C0803C;}
+/* elenco dei canali in amministrazione */
+.canale{display:flex; align-items:center; gap:11px; background:#ffffff08; border:1px solid var(--dark3);
+  border-radius:11px; padding:11px 12px; margin-bottom:9px;}
+.canale.attivo{border-color:#7FD948; background:#7FD9481a;}
+.canale .nome{font-size:15px;}
+.canale .f{font-size:11.5px; color:var(--muted); margin-top:2px;}
+.canale .mid{flex:1; min-width:0;}
+.canale .seg{border:1px solid var(--gold); background:transparent; color:var(--gold);
+  border-radius:20px; padding:8px 12px; font-size:11.5px; white-space:nowrap;}
+.canale.attivo .seg{background:#7FD948; border-color:#7FD948; color:#0d2408; font-weight:700;}
+
 </style>
 </head>
 <body>
@@ -1106,10 +1178,16 @@
           </div>
         </div>
 
-        <!-- IL MEZZO: sempre a portata, funziona senza rete -->
-        <div id="autobox"></div>
+        <!-- CANALE RADIO DEL GIORNO e METEO -->
+        <div id="radiobox"></div>
+        <div id="meteobox"></div>
 
         <div class="grid">
+          <button class="tile" id="tile-mezzo">
+            <div class="ic">📍</div>
+            <div class="nm">Il mio mezzo</div>
+            <div class="ds">Dove ho parcheggiato · anche senza rete</div>
+          </button>
           <button class="tile" data-go="bacheca">
             <div class="ic">📢</div>
             <div class="nm">Bacheca</div>
@@ -1764,6 +1842,30 @@
     <div class="gc-scelte">
       <button class="gc-vai" id="ga-ancora">UN'ALTRA</button>
       <button class="gc-vai gc-secondo" id="ga-esci-fine">‹ GIOCHI</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- MODALE: meteo esteso -->
+<div class="modal" id="m-meteo">
+  <div class="sheet">
+    <h3>Meteo della giornata</h3>
+    <div id="mt-corpo"><div class="loading">Carico…</div></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="mt-chiudi">Chiudi</button>
+    </div>
+    <div class="hint" style="margin-top:8px; text-align:center">dati Open-Meteo · CC BY 4.0</div>
+  </div>
+</div>
+
+<!-- MODALE: canale radio del giorno -->
+<div class="modal" id="m-radio">
+  <div class="sheet">
+    <h3 id="rd-tit">Canale radio di oggi</h3>
+    <div id="rd-corpo"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="rd-chiudi">Chiudi</button>
     </div>
   </div>
 </div>
@@ -2441,7 +2543,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.83";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.84";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2675,6 +2777,8 @@
     aggiornaBarraAzioni();
     await caricaAree();
     await caricaMembriSilenzioso();   // servono per le battute
+    caricaRadio();                    // il canale del giorno in Home
+    caricaMeteo();                    // vento e temperatura in Home
     await caricaRitrovi();
     caricaTracce();           // le linee dei tracciatori
     caricaSettori();          // i rettangoli dei settori
@@ -3076,6 +3180,7 @@
       if(primoFix){
         var mAu=document.getElementById("m-auto");
         if(mAu && mAu.classList.contains("show")) apriFinestraAuto();
+        caricaMeteo();     // adesso so dove sono: posso chiedere vento e temperatura
       }
       // al primo aggancio centro la mappa su di me
       if(primoFix && map && mappaMaiCentrata){
@@ -9556,8 +9661,11 @@
     h += '<div style="display:flex; gap:6px; margin-bottom:14px">';
     h += '<button class="chip '+(adminSub==="punteggio"?"on":"")+'" data-adm="punteggio" style="flex:1; justify-content:center">\u2696\ufe0f Punteggio</button>';
     h += '<button class="chip '+(adminSub==="medaglie"?"on":"")+'" data-adm="medaglie" style="flex:1; justify-content:center">\ud83c\udf96\ufe0f Medaglie</button>';
+    h += '<button class="chip '+(adminSub==="radio"?"on":"")+'" data-adm="radio" style="flex:1; justify-content:center">\ud83d\udcfb Radio</button>';
     h += '</div>';
-    h += (adminSub === "punteggio") ? renderAdminPunteggio() : renderAdminMedaglie();
+    h += (adminSub === "punteggio") ? renderAdminPunteggio()
+       : (adminSub === "radio")     ? renderAdminRadio()
+       :                              renderAdminMedaglie();
     root.innerHTML = h;
     bindAdmin();
   }
@@ -9660,6 +9768,13 @@
     });
     var nv = document.getElementById("adm-nuovavoce");
     if(nv) nv.onclick = function(){ apriVoce(null); };
+    root.querySelectorAll("[data-radio-seg]").forEach(function(b){
+      b.onclick = function(){ segnalaCanale(b.dataset.radioSeg); };
+    });
+    var rt = document.getElementById("adm-radio-togli");
+    if(rt) rt.onclick = togliCanaleOggi;
+    var rn = document.getElementById("adm-radio-nuovo");
+    if(rn) rn.onclick = nuovoCanaleRadio;
     var nm = document.getElementById("adm-nuovamed");
     if(nm) nm.onclick = function(){ apriMedagliaCat(null); };
   }
@@ -12044,10 +12159,26 @@
 
     // foto
     var fb=document.getElementById("dc-foto");
-    if(s && s.foto_url){
-      fb.innerHTML='<img src="'+esc(s.foto_url)+'" alt="ricevuta">'+
-        '<div style="font-size:10px; color:var(--muted); text-align:center; margin-top:7px">'+
-        (s.foto_kb ? s.foto_kb+' KB' : '')+'</div>';
+    if(s && (s.foto_path || s.foto_url) && !mio){
+      /* il capo vede che il documento c'e', ma NON l'immagine: la foto e' solo del proprietario */
+      fb.innerHTML='<div class="fotovuota"><span style="font-size:30px; opacity:.6">\ud83d\udd12</span>'+
+        '<span style="font-size:11px; color:var(--muted); text-align:center">documento caricato<br>la foto la vede solo lui</span></div>';
+    }else if(s && s.foto_path){
+      fb.innerHTML='<div class="fotovuota"><span style="font-size:11px; color:var(--muted)">apro la foto\u2026</span></div>';
+      (async function(){
+        try{
+          var f=await sb.storage.from("documenti").createSignedUrl(s.foto_path, 300);
+          var url=f.data ? f.data.signedUrl : null;
+          if(!url) throw new Error("link non creato");
+          fb.innerHTML='<img src="'+esc(url)+'" alt="documento">'+
+            '<div style="font-size:10px; color:var(--muted); text-align:center; margin-top:7px">'+
+            (s.foto_kb ? s.foto_kb+' KB \u00b7 ' : '')+'link valido 5 minuti</div>';
+        }catch(e){
+          fb.innerHTML='<div class="fotovuota"><span style="font-size:11px; color:var(--muted)">foto non disponibile</span></div>';
+        }
+      })();
+    }else if(s && s.foto_url){
+      fb.innerHTML='<img src="'+esc(s.foto_url)+'" alt="documento">';
     }else{
       fb.innerHTML='<div class="fotovuota"><span style="font-size:32px; opacity:.5">🧾</span>'+
         '<span style="font-size:11px; color:var(--muted)">nessuna foto</span></div>';
@@ -12123,10 +12254,8 @@
       var up = await sb.storage.from("documenti").upload(nomeFile, blob, {contentType:"image/jpeg", upsert:true});
       if(up.error) throw up.error;
 
-      var pub = sb.storage.from("documenti").getPublicUrl(nomeFile);
-      var url = pub.data ? pub.data.publicUrl : null;
-
-      await salvaDocumento({ foto_url:url, foto_path:nomeFile, foto_kb:kb });
+      /* niente link pubblico: il bucket e' privato e il link si firma al momento */
+      await salvaDocumento({ foto_url:null, foto_path:nomeFile, foto_kb:kb });
       toast("Foto caricata ("+kb+" KB)");
     }catch(e){
       toast("Errore nel caricamento: "+(e.message||e));
@@ -13039,6 +13168,8 @@
 
     // il Mezzo: agganciato DOPO il ciclo della barra, cosi' nessuno lo copre
     document.getElementById("tab-auto").onclick=apriFinestraAuto;
+    var tm=document.getElementById("tile-mezzo");
+    if(tm) tm.onclick=apriFinestraAuto;
 
     document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
     document.getElementById("sz-piu").onclick=function(){ schemaZoom(1.5); };
@@ -13094,6 +13225,8 @@
 
     // --- SCADENZE ---
     document.getElementById("dc-chiudi").onclick=function(){ document.getElementById("m-doc").classList.remove("show"); docAperto=null; };
+    document.getElementById("mt-chiudi").onclick=function(){ document.getElementById("m-meteo").classList.remove("show"); };
+    document.getElementById("rd-chiudi").onclick=function(){ document.getElementById("m-radio").classList.remove("show"); };
     document.getElementById("dc-salva").onclick=function(){ salvaDocumento(null); };
     document.getElementById("dc-scatta").onclick=function(){ document.getElementById("dc-file").click(); };
     document.getElementById("dc-delfoto").onclick=eliminaFoto;
@@ -14428,6 +14561,287 @@ function fineA(){
   return { apri:apriA, chiudi:chiudiA };
 
   })();
+
+
+  /* ================= CANALE RADIO DEL GIORNO =================
+     La radio NON è legata alla battuta né alla posta: si usa anche per la
+     pulizia, il tracciamento o il recupero dei cani. Quindi la segnalazione
+     vale per la GIORNATA e a mezzanotte sparisce da sola. */
+  var radioCanali = [], radioOggi = null;
+
+  function oggiISO(){
+    var d=new Date();
+    return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+  }
+  function puoSegnalareRadio(){ return puoGestireSquadra(); }
+  function canaleDi(id){
+    var t=null;
+    radioCanali.forEach(function(c){ if(c.id===id) t=c; });
+    return t;
+  }
+  async function caricaRadio(){
+    if(!me || !me.squadra_id) return;
+    try{
+      var r=await sb.from("hn_radio_canali").select("*")
+        .eq("squadra_id",me.squadra_id).eq("attivo",true).order("ordine");
+      if(!r.error) radioCanali=r.data||[];
+      var s=await sb.from("hn_radio_oggi").select("*")
+        .eq("squadra_id",me.squadra_id).eq("giorno",oggiISO()).limit(1);
+      radioOggi = (!s.error && s.data && s.data.length) ? s.data[0] : null;
+      try{ localStorage.setItem("hunter_radio_oggi", JSON.stringify({
+        giorno:oggiISO(), canali:radioCanali, oggi:radioOggi })); }catch(e){}
+    }catch(e){
+      // senza rete: mi tengo quella di stamattina, ma solo se è di oggi
+      try{
+        var c=JSON.parse(localStorage.getItem("hunter_radio_oggi"));
+        if(c && c.giorno===oggiISO()){ radioCanali=c.canali||[]; radioOggi=c.oggi||null; }
+      }catch(e2){}
+    }
+    renderRadio();
+  }
+  function renderRadio(){
+    var box=document.getElementById("radiobox");
+    if(!box) return;
+    var c = radioOggi ? canaleDi(radioOggi.canale_id) : null;
+    if(!c){
+      if(!puoSegnalareRadio() && !radioCanali.length){ box.innerHTML=""; return; }
+      box.innerHTML='<button class="radio spenta" id="radio-tocca">'
+        + '<span class="em">\ud83d\udcfb</span><span class="mid">'
+        + '<span class="can" style="font-size:18px">NESSUN CANALE SEGNALATO</span>'
+        + '<div class="fq">'+(puoSegnalareRadio()
+            ? "tocca per segnalare il canale di oggi"
+            : "il capo non ne ha ancora indicato uno")+'</div></span></button>';
+    }else{
+      var chi = radioOggi.segnalato_da ? nomeMembro(radioOggi.segnalato_da) : "";
+      box.innerHTML='<button class="radio" id="radio-tocca">'
+        + '<span class="em">\ud83d\udcfb</span><span class="mid">'
+        + '<span class="can">'+esc(c.nome||"CANALE")+'</span>'
+        + '<div class="fq">'+esc(c.frequenza||"")+'</div>'
+        + (chi ? '<div class="chi">segnalato da '+esc(chi)+' \u00b7 vale per oggi</div>' : '')
+        + '</span><span class="oggi">OGGI</span></button>';
+    }
+    var t=document.getElementById("radio-tocca");
+    if(t) t.onclick=apriFinestraRadio;
+  }
+  function nomeMembro(id){
+    var t=null;
+    if(typeof membri!=="undefined" && membri) membri.forEach(function(m){ if(m.id===id) t=m.nome; });
+    if(!t && me && me.membro_id===id) t=me.nome;
+    return t||"";
+  }
+  function apriFinestraRadio(){
+    var c = radioOggi ? canaleDi(radioOggi.canale_id) : null;
+    var h="";
+    if(c){
+      h+='<div class="card" style="text-align:center; padding:16px">'
+       + '<div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:34px; letter-spacing:1px">'+esc(c.nome||"")+'</div>'
+       + '<div style="font-size:15px; color:var(--gold); margin-top:4px">'+esc(c.frequenza||"")+'</div>'
+       + (c.note ? '<div style="font-size:12px; color:var(--muted); margin-top:8px">'+esc(c.note)+'</div>' : '')
+       + '</div>';
+      h+='<p class="hint" style="margin-top:10px">Vale per tutta la giornata, anche fuori dalla battuta: '
+       + 'pulizia, tracciamento, recupero dei cani. Per le emergenze si usa il telefono.</p>';
+    }else{
+      h+='<p class="hint">Per oggi non è stato segnalato nessun canale.</p>';
+    }
+    if(puoSegnalareRadio()){
+      h+='<button class="btn primary" id="rd-vai" style="margin-top:10px">\u2699\ufe0f Cambia il canale di oggi</button>';
+    }
+    document.getElementById("rd-corpo").innerHTML=h;
+    document.getElementById("m-radio").classList.add("show");
+    var v=document.getElementById("rd-vai");
+    if(v) v.onclick=function(){
+      document.getElementById("m-radio").classList.remove("show");
+      adminSub="radio"; showView("admin");
+    };
+  }
+  async function segnalaCanale(canaleId){
+    if(!puoSegnalareRadio()) return;
+    try{
+      var r=await sb.from("hn_radio_oggi").upsert({
+        squadra_id: me.squadra_id, canale_id: canaleId,
+        giorno: oggiISO(), segnalato_da: me.membro_id
+      }, {onConflict:"squadra_id,giorno"}).select().single();
+      if(r.error) throw r.error;
+      radioOggi=r.data;
+      toast("Canale segnalato a tutta la squadra");
+    }catch(e){ toast("Non riesco a segnalare: "+(e.message||e)); return; }
+    renderRadio(); renderAdmin();
+  }
+  async function togliCanaleOggi(){
+    if(!puoSegnalareRadio()) return;
+    try{
+      var r=await sb.from("hn_radio_oggi").delete()
+        .eq("squadra_id",me.squadra_id).eq("giorno",oggiISO());
+      if(r.error) throw r.error;
+      radioOggi=null;
+      toast("Segnalazione tolta");
+    }catch(e){ toast("Non riesco: "+(e.message||e)); return; }
+    renderRadio(); renderAdmin();
+  }
+  function renderAdminRadio(){
+    var h='<div class="card" style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:12px">'
+      + 'L\'elenco dei canali della squadra. Tocca <b style="color:var(--gold)">Segnala</b> su quello che si usa oggi: '
+      + 'compare in Home a tutti e sparisce da solo a fine giornata.</div>';
+    if(!radioCanali.length){
+      h+='<div class="hint" style="margin-bottom:10px">Nessun canale ancora. Aggiungine uno.</div>';
+    }
+    radioCanali.forEach(function(c){
+      var attivo = radioOggi && radioOggi.canale_id===c.id;
+      h+='<div class="canale'+(attivo?" attivo":"")+'">'
+       + '<span style="font-size:20px">\ud83d\udcfb</span>'
+       + '<span class="mid"><div class="nome">'+esc(c.nome||"")+'</div>'
+       + '<div class="f">'+esc(c.frequenza||"")+(c.note?" \u00b7 "+esc(c.note):"")+'</div></span>'
+       + '<button class="seg" data-radio-seg="'+c.id+'">'+(attivo?"IN USO OGGI":"Segnala")+'</button>'
+       + '</div>';
+    });
+    if(radioOggi){
+      h+='<button class="btn line" id="adm-radio-togli" style="margin-top:6px">Togli la segnalazione di oggi</button>';
+    }
+    h+='<button class="btn primary" id="adm-radio-nuovo" style="margin-top:12px">+ Aggiungi un canale</button>';
+    h+='<div class="hint" style="margin-top:8px">Per le emergenze la squadra usa il telefono: qui si segnala un canale solo.</div>';
+    return h;
+  }
+  function nuovoCanaleRadio(){
+    chiediInSerie([
+      {titolo:"Nome del canale", aiuto:"Come lo chiamate fra voi: Canale 3, Canale cani…", obbligatorio:true},
+      {titolo:"Frequenza", aiuto:"Per esempio 446.09375 MHz \u00b7 PMR446"},
+      {titolo:"Nota", aiuto:"A cosa serve: il solito, quando il 3 \u00e8 occupato…"}
+    ], async function(v){
+      try{
+        var r=await sb.from("hn_radio_canali").insert({
+          squadra_id: me.squadra_id, nome: v[0], frequenza: v[1]||null, note: v[2]||null,
+          ordine: radioCanali.length, attivo: true
+        }).select().single();
+        if(r.error) throw r.error;
+        radioCanali.push(r.data);
+        toast("Canale aggiunto");
+        renderAdmin();
+      }catch(e){ toast("Non riesco: "+(e.message||e)); }
+    });
+  }
+
+  /* ================= METEO E VENTO =================
+     Open-Meteo: nessuna chiave, una chiamata sola al giorno sul centro
+     dell'area, e il risultato resta nel telefono per la giornata. */
+  var meteo = null;
+  var DIRE = ["nord","nord-est","est","sud-est","sud","sud-ovest","ovest","nord-ovest"];
+  function daDove(gradi){ return DIRE[Math.round(((gradi%360)/45))%8]; }
+  async function caricaMeteo(){
+    var p = pos || ultimaPosNota();
+    if(!p) return;
+    var chiave = "hunter_meteo";
+    try{
+      var c=JSON.parse(localStorage.getItem(chiave));
+      if(c && c.giorno===oggiISO() && Math.abs(c.lat-p.lat)<.05 && Math.abs(c.lng-p.lng)<.05
+         && (Date.now()-c.preso) < 3*3600*1000){
+        meteo=c.dati; renderMeteo(); return;
+      }
+    }catch(e){}
+    try{
+      var u="https://api.open-meteo.com/v1/forecast?latitude="+p.lat.toFixed(4)
+        +"&longitude="+p.lng.toFixed(4)
+        +"&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+        +"&hourly=temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+        +"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset"
+        +"&timezone=auto&forecast_days=1";
+      var rr=await fetch(u);
+      if(!rr.ok) throw new Error("meteo "+rr.status);
+      meteo=await rr.json();
+      try{ localStorage.setItem(chiave, JSON.stringify({
+        giorno:oggiISO(), lat:p.lat, lng:p.lng, preso:Date.now(), dati:meteo })); }catch(e2){}
+    }catch(e){
+      try{
+        var c2=JSON.parse(localStorage.getItem(chiave));
+        if(c2 && c2.giorno===oggiISO()) meteo=c2.dati;
+      }catch(e3){}
+    }
+    renderMeteo();
+  }
+  function rosaHtml(gradi, dim){
+    return '<div class="rosa"'+(dim?' style="width:'+dim+'px;height:'+dim+'px"':'')+'>'
+      + '<span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="o">O</span>'
+      + '<div class="freccia" style="transform:rotate('+Math.round((gradi+180)%360)+'deg)">\u25b2</div></div>';
+  }
+  function renderMeteo(){
+    var box=document.getElementById("meteobox");
+    if(!box) return;
+    if(!meteo || !meteo.current){ box.innerHTML=""; return; }
+    var c=meteo.current, d=meteo.daily||{};
+    var alba=(d.sunrise&&d.sunrise[0])?d.sunrise[0].slice(11,16):"—";
+    box.innerHTML='<button class="met" id="meteo-tocca">'
+      + rosaHtml(c.wind_direction_10m)
+      + '<span style="flex:1; min-width:0">'
+      + '<div class="vento">VENTO DA '+daDove(c.wind_direction_10m).toUpperCase()+'</div>'
+      + '<div class="sotto">'+Math.round(c.wind_speed_10m)+' km/h \u00b7 raffiche '
+      + Math.round(c.wind_gusts_10m||0)+'</div>'
+      + '<div class="strisce" style="grid-template-columns:1fr 1fr 1fr; margin-top:8px">'
+      +   '<span class="mini m-ora"><span class="em">\ud83c\udf21\ufe0f</span><b>'+Math.round(c.temperature_2m)+'\u00b0</b><span>Adesso</span></span>'
+      +   '<span class="mini m-pio"><span class="em">\ud83d\udca7</span><b>'
+      +     ((d.precipitation_probability_max&&d.precipitation_probability_max[0]!=null)?d.precipitation_probability_max[0]:0)+'%</b><span>Pioggia</span></span>'
+      +   '<span class="mini m-alb"><span class="em">\ud83c\udf05</span><b>'+alba+'</b><span>Alba</span></span>'
+      + '</div></span></button>';
+    document.getElementById("meteo-tocca").onclick=apriMeteo;
+  }
+  function termometro(val, min, max, c1, c2){
+    var k=Math.max(0, Math.min(1, (val-min)/(max-min)));
+    return '<div class="term"><i style="height:'+Math.round(6+k*29)+'px;background:linear-gradient('+c1+','+c2+')"></i>'
+         + '<b style="background:'+c2+'"></b></div>';
+  }
+  function apriMeteo(){
+    var corpo=document.getElementById("mt-corpo");
+    if(!meteo || !meteo.current){ corpo.innerHTML='<p class="hint">Meteo non disponibile senza rete.</p>'; }
+    else{
+      var c=meteo.current, d=meteo.daily||{}, hh=meteo.hourly||{};
+      var alba=(d.sunrise&&d.sunrise[0])?d.sunrise[0].slice(11,16):"—";
+      var tram=(d.sunset&&d.sunset[0])?d.sunset[0].slice(11,16):"—";
+      var tmax=d.temperature_2m_max?Math.round(d.temperature_2m_max[0]):null;
+      var tmin=d.temperature_2m_min?Math.round(d.temperature_2m_min[0]):null;
+      var h='<div class="card" style="padding:13px">';
+      h+='<div style="display:flex; align-items:center; gap:14px">'
+       + rosaHtml(c.wind_direction_10m,74)
+       + '<div><div class="vento" style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:25px">VENTO DA '
+       + daDove(c.wind_direction_10m).toUpperCase()+'</div>'
+       + '<div class="sotto" style="font-size:12.5px; color:var(--muted); margin-top:3px">'
+       + Math.round(c.wind_speed_10m)+' km/h \u00b7 raffiche '+Math.round(c.wind_gusts_10m||0)
+       + '<br>la freccia indica <b>dove va</b> l\'aria</div></div></div>';
+      h+='<div class="caselle">'
+       + '<div class="cas c-ora">'+termometro(c.temperature_2m,-5,35,"#4FC3F7","#2E8BA8")
+       +   '<div><div class="val">'+Math.round(c.temperature_2m)+'\u00b0</div><div class="et">Adesso</div>'
+       +   '<div class="ds">fuori, all\'ombra</div></div></div>'
+       + '<div class="cas c-max">'+termometro(tmax==null?15:tmax,-5,35,"#FFC26B","#E0742C")
+       +   '<div><div class="val">'+(tmax==null?"\u2013":tmax+"\u00b0")+'</div><div class="et">Massima</div>'
+       +   '<div class="ds">nel pomeriggio</div></div></div>'
+       + '<div class="cas c-min">'+termometro(tmin==null?5:tmin,-5,35,"#9BC7FF","#3E6FCC")
+       +   '<div><div class="val">'+(tmin==null?"\u2013":tmin+"\u00b0")+'</div><div class="et">Minima</div>'
+       +   '<div class="ds">all\'alba, nei valloni meno</div></div></div>'
+       + '<div class="cas c-per">'+termometro(c.apparent_temperature,-5,35,"#D3AEF0","#8A5AB8")
+       +   '<div><div class="val">'+Math.round(c.apparent_temperature)+'\u00b0</div><div class="et">Percepita</div>'
+       +   '<div class="ds">col vento addosso</div></div></div>'
+       + '</div>';
+      h+='<div class="strisce">'
+       + '<div class="mini m-pio"><div class="em">\ud83d\udca7</div><b>'
+       +   ((d.precipitation_probability_max&&d.precipitation_probability_max[0]!=null)?d.precipitation_probability_max[0]:0)+'%</b><span>Pioggia</span></div>'
+       + '<div class="mini m-raf"><div class="em">\ud83c\udf2c\ufe0f</div><b>'+Math.round(c.wind_gusts_10m||0)+'</b><span>Raffiche</span></div>'
+       + '<div class="mini m-alb"><div class="em">\ud83c\udf05</div><b>'+alba+'</b><span>Alba</span></div>'
+       + '<div class="mini m-tra"><div class="em">\ud83c\udf07</div><b>'+tram+'</b><span>Tramonto</span></div>'
+       + '</div>';
+      if(hh.time && hh.time.length){
+        h+='<div class="ore">';
+        for(var i=6;i<=18;i+=2){
+          if(!hh.time[i]) continue;
+          var raf=Math.round(hh.wind_gusts_10m?hh.wind_gusts_10m[i]:0);
+          h+='<div class="ora'+(raf>=25?" forte":"")+'">'
+           + '<div class="h">'+hh.time[i].slice(11,16)+'</div>'
+           + '<div class="fr" style="transform:rotate('+Math.round((hh.wind_direction_10m[i]+180)%360)+'deg)">\u25b2</div>'
+           + '<div class="v">'+Math.round(hh.wind_speed_10m[i])+'</div></div>';
+        }
+        h+='</div>';
+      }
+      h+='</div>';
+      corpo.innerHTML=h;
+    }
+    document.getElementById("m-meteo").classList.add("show");
+  }
 
   if(document.readyState!=="loading") init();
   else document.addEventListener("DOMContentLoaded", init);
