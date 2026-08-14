@@ -2519,7 +2519,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.86";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.87";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3258,6 +3258,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       html:'<div style="width:18px;height:18px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'});
   }
   var areaApertaInMappa = false;   // true = ho aperto un'area e ne vedo le poste
+  /* La mappa della barra in fondo serve solo a guardare: dove sono io e, per chi
+     ne ha il permesso, i terreni della squadra. Niente tasti che modificano:
+     quelli stanno in Mappe e poste. */
+  var mappaSolaVista = false, mappaVistaProssima = false;
 
   /* ---------- POLIGONI DELLE AREE (vista strategica del territorio) ----------
      Solo per chi può mappare. Mostra dove sono le aree e quanto coprono,
@@ -3950,11 +3954,17 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     else if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
 
     if(v==="mappa"){
+      mappaSolaVista = mappaVistaProssima; mappaVistaProssima=false;
+      if(mappaSolaVista && areaApertaInMappa && !mappatura) chiudiAreaInMappa();
       setTimeout(function(){
         if(!map) return;
         map.invalidateSize();   // Leaflet deve ricalcolare: la mappa era nascosta
-        // al primo ingresso centro su di me (o sull'ultima posizione nota)
-        if(mappaMaiCentrata){
+        if(mappaSolaVista){
+          // dalla barra si apre SEMPRE su dove sono io, non sulla mappa della battuta
+          var p0 = pos || ultimaPosNota();
+          if(p0) map.setView([p0.lat,p0.lng], 16);
+          mappaMaiCentrata=false;
+        }else if(mappaMaiCentrata){
           var a=areaAttiva();
           if(a && (a.poste||[]).length){ fitArea(); }
           else {
@@ -8065,8 +8075,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     var box = document.getElementById("maptools");
     if(!box) return;
     var suMappa = document.getElementById("v-mappa").classList.contains("active");
-    box.classList.toggle("show", suMappa);
-    if(!suMappa) return;
+    box.classList.toggle("show", suMappa && !mappaSolaVista);
+    if(!suMappa || mappaSolaVista) return;
 
     var apertaUnArea = areaApertaInMappa && !!areaAttiva();
     var m = document.getElementById("mt-modifica");
@@ -13156,7 +13166,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
        (come il Mezzo) hanno gia' il loro clic e non vanno sovrascritti.
        Questo ciclo girava DOPO gli altri agganci e li cancellava. */
     document.querySelectorAll("nav.tabs button[data-view]").forEach(function(b){
-      b.onclick=function(){ showView(b.dataset.view); }; });
+      b.onclick=function(){
+        if(b.dataset.view==="mappa") mappaVistaProssima=true;   // dalla barra: solo guardare
+        showView(b.dataset.view);
+      }; });
 
     // il Mezzo: agganciato DOPO il ciclo della barra, cosi' nessuno lo copre
     document.getElementById("tab-auto").onclick=apriFinestraAuto;
@@ -14929,7 +14942,10 @@ function fineA(){
   }
   function agganciaCaselleHome(g){
     g.querySelectorAll(".tile[data-go]").forEach(function(t){
-      t.onclick=function(){ showView(t.dataset.go); };
+      t.onclick=function(){
+        if(t.dataset.go==="mappa") mappaVistaProssima=true;     // anche dalla casella
+        showView(t.dataset.go);
+      };
     });
     g.querySelectorAll(".tile[data-soon]").forEach(function(t){
       t.onclick=function(){ toast(t.dataset.soon+" \u2014 in arrivo"); };
