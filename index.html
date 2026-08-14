@@ -918,8 +918,21 @@
 #radiobox .radio .can{font-family:'Arial Narrow',Impact,sans-serif; font-size:25px; letter-spacing:1px; line-height:1;}
 #radiobox .radio .fq{font-size:13px; color:#CFE9B8; margin-top:2px;}
 #radiobox .radio .chi{font-size:10.5px; color:#A8CE92; margin-top:3px;}
+#radiobox .radio{padding:10px 13px;}
+#radiobox .radio .mid{display:flex; align-items:baseline; gap:9px; flex-wrap:wrap;}
+#radiobox .radio .can{font-size:21px;}
+#radiobox .radio .fq{font-size:13px; color:#CFE9B8; margin:0;}
 #radiobox .radio .oggi{background:#7FD948; color:#0d2408; font-size:9.5px; font-weight:700;
-  letter-spacing:1px; padding:3px 7px; border-radius:20px; align-self:flex-start;}
+  letter-spacing:1px; padding:3px 7px; border-radius:20px;}
+#radiobox .radio .giu{font-size:17px; opacity:.75; margin-left:6px;}
+#radiobox .radio.vuoto{background:var(--dark2); border-color:var(--dark3);
+  border-left-color:var(--dark3); color:var(--muted); padding:9px 13px;}
+#radiobox .radio.vuoto .em{font-size:18px;}
+#radiobox .radio.vuoto .mid{font-size:12.5px;}
+#radiobox .radio-piu{display:none;}
+#radiobox .radio-piu.aperta{display:block; background:var(--dark2); border:1px solid var(--dark3);
+  border-top:none; border-radius:0 0 12px 12px; margin:-6px 8px 0; padding:12px 13px 11px;}
+#radiobox .rp-riga{font-size:12px; color:var(--cream); line-height:1.6;}
 #radiobox .radio.spenta{background:var(--dark2); border-color:var(--dark3);
   border-left-color:var(--dark3); color:var(--muted);}
 #meteobox{margin-bottom:14px;}
@@ -1170,92 +1183,19 @@
     <!-- HOME -->
     <section class="view active" id="v-home">
       <div class="scroll">
-        <div class="hero">
-          <div class="em"><img src="icon-180.png" alt="" onerror="this.parentNode.textContent='🐗'"></div>
-          <div class="tx">
-            <div class="a" id="home-squadra">Zannalunga</div>
-            <div class="b" id="home-utente">—</div>
-          </div>
-        </div>
-
         <!-- CANALE RADIO DEL GIORNO e METEO -->
         <div id="radiobox"></div>
         <div id="meteobox"></div>
 
-        <div class="grid">
-          <button class="tile" id="tile-mezzo">
-            <div class="ic">📍</div>
-            <div class="nm">Il mio mezzo</div>
-            <div class="ds">Dove ho parcheggiato · anche senza rete</div>
-          </button>
-          <button class="tile" data-go="bacheca">
-            <div class="ic">📢</div>
+        <button class="tile wide" id="tile-bacheca" style="margin-bottom:10px">
+          <div class="ic">📢</div>
+          <div class="tx">
             <div class="nm">Bacheca</div>
             <div class="ds">Annunci e comunicazioni</div>
-          </button>
-          <button class="tile" data-go="battute">
-            <div class="ic">🔥</div>
-            <div class="nm">Battute</div>
-            <div class="ds">Calendario e adesioni</div>
-          </button>
-          <button class="tile" data-go="squadra">
-            <div class="ic">👥</div>
-            <div class="nm">Squadra</div>
-            <div class="ds">Componenti e ruoli</div>
-          </button>
-          <button class="tile" data-go="aree">
-            <div class="ic">📍</div>
-            <div class="nm">Mappe e poste</div>
-            <div class="ds">Crea e modifica i terreni</div>
-          </button>
-          <button class="tile" data-go="mappa">
-            <div class="ic">🗺️</div>
-            <div class="nm">Mappa</div>
-            <div class="ds">Satellite, schema, bussola</div>
-          </button>
-          <button class="tile" data-go="cassa">
-            <div class="ic">💰</div>
-            <div class="nm">Cassa</div>
-            <div class="ds">Quote, spese, saldi</div>
-          </button>
-          <button class="tile soon" data-soon="Sondaggi">
-            <span class="badge">presto</span>
-            <div class="ic">📊</div>
-            <div class="nm">Sondaggi</div>
-            <div class="ds">Si decide insieme</div>
-          </button>
-          <button class="tile" data-go="classifica">
-            <span class="badge">presto</span>
-            <div class="ic">🏆</div>
-            <div class="nm">Classifica</div>
-            <div class="ds">Punteggi e storici</div>
-          </button>
-          <button class="tile" data-go="sergente">
-            <div class="ic">🎖️</div>
-            <div class="nm">Sergente Mario</div>
-            <div class="ds">Giudice di giornata</div>
-          </button>
-          <button class="tile" data-go="scadenze">
-            <div class="ic">📋</div>
-            <div class="nm">Le mie scadenze</div>
-            <div class="ds">Tasse e assicurazione</div>
-          </button>
-          <button class="tile wide" data-go="admin">
-            <span class="badge">presto</span>
-            <div class="ic">⚙️</div>
-            <div class="tx">
-              <div class="nm">Amministrazione</div>
-              <div class="ds">Gestione squadra e sistema</div>
-            </div>
-          </button>
-          <button class="tile wide" data-go="info">
-            <div class="ic">ⓘ</div>
-            <div class="tx">
-              <div class="nm">Guida</div>
-              <div class="ds">Come si usa sul campo</div>
-            </div>
-          </button>
-        </div>
+          </div>
+        </button>
+
+        <div class="grid" id="home-caselle"></div>
       </div>
     </section>
 
@@ -1856,17 +1796,6 @@
       <button class="btn line" id="mt-chiudi">Chiudi</button>
     </div>
     <div class="hint" style="margin-top:8px; text-align:center">dati Open-Meteo · CC BY 4.0</div>
-  </div>
-</div>
-
-<!-- MODALE: canale radio del giorno -->
-<div class="modal" id="m-radio">
-  <div class="sheet">
-    <h3 id="rd-tit">Canale radio di oggi</h3>
-    <div id="rd-corpo"></div>
-    <div class="btnrow" style="margin-top:12px">
-      <button class="btn line" id="rd-chiudi">Chiudi</button>
-    </div>
   </div>
 </div>
 
@@ -2543,7 +2472,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.84";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.85";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2779,6 +2708,7 @@
     await caricaMembriSilenzioso();   // servono per le battute
     caricaRadio();                    // il canale del giorno in Home
     caricaMeteo();                    // vento e temperatura in Home
+    caricaOrdineHome();               // l'ordine delle caselle scelto dal capo
     await caricaRitrovi();
     caricaTracce();           // le linee dei tracciatori
     caricaSettori();          // i rettangoli dei settori
@@ -2802,8 +2732,7 @@
     var et = qual.length ? qual.join(" · ") : "cacciatore";
     document.getElementById("h-squadra").textContent=me.squadra_nome;
     document.getElementById("h-utente").textContent=me.nome+" · "+et;
-    document.getElementById("home-squadra").textContent=me.squadra_nome;
-    document.getElementById("home-utente").textContent=me.nome+" · "+et;
+    /* il riquadro in cima alla Home non c'e' piu': ripeteva l'intestazione */
     document.getElementById("i-account").textContent=me.nome+" ("+me.email+") · "+et;
   }
   async function doLogout(){
@@ -9662,9 +9591,11 @@
     h += '<button class="chip '+(adminSub==="punteggio"?"on":"")+'" data-adm="punteggio" style="flex:1; justify-content:center">\u2696\ufe0f Punteggio</button>';
     h += '<button class="chip '+(adminSub==="medaglie"?"on":"")+'" data-adm="medaglie" style="flex:1; justify-content:center">\ud83c\udf96\ufe0f Medaglie</button>';
     h += '<button class="chip '+(adminSub==="radio"?"on":"")+'" data-adm="radio" style="flex:1; justify-content:center">\ud83d\udcfb Radio</button>';
+    h += '<button class="chip '+(adminSub==="home"?"on":"")+'" data-adm="home" style="flex:1; justify-content:center">\ud83c\udfe0 Home</button>';
     h += '</div>';
     h += (adminSub === "punteggio") ? renderAdminPunteggio()
        : (adminSub === "radio")     ? renderAdminRadio()
+       : (adminSub === "home")      ? renderAdminHome()
        :                              renderAdminMedaglie();
     root.innerHTML = h;
     bindAdmin();
@@ -9775,6 +9706,17 @@
     if(rt) rt.onclick = togliCanaleOggi;
     var rn = document.getElementById("adm-radio-nuovo");
     if(rn) rn.onclick = nuovoCanaleRadio;
+    root.querySelectorAll("[data-home-su]").forEach(function(b){
+      b.onclick = function(){ spostaCasella(b.dataset.homeSu, false); };
+    });
+    root.querySelectorAll("[data-home-giu]").forEach(function(b){
+      b.onclick = function(){ spostaCasella(b.dataset.homeGiu, true); };
+    });
+    root.querySelectorAll("[data-home-occhio]").forEach(function(b){
+      b.onclick = function(){ accendiSpegniCasella(b.dataset.homeOcchio); };
+    });
+    var hd = document.getElementById("adm-home-default");
+    if(hd) hd.onclick = function(){ homeOrdine=null; salvaOrdineHome(); renderCaselleHome(); renderAdmin(); };
     var nm = document.getElementById("adm-nuovamed");
     if(nm) nm.onclick = function(){ apriMedagliaCat(null); };
   }
@@ -13141,10 +13083,12 @@
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
 
-    // HOME: tiles attive e "presto"
+    // HOME: le caselle le disegna renderCaselleHome(); qui restano quelle fisse delle altre viste
     document.querySelectorAll(".tile[data-go]").forEach(function(t){
       t.onclick=function(){ showView(t.dataset.go); };
     });
+    var tb=document.getElementById("tile-bacheca");
+    if(tb) tb.onclick=function(){ showView("bacheca"); };
     document.querySelectorAll(".tile[data-soon]").forEach(function(t){
       t.onclick=function(){ toast(t.dataset.soon+" — in arrivo"); };
     });
@@ -13168,8 +13112,6 @@
 
     // il Mezzo: agganciato DOPO il ciclo della barra, cosi' nessuno lo copre
     document.getElementById("tab-auto").onclick=apriFinestraAuto;
-    var tm=document.getElementById("tile-mezzo");
-    if(tm) tm.onclick=apriFinestraAuto;
 
     document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
     document.getElementById("sz-piu").onclick=function(){ schemaZoom(1.5); };
@@ -13226,7 +13168,6 @@
     // --- SCADENZE ---
     document.getElementById("dc-chiudi").onclick=function(){ document.getElementById("m-doc").classList.remove("show"); docAperto=null; };
     document.getElementById("mt-chiudi").onclick=function(){ document.getElementById("m-meteo").classList.remove("show"); };
-    document.getElementById("rd-chiudi").onclick=function(){ document.getElementById("m-radio").classList.remove("show"); };
     document.getElementById("dc-salva").onclick=function(){ salvaDocumento(null); };
     document.getElementById("dc-scatta").onclick=function(){ document.getElementById("dc-file").click(); };
     document.getElementById("dc-delfoto").onclick=eliminaFoto;
@@ -14604,55 +14545,55 @@ function fineA(){
     if(!box) return;
     var c = radioOggi ? canaleDi(radioOggi.canale_id) : null;
     if(!c){
+      /* senza canale segnalato occupa pochissimo: una riga sottile */
       if(!puoSegnalareRadio() && !radioCanali.length){ box.innerHTML=""; return; }
-      box.innerHTML='<button class="radio spenta" id="radio-tocca">'
-        + '<span class="em">\ud83d\udcfb</span><span class="mid">'
-        + '<span class="can" style="font-size:18px">NESSUN CANALE SEGNALATO</span>'
-        + '<div class="fq">'+(puoSegnalareRadio()
-            ? "tocca per segnalare il canale di oggi"
-            : "il capo non ne ha ancora indicato uno")+'</div></span></button>';
+      box.innerHTML='<button class="radio vuoto" id="radio-tocca">'
+        + '<span class="em">\ud83d\udcfb</span>'
+        + '<span class="mid">nessun canale segnalato per oggi</span>'
+        + (puoSegnalareRadio()?'<span class="giu">\u203a</span>':'')+'</button>';
     }else{
-      var chi = radioOggi.segnalato_da ? nomeMembro(radioOggi.segnalato_da) : "";
       box.innerHTML='<button class="radio" id="radio-tocca">'
-        + '<span class="em">\ud83d\udcfb</span><span class="mid">'
-        + '<span class="can">'+esc(c.nome||"CANALE")+'</span>'
-        + '<div class="fq">'+esc(c.frequenza||"")+'</div>'
-        + (chi ? '<div class="chi">segnalato da '+esc(chi)+' \u00b7 vale per oggi</div>' : '')
-        + '</span><span class="oggi">OGGI</span></button>';
+        + '<span class="em">\ud83d\udcfb</span>'
+        + '<span class="mid"><span class="can">'+esc(c.nome||"CANALE")+'</span>'
+        + '<span class="fq">'+esc(c.frequenza||"")+'</span></span>'
+        + '<span class="oggi">OGGI</span><span class="giu" id="radio-giu">\u2304</span></button>'
+        + '<div class="radio-piu" id="radio-piu"></div>';
     }
     var t=document.getElementById("radio-tocca");
-    if(t) t.onclick=apriFinestraRadio;
+    if(t) t.onclick=apriTendinaRadio;
+  }
+  function apriTendinaRadio(){
+    var c = radioOggi ? canaleDi(radioOggi.canale_id) : null;
+    if(!c){
+      if(puoSegnalareRadio()){ adminSub="radio"; showView("admin"); }
+      return;
+    }
+    var piu=document.getElementById("radio-piu");
+    var giu=document.getElementById("radio-giu");
+    if(!piu) return;
+    if(piu.classList.contains("aperta")){
+      piu.classList.remove("aperta"); piu.innerHTML="";
+      if(giu) giu.textContent="\u2304";
+      return;
+    }
+    var chi = radioOggi.segnalato_da ? nomeMembro(radioOggi.segnalato_da) : "";
+    var h='';
+    if(chi) h+='<div class="rp-riga">segnalato da <b>'+esc(chi)+'</b> \u00b7 vale per oggi</div>';
+    if(c.note) h+='<div class="rp-riga">'+esc(c.note)+'</div>';
+    h+='<div class="rp-riga" style="opacity:.75">Vale tutta la giornata, anche fuori dalla battuta: '
+     + 'pulizia, tracciamento, recupero dei cani.</div>';
+    if(puoSegnalareRadio()) h+='<button class="btn line" id="rp-cambia" style="margin-top:8px">\u2699\ufe0f Cambia il canale di oggi</button>';
+    piu.innerHTML=h;
+    piu.classList.add("aperta");
+    if(giu) giu.textContent="\u2303";
+    var cb=document.getElementById("rp-cambia");
+    if(cb) cb.onclick=function(){ adminSub="radio"; showView("admin"); };
   }
   function nomeMembro(id){
     var t=null;
     if(typeof membri!=="undefined" && membri) membri.forEach(function(m){ if(m.id===id) t=m.nome; });
     if(!t && me && me.membro_id===id) t=me.nome;
     return t||"";
-  }
-  function apriFinestraRadio(){
-    var c = radioOggi ? canaleDi(radioOggi.canale_id) : null;
-    var h="";
-    if(c){
-      h+='<div class="card" style="text-align:center; padding:16px">'
-       + '<div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:34px; letter-spacing:1px">'+esc(c.nome||"")+'</div>'
-       + '<div style="font-size:15px; color:var(--gold); margin-top:4px">'+esc(c.frequenza||"")+'</div>'
-       + (c.note ? '<div style="font-size:12px; color:var(--muted); margin-top:8px">'+esc(c.note)+'</div>' : '')
-       + '</div>';
-      h+='<p class="hint" style="margin-top:10px">Vale per tutta la giornata, anche fuori dalla battuta: '
-       + 'pulizia, tracciamento, recupero dei cani. Per le emergenze si usa il telefono.</p>';
-    }else{
-      h+='<p class="hint">Per oggi non è stato segnalato nessun canale.</p>';
-    }
-    if(puoSegnalareRadio()){
-      h+='<button class="btn primary" id="rd-vai" style="margin-top:10px">\u2699\ufe0f Cambia il canale di oggi</button>';
-    }
-    document.getElementById("rd-corpo").innerHTML=h;
-    document.getElementById("m-radio").classList.add("show");
-    var v=document.getElementById("rd-vai");
-    if(v) v.onclick=function(){
-      document.getElementById("m-radio").classList.remove("show");
-      adminSub="radio"; showView("admin");
-    };
   }
   async function segnalaCanale(canaleId){
     if(!puoSegnalareRadio()) return;
@@ -14841,6 +14782,136 @@ function fineA(){
       corpo.innerHTML=h;
     }
     document.getElementById("m-meteo").classList.add("show");
+  }
+
+
+  /* ================= LE CASELLE DELLA HOME =================
+     Non più scritte a mano nel file: un elenco che il capo può riordinare
+     e spegnere da Amministrazione. L'ordine sta su hn_config, quindi vale
+     per tutta la squadra. */
+  var CASELLE_HOME = [
+    {k:"battute",    ic:"\ud83d\udd25", nm:"Battute",          ds:"Calendario e adesioni",       go:"battute"},
+    {k:"aree",       ic:"\ud83d\udccd", nm:"Mappe e poste",    ds:"Crea e modifica i terreni",   go:"aree"},
+    {k:"mezzo",      ic:"\ud83d\ude97", nm:"Il mio mezzo",     ds:"Dove ho parcheggiato \u00b7 anche senza rete", azione:"mezzo"},
+    {k:"cassa",      ic:"\ud83d\udcb0", nm:"Cassa",            ds:"Quote, spese, saldi",         go:"cassa"},
+    {k:"scadenze",   ic:"\ud83d\udccb", nm:"Le mie scadenze",  ds:"Tasse e assicurazione",       go:"scadenze"},
+    {k:"classifica", ic:"\ud83c\udfc6", nm:"Classifica",       ds:"Punteggi e storici",          go:"classifica"},
+    {k:"sergente",   ic:"\ud83c\udf96\ufe0f", nm:"Sergente Mario", ds:"Giudice di giornata",     go:"sergente"},
+    {k:"squadra",    ic:"\ud83d\udc65", nm:"Squadra",          ds:"Componenti e ruoli",          go:"squadra"},
+    {k:"mappa",      ic:"\ud83d\uddfa\ufe0f", nm:"Mappa",      ds:"Satellite, schema, bussola",  go:"mappa", spentaDiDefault:true},
+    {k:"sondaggi",   ic:"\ud83d\udcca", nm:"Sondaggi",         ds:"Si decide insieme",           soon:"Sondaggi"},
+    {k:"admin",      ic:"\u2699\ufe0f", nm:"Amministrazione",  ds:"Gestione squadra e sistema",  go:"admin",  wide:true},
+    {k:"info",       ic:"\u24d8",      nm:"Guida",             ds:"Come si usa sul campo",       go:"info",   wide:true}
+  ];
+  var homeOrdine = null;      // {ordine:[chiavi], spente:[chiavi]}
+
+  function casellaDi(k){
+    var t=null; CASELLE_HOME.forEach(function(c){ if(c.k===k) t=c; });
+    return t;
+  }
+  function ordineHome(){
+    var o = (homeOrdine && homeOrdine.ordine && homeOrdine.ordine.length)
+          ? homeOrdine.ordine.slice() : CASELLE_HOME.map(function(c){ return c.k; });
+    // le caselle nuove, aggiunte dopo, si accodano da sole
+    CASELLE_HOME.forEach(function(c){ if(o.indexOf(c.k)<0) o.push(c.k); });
+    return o.filter(function(k){ return !!casellaDi(k); });
+  }
+  function spenteHome(){
+    if(homeOrdine && homeOrdine.spente) return homeOrdine.spente;
+    return CASELLE_HOME.filter(function(c){ return c.spentaDiDefault; }).map(function(c){ return c.k; });
+  }
+  async function caricaOrdineHome(){
+    try{
+      var c=JSON.parse(localStorage.getItem("hunter_home_ordine"));
+      if(c) homeOrdine=c;
+    }catch(e){}
+    renderCaselleHome();
+    if(!me || !me.squadra_id) return;
+    try{
+      var r=await sb.from("hn_config").select("home_ordine").eq("squadra_id",me.squadra_id).limit(1);
+      if(!r.error && r.data && r.data.length && r.data[0].home_ordine){
+        homeOrdine=r.data[0].home_ordine;
+        try{ localStorage.setItem("hunter_home_ordine", JSON.stringify(homeOrdine)); }catch(e2){}
+        renderCaselleHome();
+      }
+    }catch(e3){}
+  }
+  async function salvaOrdineHome(){
+    try{ localStorage.setItem("hunter_home_ordine", JSON.stringify(homeOrdine)); }catch(e){}
+    try{
+      var r=await sb.from("hn_config").select("id").eq("squadra_id",me.squadra_id).limit(1);
+      if(!r.error && r.data && r.data.length){
+        await sb.from("hn_config").update({home_ordine:homeOrdine}).eq("id",r.data[0].id);
+      }else{
+        await sb.from("hn_config").insert({squadra_id:me.squadra_id, home_ordine:homeOrdine});
+      }
+    }catch(e){ toast("Salvato sul telefono: lo mando appena c'\u00e8 rete"); }
+  }
+  function renderCaselleHome(){
+    var g=document.getElementById("home-caselle");
+    if(!g) return;
+    var spente=spenteHome(), h="";
+    ordineHome().forEach(function(k){
+      if(spente.indexOf(k)>=0) return;
+      var c=casellaDi(k);
+      var attr = c.soon ? 'data-soon="'+esc(c.soon)+'"'
+               : c.azione ? 'data-azione="'+c.azione+'"'
+               : 'data-go="'+c.go+'"';
+      h+='<button class="tile'+(c.wide?" wide":"")+(c.soon?" soon":"")+'" '+attr+'>'
+       + (c.soon?'<span class="badge">presto</span>':'')
+       + (c.wide
+          ? '<div class="ic">'+c.ic+'</div><div class="tx"><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div></div>'
+          : '<div class="ic">'+c.ic+'</div><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>')
+       + '</button>';
+    });
+    g.innerHTML=h;
+    agganciaCaselleHome(g);
+  }
+  function agganciaCaselleHome(g){
+    g.querySelectorAll(".tile[data-go]").forEach(function(t){
+      t.onclick=function(){ showView(t.dataset.go); };
+    });
+    g.querySelectorAll(".tile[data-soon]").forEach(function(t){
+      t.onclick=function(){ toast(t.dataset.soon+" \u2014 in arrivo"); };
+    });
+    g.querySelectorAll(".tile[data-azione]").forEach(function(t){
+      t.onclick=function(){ if(t.dataset.azione==="mezzo") apriFinestraAuto(); };
+    });
+  }
+  /* --- la schermata in Amministrazione per riordinare --- */
+  function renderAdminHome(){
+    var spente=spenteHome(), o=ordineHome();
+    var h='<div class="card" style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:12px">'
+      + 'L\'ordine delle caselle della Home, per tutta la squadra. Le frecce le spostano, '
+      + 'l\'occhio le accende e le spegne.</div>';
+    o.forEach(function(k,i){
+      var c=casellaDi(k), off=spente.indexOf(k)>=0;
+      h+='<div class="canale"'+(off?' style="opacity:.5"':'')+'>'
+       + '<span style="font-size:20px">'+c.ic+'</span>'
+       + '<span class="mid"><div class="nome">'+esc(c.nm)+'</div>'
+       + '<div class="f">'+esc(c.ds)+'</div></span>'
+       + '<button class="seg" data-home-su="'+k+'" '+(i===0?'disabled style="opacity:.3"':'')+'>\u2191</button>'
+       + '<button class="seg" data-home-giu="'+k+'" '+(i===o.length-1?'disabled style="opacity:.3"':'')+'>\u2193</button>'
+       + '<button class="seg" data-home-occhio="'+k+'">'+(off?"\ud83d\udc41\ufe0f\u200d\ud83d\udde8\ufe0f":"\ud83d\udc41\ufe0f")+'</button>'
+       + '</div>';
+    });
+    h+='<button class="btn line" id="adm-home-default" style="margin-top:10px">Rimetti l\'ordine di partenza</button>';
+    return h;
+  }
+  function spostaCasella(k, giu){
+    var o=ordineHome(), i=o.indexOf(k);
+    if(i<0) return;
+    var j=giu ? i+1 : i-1;
+    if(j<0 || j>=o.length) return;
+    var t=o[i]; o[i]=o[j]; o[j]=t;
+    homeOrdine={ordine:o, spente:spenteHome()};
+    salvaOrdineHome(); renderCaselleHome(); renderAdmin();
+  }
+  function accendiSpegniCasella(k){
+    var spente=spenteHome().slice(), i=spente.indexOf(k);
+    if(i>=0) spente.splice(i,1); else spente.push(k);
+    homeOrdine={ordine:ordineHome(), spente:spente};
+    salvaOrdineHome(); renderCaselleHome(); renderAdmin();
   }
 
   if(document.readyState!=="loading") init();
