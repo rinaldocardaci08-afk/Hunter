@@ -992,6 +992,43 @@
   border-radius:20px; padding:8px 12px; font-size:11.5px; white-space:nowrap;}
 .canale.attivo .seg{background:#7FD948; border-color:#7FD948; color:#0d2408; font-weight:700;}
 
+
+/* ================= GIOCHI CHIUSI DURANTE LA BATTUTA ================= */
+body.battuta-giochi .gc-caccia{filter:grayscale(.85) brightness(.55);}
+body.battuta-giochi .gc-caccia .gioca{background:#00000055; border-color:#ffffff33;}
+body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:16px; top:14px;
+  font-size:22px; opacity:.9;}
+.gc-avviso{display:flex; align-items:center; gap:11px;
+  background:linear-gradient(100deg,#6E1F14,#3E120C); border:1px solid #C0392B66;
+  border-left:6px solid #E04A34; border-radius:12px; padding:11px 13px; margin-bottom:12px;}
+.gc-avviso .em{font-size:24px;}
+.gc-avviso .nm{font-family:'Arial Narrow',Impact,sans-serif; font-size:19px; letter-spacing:1px; color:var(--cream);}
+.gc-avviso .ds{font-size:11.5px; color:#E8BDB5; margin-top:2px;}
+/* il sergente */
+#sergente{position:fixed; inset:0; z-index:3200; display:none; background:rgba(8,5,3,.93); overflow:hidden;}
+#sergente.show{display:block;}
+#sergente .dentro{position:relative; height:100%; width:100%; max-width:560px; margin:0 auto;
+  display:flex; flex-direction:column;}
+#sergente .urlo{padding:calc(env(safe-area-inset-top) + 4vh) 14px 0; text-align:center;
+  font-family:'Arial Narrow',Impact,sans-serif; font-weight:700; font-size:clamp(28px,9.5vw,50px);
+  line-height:1; letter-spacing:1px; color:#FFE27A; text-shadow:0 3px 0 #000,0 0 22px rgba(0,0,0,.9);
+  animation:sg-pulsa .5s ease-in-out 3;}
+@keyframes sg-pulsa{0%,100%{transform:scale(1)} 50%{transform:scale(1.05)}}
+#sergente .urlo small{display:block; font-size:12px; letter-spacing:5px; color:#E8BDB5;
+  font-weight:400; margin-bottom:8px; font-family:system-ui;}
+#sergente .foto{flex:1; min-height:0; display:flex; align-items:flex-end; justify-content:center; padding-top:12px;}
+#sergente img{max-height:100%; max-width:86vw; width:auto; display:block;
+  filter:drop-shadow(0 -10px 30px rgba(0,0,0,.7)); transform-origin:50% 100%;
+  animation:sg-entra .45s cubic-bezier(.2,.9,.3,1.3), sg-sbraita .16s ease-in-out 6 .45s;}
+@keyframes sg-entra{from{transform:translateY(60%) scale(.9)} to{transform:translateY(0) scale(1)}}
+@keyframes sg-sbraita{0%,100%{transform:translate(0,0) rotate(0)}
+  30%{transform:translate(-6px,-3px) rotate(-1.2deg)} 70%{transform:translate(6px,2px) rotate(1.2deg)}}
+#sergente .barra{position:absolute; left:0; right:0; bottom:0;
+  padding:16px 14px calc(env(safe-area-inset-bottom) + 16px);
+  background:linear-gradient(rgba(8,5,3,0),rgba(8,5,3,.92) 55%); text-align:center;}
+#sergente .ok{font-family:'Arial Narrow',Impact,sans-serif; font-size:19px; letter-spacing:3px;
+  padding:13px 30px; border-radius:10px; background:var(--gold); color:#241d13; border:none; font-weight:700;}
+
 </style>
 </head>
 <body>
@@ -1799,6 +1836,16 @@
   </div>
 </div>
 
+
+<!-- IL SERGENTE: compare se qualcuno prova a giocare mentre la battuta è aperta -->
+<div id="sergente">
+  <div class="dentro">
+    <div class="urlo"><small>SERGENTE MARIO</small>STRONZO!!<br>STAI ATTENTO<br>ALLA TUA POSTA!!</div>
+    <div class="foto"><img id="sg-foto" alt=""></div>
+    <div class="barra"><button class="ok" id="sg-ok">HO CAPITO, CAPO</button></div>
+  </div>
+</div>
+
 <!-- MENU GENERALE -->
 <div id="menu">
   <div class="panel">
@@ -2472,7 +2519,7 @@
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.85";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.86";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2709,6 +2756,7 @@
     caricaRadio();                    // il canale del giorno in Home
     caricaMeteo();                    // vento e temperatura in Home
     caricaOrdineHome();               // l'ordine delle caselle scelto dal capo
+    controllaBattutaGiochi();         // con la battuta aperta i giochi si chiudono
     await caricaRitrovi();
     caricaTracce();           // le linee dei tracciatori
     caricaSettori();          // i rettangoli dei settori
@@ -13168,6 +13216,10 @@
     // --- SCADENZE ---
     document.getElementById("dc-chiudi").onclick=function(){ document.getElementById("m-doc").classList.remove("show"); docAperto=null; };
     document.getElementById("mt-chiudi").onclick=function(){ document.getElementById("m-meteo").classList.remove("show"); };
+    document.getElementById("sg-ok").onclick=function(){ document.getElementById("sergente").classList.remove("show"); };
+    document.getElementById("sergente").onclick=function(e){
+      if(e.target.id==="sergente") this.classList.remove("show");
+    };
     document.getElementById("dc-salva").onclick=function(){ salvaDocumento(null); };
     document.getElementById("dc-scatta").onclick=function(){ document.getElementById("dc-file").click(); };
     document.getElementById("dc-delfoto").onclick=eliminaFoto;
@@ -13823,7 +13875,13 @@
     async function renderSezione(){
       var box=el("gc-sez");
       if(!box) return;
-      box.innerHTML='<div class="loading">Carico…</div>';
+      await controllaBattutaGiochi();
+      var avviso = giochiChiusi()
+        ? '<div class="gc-avviso"><span class="em">\ud83d\udd12</span><span>'
+          + '<div class="nm">BATTUTA IN CORSO</div>'
+          + '<div class="ds">I giochi si riaprono quando il capo chiude la battuta.</div></span></div>'
+        : '';
+      box.innerHTML=avviso+'<div class="loading">Carico…</div>';
       if(!me || !me.squadra_id){ box.innerHTML='<div class="gc-et">Classifiche non disponibili</div>'; return; }
       var r;
       try{
@@ -13836,7 +13894,7 @@
         var s1=0,s2=0;
         try{ s1=parseInt(localStorage.getItem(chiaveRecord("cinghiale"))||"0",10)||0;
              s2=parseInt(localStorage.getItem(chiaveRecord("anatra"))||"0",10)||0; }catch(e2){}
-        box.innerHTML=riquadro("Senza rete","<div style='font-size:13px;opacity:.8'>I tuoi record sul telefono — cinghiali "+s1+" · anatre "+s2+"</div>");
+        box.innerHTML=avviso+riquadro("Senza rete","<div style='font-size:13px;opacity:.8'>I tuoi record sul telefono — cinghiali "+s1+" · anatre "+s2+"</div>");
         return;
       }
       var righe=r.data||[], oggi=chiaveSettimana(new Date());
@@ -13879,7 +13937,7 @@
       }
       DATI={ settimana:{ cinghiale:settimana.cinghiale||[], anatra:settimana.anatra||[] },
              sempre:  { cinghiale:sempre.cinghiale||[],    anatra:sempre.anatra||[] } };
-      box.innerHTML =
+      box.innerHTML = avviso +
         riquadro("🏆 Bacheca trofei personali", htrofei)+
         '<div class="gc-periodi">'+
           '<button class="'+(periodo==="settimana"?"on":"")+'" data-periodo="settimana">QUESTA SETTIMANA</button>'+
@@ -13986,6 +14044,7 @@
       }
     }
     function apri(){
+      if(giochiChiusi()){ sergenteUrla(); return; }
       prepara();
       try{ window.scrollTo(0,0); }catch(e){}
       el("gioco").classList.add("show");
@@ -14486,6 +14545,7 @@ function fineA(){
     if(window.visualViewport) window.visualViewport.addEventListener('resize',function(){ if(accesoA) dimensionaA(); });
   }
   function apriA(){
+    if(giochiChiusi()){ sergenteUrla(); return; }
     preparaA();
     try{ window.scrollTo(0,0); }catch(e){}
     document.getElementById('gioco2').classList.add('show');
@@ -14912,6 +14972,52 @@ function fineA(){
     if(i>=0) spente.splice(i,1); else spente.push(k);
     homeOrdine={ordine:ordineHome(), spente:spente};
     salvaOrdineHome(); renderCaselleHome(); renderAdmin();
+  }
+
+
+  /* ================= GIOCHI CHIUSI CON LA BATTUTA APERTA =================
+     Vale per tutti, capo compreso: chi comanda deve stare attento più degli altri.
+     Classifiche e trofei restano visibili, guardarli non distrae nessuno. */
+  var battutaPerGiochi = null;
+
+  async function controllaBattutaGiochi(){
+    if(!me || !me.squadra_id) return;
+    try{
+      var r = await sb.from("hn_battute_svolte").select("id,numero")
+                .eq("squadra_id", me.squadra_id).is("chiusa_il", null).limit(1);
+      if(r.error) throw r.error;
+      battutaPerGiochi = (r.data && r.data.length) ? r.data[0] : null;
+      try{ localStorage.setItem("hunter_battuta_giochi", JSON.stringify(battutaPerGiochi)); }catch(e){}
+    }catch(e){
+      // senza rete tengo l'ultimo stato conosciuto: meglio bloccare per sbaglio che il contrario
+      try{ battutaPerGiochi = JSON.parse(localStorage.getItem("hunter_battuta_giochi")); }catch(e2){}
+    }
+    document.body.classList.toggle("battuta-giochi", !!battutaPerGiochi);
+  }
+  function giochiChiusi(){ return !!battutaPerGiochi; }
+
+  function sergenteUrla(){
+    var box=document.getElementById("sergente");
+    var img=document.getElementById("sg-foto");
+    if(img && !img.getAttribute("src")) img.setAttribute("src","sergente.png");
+    box.classList.remove("show");
+    void box.offsetWidth;              // per far ripartire l'animazione ogni volta
+    box.classList.add("show");
+    fischioSergente();
+  }
+  var acSergente=null;
+  function fischioSergente(){
+    try{
+      acSergente = acSergente || new (window.AudioContext||window.webkitAudioContext)();
+      if(acSergente.state==="suspended") acSergente.resume();
+      [0,.22].forEach(function(d){
+        var o=acSergente.createOscillator(), g=acSergente.createGain(), t=acSergente.currentTime+d;
+        o.type="square"; o.frequency.setValueAtTime(1750,t);
+        o.frequency.linearRampToValueAtTime(2100,t+.13);
+        g.gain.setValueAtTime(.14,t); g.gain.exponentialRampToValueAtTime(.001,t+.16);
+        o.connect(g); g.connect(acSergente.destination); o.start(t); o.stop(t+.18);
+      });
+    }catch(e){}
   }
 
   if(document.readyState!=="loading") init();
