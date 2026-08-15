@@ -1128,6 +1128,22 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 #m-prescon .avv{font-size:12.5px; line-height:1.6; margin-top:10px; padding:10px 11px; border-radius:10px;
   background:#5a2a1e33; border:1px solid #C0392B55; color:#F0C9C0;}
 
+
+/* la sentinella del database */
+#sentinella{position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 74px);
+  z-index:2600; display:none; align-items:center; gap:10px; text-align:left;
+  background:linear-gradient(100deg,#6E1F14,#3E120C); border:1px solid #C0392B88;
+  border-left:6px solid #E04A34; border-radius:12px; padding:11px 13px; color:#F0C9C0;
+  box-shadow:0 6px 22px #00000070;}
+#sentinella.show{display:flex;}
+#sentinella .em{font-size:19px;}
+#sentinella .tx{flex:1; font-size:12.5px; line-height:1.4;}
+.posriga.buco{border-color:#E04A34 !important; background:#5a1e1433 !important;
+  animation:battito 1.15s ease-in-out infinite;}
+.posriga.buco .pallino{background:#8a3b2e; border-color:#E04A34; color:#fff;}
+@keyframes battito{0%,100%{box-shadow:0 0 0 0 rgba(224,74,52,.55)} 50%{box-shadow:0 0 0 9px rgba(224,74,52,0)}}
+#sentinella .pi{font-size:11.5px; color:#FFD9D0; border:1px solid #ffffff33; border-radius:16px; padding:5px 10px;}
+
 </style>
 </head>
 <body>
@@ -1978,6 +1994,21 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   </div>
 </div>
 
+
+<!-- LA SENTINELLA: si accende se il database rifiuta qualcosa -->
+<button id="sentinella"><span class="em">&#9888;&#65039;</span><span class="tx"></span><span class="pi">vedi</span></button>
+
+<div class="modal" id="m-guasti">
+  <div class="sheet">
+    <h3>Cosa ha rifiutato il database</h3>
+    <div id="gu-lista"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="gu-pulisci">Pulisci</button>
+      <button class="btn primary" id="gu-chiudi">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- MENU GENERALE -->
 <div id="menu">
   <div class="panel">
@@ -2656,7 +2687,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.93";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.94";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7540,6 +7571,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
        + (senza.length ? senza.length+' present'+(senza.length===1?'e senza incarico':'i senza incarico')
                        : 'Tutti i presenti hanno un incarico')
        + '</div>';
+    var scoperte = posteScoperte();
+    if(scoperte.length){
+      h += '<div style="display:flex; align-items:center; gap:10px; background:linear-gradient(100deg,#6E1F14,#3E120C);'
+         + ' border:1px solid #C0392B66; border-left:6px solid #E04A34; border-radius:11px; padding:10px 12px; margin-top:10px">'
+         + '<span style="font-size:20px">\u26a0\ufe0f</span><span>'
+         + '<div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:18px; letter-spacing:1px; color:var(--cream)">'
+         + scoperte.length + (scoperte.length===1 ? ' POSTA SCOPERTA' : ' POSTE SCOPERTE') + '</div>'
+         + '<div style="font-size:11.5px; color:#E8BDB5; margin-top:2px">'
+         + 'chi ci stava non risulta più presente: rimettici qualcuno</div></span></div>';
+    }
     h += '<div class="btnrow" style="margin-top:10px">';
     h += '<button class="btn line" id="ap-mappa" style="font-size:12px; padding:9px">🗺️ Mappa</button>';
     if(!chiusa && puoGestireBattute()){
@@ -7627,13 +7668,31 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     return (nx||0) - (ny||0);
   }
 
+  /* una posta assegnata a chi non risulta piu' presente e' un BUCO:
+     nessuno ci sta, ma sulla carta risulta coperta. Quella deve gridare. */
+  function presenteOra(membroId){
+    var a = adesioni.find(function(x){ return x.membro_id === membroId; });
+    return !!(a && a.presente === true);
+  }
+  function posteScoperte(){
+    var a = aree.find(function(x){ return x.id === apAreaId; });
+    if(!a) return [];
+    return (a.poste||[]).filter(function(p){
+      var as = assegnazioneDi(p.id, bsAperta);
+      return as && !presenteOra(as.membro_id);
+    });
+  }
   function rigaPosta(p){
     var as = assegnazioneDi(p.id, bsAperta);
     var sc = (scambioDa === p.id);
-    var h = '<div class="posriga '+(as?"presa":"")+(sc?" scelta":"")+'" data-posta="'+p.id+'">';
+    var buco = !!(as && !presenteOra(as.membro_id));
+    var h = '<div class="posriga '+(as?"presa":"")+(sc?" scelta":"")+(buco?" buco":"")+'" data-posta="'+p.id+'">';
     h += '<span class="pallino">'+(p.numero||"?")+'</span>';
     h += '<div class="chi">';
-    if(as){
+    if(as && buco){
+      h += '<div class="n" style="color:#FF8A75">SCOPERTA</div>';
+      h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+' \u00b7 era di '+esc(nomeDi(as.membro_id))+', non risulta presente</div>';
+    }else if(as){
       h += '<div class="n">'+esc(nomeDi(as.membro_id))+'</div>';
       h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</div>';
     }else{
@@ -13565,6 +13624,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     document.getElementById("dc-chiudi").onclick=function(){ document.getElementById("m-doc").classList.remove("show"); docAperto=null; };
     document.getElementById("mt-chiudi").onclick=function(){ document.getElementById("m-meteo").classList.remove("show"); };
     document.getElementById("pc-no").onclick=function(){ document.getElementById("m-prescon").classList.remove("show"); };
+    document.getElementById("sentinella").onclick=apriGuasti;
+    document.getElementById("gu-chiudi").onclick=function(){ document.getElementById("m-guasti").classList.remove("show"); };
+    document.getElementById("gu-pulisci").onclick=function(){
+      guasti=[]; document.getElementById("m-guasti").classList.remove("show");
+      document.getElementById("sentinella").classList.remove("show");
+    };
     document.getElementById("sg-ok").onclick=function(){ document.getElementById("sergente").classList.remove("show"); };
     document.getElementById("sergente").onclick=function(e){
       if(e.target.id==="sergente") this.classList.remove("show");
@@ -15592,6 +15657,68 @@ function fineA(){
       mostraNuvoletta();
     }catch(e){}
   }
+
+
+  /* ================= LA SENTINELLA DEL DATABASE =================
+     Tre volte in due giorni il database ha rifiutato una scrittura e l'app
+     non l'ha detto a nessuno: le regole RLS mancanti, la colonna letta_il,
+     la colonna urgente. Il difetto non erano i dati: era il silenzio.
+     Qui guardo TUTTE le risposte del database e, se una viene rifiutata,
+     lo dico. Non tocco nessuna funzione: osservo e basta. */
+  var guasti = [];
+  function registraGuasto(stato, url, testo){
+    var tab = "";
+    try{
+      var m = String(url).match(/\/(rest|storage)\/v1\/(object\/)?([a-zA-Z0-9_]+)/);
+      tab = m ? m[3] : "";
+    }catch(e){}
+    var msg = "";
+    try{ var j = JSON.parse(testo); msg = j.message || j.error || j.msg || ""; }catch(e2){ msg = String(testo||"").slice(0,140); }
+    guasti.unshift({ stato:stato, tab:tab, msg:msg, ora:new Date() });
+    if(guasti.length > 12) guasti.pop();
+    mostraSentinella();
+  }
+  function mostraSentinella(){
+    var b = document.getElementById("sentinella");
+    if(!b) return;
+    var n = guasti.length;
+    b.querySelector(".tx").textContent = n===1
+      ? "Una richiesta è stata rifiutata dal database"
+      : (n + " richieste sono state rifiutate dal database");
+    b.classList.add("show");
+  }
+  function apriGuasti(){
+    var h = '<p class="hint">Queste sono le risposte con cui il database ha detto di no. '
+          + 'Se ne vedi, qualcosa non si è salvato.</p>';
+    guasti.forEach(function(g){
+      h += '<div class="card" style="margin-bottom:8px">'
+         + '<div style="font-size:13px; color:var(--cream)"><b>' + g.stato + '</b> \u00b7 ' + esc(g.tab||"?") + '</div>'
+         + '<div style="font-size:11.5px; color:var(--muted); margin-top:4px; line-height:1.5">' + esc(g.msg||"") + '</div>'
+         + '<div style="font-size:10px; color:var(--muted); margin-top:4px">'
+         + g.ora.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"}) + '</div></div>';
+    });
+    document.getElementById("gu-lista").innerHTML = h;
+    document.getElementById("m-guasti").classList.add("show");
+  }
+  (function(){
+    var orig = window.fetch;
+    if(!orig) return;
+    window.fetch = function(u, o){
+      var p = orig.apply(this, arguments);
+      try{
+        var url = String((u && u.url) ? u.url : u);
+        if(url.indexOf("/rest/v1/") >= 0 || url.indexOf("/storage/v1/") >= 0){
+          p.then(function(r){
+            if(r && !r.ok){
+              try{ r.clone().text().then(function(t){ registraGuasto(r.status, url, t); }); }
+              catch(e){ registraGuasto(r.status, url, ""); }
+            }
+          }).catch(function(){});   // la rete che manca non è un guasto del database
+        }
+      }catch(e){}
+      return p;
+    };
+  })();
 
   if(document.readyState!=="loading") init();
   else document.addEventListener("DOMContentLoaded", init);
