@@ -1151,6 +1151,29 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 @keyframes battito{0%,100%{box-shadow:0 0 0 0 rgba(224,74,52,.55)} 50%{box-shadow:0 0 0 9px rgba(224,74,52,0)}}
 #sentinella .pi{font-size:11.5px; color:#FFD9D0; border:1px solid #ffffff33; border-radius:16px; padding:5px 10px;}
 
+
+/* la fascia della TUA posta, quando entri col "portami alla mia posta" */
+#miapostabar{position:absolute; left:10px; right:10px; bottom:14px; z-index:500; display:none;
+  background:#1b3a2b; border:1px solid #1D9E75; border-radius:14px; padding:12px 13px;
+  box-shadow:0 6px 22px #00000080; color:var(--cream);}
+#miapostabar.show{display:block;}
+#miapostabar .tt{display:flex; align-items:center; gap:11px;}
+#miapostabar .num{width:34px; height:34px; border-radius:50%; background:#1D9E75; color:#fff;
+  border:3px solid #F0E2C9; display:flex; align-items:center; justify-content:center;
+  font-weight:700; font-size:14px; flex-shrink:0;}
+#miapostabar .n1{font-size:15px; font-weight:600;}
+#miapostabar .n2{font-size:11.5px; color:#a8d8bf;}
+#miapostabar .tt span:nth-child(2){flex:1; min-width:0;}
+#miapostabar .esci{background:none; border:none; color:#a8d8bf; font-size:17px; padding:2px 6px;}
+#miapostabar .lab{font-size:9.5px; letter-spacing:1.5px; color:#a8d8bf; margin:10px 0 5px;}
+#miapostabar .vic{display:flex; align-items:center; gap:9px; font-size:12.5px; padding:4px 0;}
+#miapostabar .vic .n{width:22px; height:22px; border-radius:50%; background:#8a2f2f; color:#fff;
+  display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700;}
+#miapostabar .vic .c{flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+#miapostabar .vic .m{color:#a8d8bf; font-size:11.5px;}
+#miapostabar .nota{font-size:12px; line-height:1.5; margin-top:9px; padding-top:8px;
+  border-top:1px solid #ffffff1a; color:#e8f0e8;}
+
 </style>
 </head>
 <body>
@@ -1623,6 +1646,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       </div>
       <!-- barra MODALITÀ MAPPATURA (compare solo mappando) -->
       <!-- comandi della mappa: indietro, modifica, sezioni, linee -->
+      <div id="miapostabar"></div>
       <div id="maptools">
         <button id="mt-indietro" title="Indietro" aria-label="Indietro">‹</button>
         <button id="mt-modifica" title="Modifica la mappa" aria-label="Modifica">✎</button>
@@ -2704,7 +2728,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.96";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.97";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3558,7 +3582,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
        VICINE, per sapere chi ha a destra e a sinistra. Il terreno intero
        resta informazione della squadra, non del singolo. */
     var soloMie = null;
-    if(!puoVederePoste()){
+    if(soloMiaPosta && soloMiaPosta.postaId){
+      /* modalita' "portami alla mia posta": si vede solo il tuo tratto, anche da capo */
+      soloMie = {};
+      soloMie[soloMiaPosta.postaId] = true;
+      (soloMiaPosta.vicine||[]).forEach(function(id){ soloMie[id] = true; });
+    }else if(!puoVederePoste()){
       var mp0 = laMiaPosta();
       if(!mp0 || mp0.area_id !== a.id) return;          // nessuna posta sua qui
       var pMia0 = a.poste.find(function(x){ return x.id === mp0.posta_id; });
@@ -4122,6 +4151,32 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   /* ================= VISTE ================= */
   var mappaMaiCentrata=true;
+
+  /* ================= LA PILA DEL RITORNO — REGOLA D'ORO =================
+     "Se entro in una mappa (o in qualunque altra cosa) da una sezione, il tasto
+     indietro mi riporta LI'." Basta toppe caso per caso: l'app tiene la pila di
+     dove sono passato, e ogni indietro toglie l'ultimo gradino. */
+  var pilaViste = [], vistaAttiva = "home", tornandoIndietro = false;
+
+  function impilaVista(nuova){
+    if(tornandoIndietro){ tornandoIndietro = false; return; }
+    if(!vistaAttiva || vistaAttiva === nuova) return;
+    if(nuova === "home"){ pilaViste = []; return; }   // la Home e' il fondo: si riparte
+    pilaViste.push(vistaAttiva);
+    if(pilaViste.length > 12) pilaViste.shift();
+  }
+  function tornaIndietro(){
+    /* se una mappa e' aperta su un'area, il primo indietro chiude quella */
+    var v = pilaViste.pop();
+    tornandoIndietro = true;
+    if(!v){ showView("home"); return; }
+    showView(v);
+    if(v === "giomappa" && typeof renderMappaGiornata === "function") renderMappaGiornata();
+    else if(v === "giornata" && typeof renderGiornata === "function") renderGiornata();
+    else if(v === "areadett" && typeof renderSchedaArea === "function") renderSchedaArea();
+    else if(v === "aree" && typeof renderAree === "function") renderAree();
+  }
+
   function showView(v){
     // se stavo scegliendo un ritrovo e me ne vado dalla mappa, la scelta decade
     if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
@@ -4136,6 +4191,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(typeof perTracciataLayer!=="undefined" && perTracciataLayer && v!=="mappa"){
       try{ perTracciataLayer.clearLayers(); }catch(e){}
     }
+    impilaVista(v);
+    vistaAttiva = v;
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     if(v==="giochi" && typeof GIOCHI!=="undefined") GIOCHI.sezione();
     document.querySelectorAll("nav.tabs button").forEach(function(b){
@@ -8078,12 +8135,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       .map(function(x){ return x.p; });
   }
 
+  /* "Portami alla mia posta" non e' guardare la mappa: e' andare al TUO posto.
+     Quindi si apre stretta sulla tua posta, con SOLO le due piu' vicine, e vale
+     anche per il capocaccia - li' sta facendo il cacciatore, non il comandante. */
+  var soloMiaPosta = null;      // {postaId, vicine:[id,id]} finche' resta acceso
   function apriMiaPostaInMappa(){
     var mp = laMiaPosta();
     if(!mp){ toast("Non hai ancora una posta"); return; }
     var a = aree.find(function(x){ return x.id === mp.area_id; });
     if(!a){ toast("Mappa non trovata"); return; }
     var p = (a.poste||[]).find(function(x){ return x.id === mp.posta_id; });
+    if(!p){ toast("Posta non trovata sulla mappa"); return; }
+    var vic = posteVicine(a, p, 2).map(function(x){ return x.id; });
+    soloMiaPosta = { postaId: p.id, vicine: vic };
     modoMappa = "campo";
     areaAttivaId = mp.area_id;
     areaApertaInMappa = true;
@@ -8094,10 +8158,36 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       renderPoste();
       disegnaSettori();
       disegnaTracce();
-      if(p) map.setView([p.lat, p.lng], 17);
-      else fitArea();
+      map.setView([p.lat, p.lng], 17);
+      mostraBannerMiaPosta(p, a, vic);
     }, 260);
-    toast(p ? ("Posta " + (p.numero||"") + " \u00b7 tocca per le note") : "La tua posta");
+  }
+  function mostraBannerMiaPosta(p, a, vic){
+    var b = document.getElementById("miapostabar");
+    if(!b) return;
+    var righe = vic.map(function(id){
+      var q = (a.poste||[]).find(function(x){ return x.id===id; });
+      if(!q) return "";
+      var d = Math.round(distM(p, q));
+      var chi = assegnazioneDi(q.id, bsAperta);
+      return '<div class="vic"><span class="n">'+(q.numero||"?")+'</span>'
+           + '<span class="c">'+(chi ? esc(nomeDi(chi.membro_id)) : "ancora libera")+'</span>'
+           + '<span class="m">'+d+' m</span></div>';
+    }).join("");
+    b.innerHTML = '<div class="tt"><span class="num">'+(p.numero||"?")+'</span>'
+      + '<span><div class="n1">La tua posta</div><div class="n2">'+esc(a.nome)
+      + (p.nome ? ' \u00b7 '+esc(p.nome) : '')+'</div></span>'
+      + '<button class="esci" id="mp-esci-solo">\u2715</button></div>'
+      + (righe ? '<div class="lab">CHI HAI ACCANTO</div>'+righe : '')
+      + (p.note ? '<div class="nota">'+esc(p.note)+'</div>' : '');
+    b.classList.add("show");
+    var e = document.getElementById("mp-esci-solo");
+    if(e) e.onclick = function(){
+      soloMiaPosta = null;
+      b.classList.remove("show");
+      renderPoste();
+      toast("Ora vedi tutta la mappa");
+    };
   }
 
   /* la mia posta e' quella della battuta IN CORSO; se non ce n'e' una aperta
@@ -8563,24 +8653,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      rispediva SEMPRE in Mappe, anche a chi era entrato dalla giornata. */
   var mappaVenutoDa = null;
   function tornaIndietroDaMappa(){
-    if(mappaVenutoDa === "giomappa"){
-      mappaVenutoDa = null;
-      areaApertaInMappa = false;
-      showView("giomappa");
-      renderMappaGiornata();
-      return;
-    }
-    if(mappaVenutoDa === "giornata"){
-      mappaVenutoDa = null;
-      areaApertaInMappa = false;
-      showView("giornata");
-      if(typeof renderGiornata === "function") renderGiornata();
-      return;
-    }
-    // se ero arrivato dalla scheda di una mappa, torno li'
-    if(areaDett){ showView("areadett"); renderSchedaArea(); return; }
-    if(areaApertaInMappa){ showView("aree"); renderAree(); return; }
-    showView("home");
+    mappaVenutoDa = null;
+    areaApertaInMappa = false;
+    soloMiaPosta = null;
+    var bmp = document.getElementById("miapostabar");
+    if(bmp) bmp.classList.remove("show");
+    tornaIndietro();
   }
 
   /* le linee sulla mappa, con l'interruttore di visibilita' */
@@ -13605,7 +13683,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       if(areaAttivaId){ settoriAperti = null; traccaAperta = areaAttivaId; apriTracceDaMappa(); }
     };
     document.getElementById("mt-indietro").onclick=tornaIndietroDaMappa;
-    document.getElementById("gm-indietro").onclick=function(){ showView("giornata"); renderGiornata(); };
+    document.getElementById("gm-indietro").onclick=tornaIndietro;
     document.getElementById("mt-modifica").onclick=function(){
       if(areaAttivaId) apriPopupArea(areaAttivaId);
     };
@@ -13648,7 +13726,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     // pulsanti "‹ Home" nelle sezioni
     document.querySelectorAll("[data-home]").forEach(function(b){
-      b.onclick=function(){ showView("home"); };
+      b.onclick=tornaIndietro;      // regola d'oro: si torna da dove si e' venuti
     });
     // annunci
     document.getElementById("m-ann-salva").onclick=salvaAnnuncio;
