@@ -935,13 +935,25 @@
 #radiobox .rp-riga{font-size:12px; color:var(--cream); line-height:1.6;}
 /* la barra "ci sono": chiusa occupa una riga, si apre toccandola */
 .adesbar{display:flex; align-items:center; gap:12px; width:100%; text-align:left; margin-bottom:10px;
-  background:linear-gradient(100deg,#2E5C22,#1D3D16); border:1px solid #6FBF4A55;
-  border-left:6px solid #7FD948; border-radius:14px; padding:11px 13px; color:#fff;}
+  background:linear-gradient(100deg,#1F4E79,#143653); border:1px solid #4A90C255;
+  border-left:6px solid #58A6E0; border-radius:14px; padding:11px 13px; color:#fff;}
+/* la presenza: spenta finche' non ci sei, verde quando ci sei */
+.presbar{display:flex; align-items:center; gap:12px; width:100%; text-align:left; margin-bottom:10px;
+  border-radius:14px; padding:11px 13px; border:1px solid var(--dark3);
+  background:var(--dark2); border-left:6px solid var(--dark3); color:var(--muted);}
+.presbar.si{background:linear-gradient(100deg,#2E5C22,#1D3D16); border-color:#6FBF4A55;
+  border-left-color:#7FD948; color:#fff;}
+.presbar .em{font-size:20px;}
+.presbar .mid{flex:1; min-width:0;}
+.presbar .tt{font-family:'Arial Narrow',Impact,sans-serif; font-size:19px; letter-spacing:1px; display:block; line-height:1;}
+.presbar .ds{font-size:11.5px; display:block; margin-top:3px; opacity:.9;}
+.presbar .arriva{margin-left:auto; background:#7FD948; color:#0d2408; border:none; border-radius:20px;
+  padding:9px 13px; font-size:12px; font-weight:700; white-space:nowrap;}
 .adesbar.no{background:var(--dark2); border-color:var(--dark3); border-left-color:#8A5A2B; color:var(--muted);}
 .adesbar .em{font-size:20px;}
 .adesbar .mid{flex:1; min-width:0;}
 .adesbar .tt{font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; letter-spacing:1px; display:block; line-height:1;}
-.adesbar .ds{font-size:11.5px; color:#CFE9B8; display:block; margin-top:3px;}
+.adesbar .ds{font-size:11.5px; color:#BBD9F0; display:block; margin-top:3px;}
 .adesbar.no .ds{color:var(--muted);}
 .adesbar .giu{font-size:17px; opacity:.75;}
 #radiobox .radio.spenta{background:var(--dark2); border-color:var(--dark3);
@@ -2522,7 +2534,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.89";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.90";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5677,6 +5689,25 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       }
     }
 
+    // --- CI SONO DAVVERO: la presenza, solo il giorno della battuta ---
+    if(String(b.data||"").slice(0,10) === oggiISO() && b.stato !== "conclusa"){
+      var miaP = miaAdesione();
+      if(miaP && miaP.presente){
+        var oraP = miaP.presente_il ? String(miaP.presente_il).slice(11,16) : "";
+        var comeP = miaP.presente_da==="ritrovo" ? "il GPS al punto di ritrovo"
+                  : miaP.presente_da==="capo" ? "il capocaccia"
+                  : "te stesso";
+        h+='<div class="presbar si"><span class="em">\u2713</span>'
+         + '<span class="mid"><span class="tt">PRESENTE</span>'
+         + '<span class="ds">'+(oraP?('segnato alle '+oraP+' \u00b7 da '+comeP):('segnato da '+comeP))+'</span></span></div>';
+      }else{
+        h+='<div class="presbar"><span class="em">\ud83d\udccd</span>'
+         + '<span class="mid"><span class="tt">NON ANCORA SEGNATO</span>'
+         + '<span class="ds">tocca quando arrivi, o ti segna il GPS al ritrovo</span></span>'
+         + '<button class="arriva" id="gi-arrivato">SONO ARRIVATO</button></div>';
+      }
+    }
+
     // --- LA MIA ADESIONE (per tutti) ---
     if(b.stato==="aperta"){
       var mia=miaAdesione();
@@ -5692,8 +5723,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
           rias.push(arB ? ('tracci · '+arB.nome) : 'tracciatore');
         }
         h+='<button class="adesbar'+(mia.viene?'':' no')+'" id="ades-bar">'
-         + '<span class="em">'+(mia.viene?'\u2713':'\u2716')+'</span>'
-         + '<span class="mid"><span class="tt">'+(mia.viene?'CI SONO':'NON VENGO')+'</span>'
+         + '<span class="em">'+(mia.viene?'\ud83d\udcc5':'\u2716')+'</span>'
+         + '<span class="mid"><span class="tt">'+(mia.viene?'PRENOTATO':'NON VENGO')+'</span>'
          + '<span class="ds">'+esc(rias.length?rias.join(' \u00b7 '):'battuta del giorno')+'</span></span>'
          + '<span class="giu">'+(adesApri?'\u2303':'\u2304')+'</span></button>';
       }
@@ -5732,9 +5763,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
             var lineeMie = tracceDi(ar2.id);
             h+='<div style="margin-top:11px; background:#4a3560; border:1px solid #7B5EA7; border-radius:12px; padding:13px">';
             h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.6px; margin-bottom:5px">SEI ASSEGNATO A</div>';
-            h+='<div style="font-size:19px; font-weight:700; color:#fff; line-height:1.2; margin-bottom:3px">'+esc(ar2.nome)+'</div>';
-            if(ar2.comune) h+='<div style="font-size:11px; color:#c9b3e0; margin-bottom:9px">'+esc(ar2.comune)+'</div>';
-            h+='<button class="btn line" data-giarea="'+ar2.id+'" style="margin-bottom:8px; font-size:12px; padding:9px">🗺️ Vedi la mappa</button>';
+            h+='<div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:32px; letter-spacing:1px; color:#fff; line-height:1; margin-bottom:4px">'+esc(ar2.nome).toUpperCase()+'</div>';
+            h+='<div style="font-size:11.5px; color:#c9b3e0; margin-bottom:10px">'
+             + (ar2.comune?esc(ar2.comune)+' \u00b7 ':'')
+             + ((ar2.poste||[]).length)+' poste'
+             + (lineeMie.length?(' \u00b7 '+lineeMie.length+' line'+(lineeMie.length===1?'a':'e')+' da fare'):'')
+             + '</div>';
+            h+='<button class="btn line" data-giarea="'+ar2.id+'" style="font-size:12px; padding:9px">🗺️ Vedi la mappa</button>';
+            h+='</div>';   /* il banner finisce qui: le linee stanno SOTTO, come nel disegno */
             if(lineeMie.length){
               h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
               var giaFatte = tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
@@ -5765,7 +5801,6 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
             }else{
               h+='<div style="font-size:11px; color:#c9b3e0; line-height:1.5; margin-top:8px">Questa mappa non ha ancora una linea di tracciamento. Chiedi al capocaccia di disegnarla.</div>';
             }
-            h+='</div>';
           }else{
             h+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'+
                (areeSeg.length ? 'Il capocaccia ti assegnerà a un\'area.'
@@ -5918,6 +5953,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   function bindGiornata(){
     var root=document.getElementById("giornata-scroll");
+    var ar0=document.getElementById("gi-arrivato");
+    if(ar0) ar0.onclick=async function(){
+      ar0.disabled=true; ar0.textContent="Segno\u2026";
+      var ok=await segnaPresenza("io");
+      if(!ok){ ar0.disabled=false; ar0.textContent="SONO ARRIVATO"; toast("Serve la rete per segnarti"); return; }
+      toast("Sei segnato presente");
+      await caricaAdesioni(); renderGiornata();
+    };
     var ab=document.getElementById("ades-bar");
     if(ab) ab.onclick=function(){
       var c=document.getElementById("ades-corpo");
@@ -10838,7 +10881,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      Quando il capo CONCLUDE la giornata, chi era prenotato e non e' stato
      tolto diventa presente: sono quelli che contano per quote e classifica. */
 
-  var RAGGIO_RITROVO = 300;     // metri dal ritrovo entro cui la presenza scatta da sola
+  var RAGGIO_RITROVO = 150;     // metri dal ritrovo entro cui la presenza scatta da sola
   var battutaOggi = null;       // la battuta di oggi, se c'e'
   var miaAdesioneOggi = null;   // la mia riga di adesione per oggi
   var presenzaGiaChiesta = false;
