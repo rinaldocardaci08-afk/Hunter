@@ -933,6 +933,17 @@
 #radiobox .radio-piu.aperta{display:block; background:var(--dark2); border:1px solid var(--dark3);
   border-top:none; border-radius:0 0 12px 12px; margin:-6px 8px 0; padding:12px 13px 11px;}
 #radiobox .rp-riga{font-size:12px; color:var(--cream); line-height:1.6;}
+/* la barra "ci sono": chiusa occupa una riga, si apre toccandola */
+.adesbar{display:flex; align-items:center; gap:12px; width:100%; text-align:left; margin-bottom:10px;
+  background:linear-gradient(100deg,#2E5C22,#1D3D16); border:1px solid #6FBF4A55;
+  border-left:6px solid #7FD948; border-radius:14px; padding:11px 13px; color:#fff;}
+.adesbar.no{background:var(--dark2); border-color:var(--dark3); border-left-color:#8A5A2B; color:var(--muted);}
+.adesbar .em{font-size:20px;}
+.adesbar .mid{flex:1; min-width:0;}
+.adesbar .tt{font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; letter-spacing:1px; display:block; line-height:1;}
+.adesbar .ds{font-size:11.5px; color:#CFE9B8; display:block; margin-top:3px;}
+.adesbar.no .ds{color:var(--muted);}
+.adesbar .giu{font-size:17px; opacity:.75;}
 #radiobox .radio.spenta{background:var(--dark2); border-color:var(--dark3);
   border-left-color:var(--dark3); color:var(--muted);}
 #meteobox{margin-bottom:14px;}
@@ -2511,7 +2522,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.88";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.89";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3879,6 +3890,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   /* apre l'area in mappa: le poste diventano visibili */
   function apriAreaInMappa(){
     if(!puoVederePoste()){ toast("Non sei autorizzato a vedere le poste"); return; }
+    mappaVenutoDa = null;
     var a=areaAttiva(); if(!a) return;
     if(!(a.poste||[]).length){ toast("Questa mappa non ha ancora poste"); return; }
     modoMappa="laboratorio";      // si arriva qui dal menu' Modifica, quindi da Mappe
@@ -5668,6 +5680,24 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     // --- LA MIA ADESIONE (per tutti) ---
     if(b.stato==="aperta"){
       var mia=miaAdesione();
+      /* Detto "ci sono", il pannello si chiude in una barra sola come la radio:
+         occupava mezza schermata per una cosa gia' decisa. Resta aperto per chi
+         non ha ancora risposto e per il tracciatore, che dentro ha il suo giro. */
+      var adesApri = !(mia && mia.viene) || !!(mia.tracciatore && mia.area_tracciata);
+      if(mia){
+        var rias=[];
+        if(mia.viene && (mia.ospiti||0)>0) rias.push((mia.ospiti)+' ospit'+((mia.ospiti)===1?'e':'i'));
+        if(mia.viene && mia.tracciatore){
+          var arB=aree.find(function(x){return x.id===mia.area_tracciata;});
+          rias.push(arB ? ('tracci · '+arB.nome) : 'tracciatore');
+        }
+        h+='<button class="adesbar'+(mia.viene?'':' no')+'" id="ades-bar">'
+         + '<span class="em">'+(mia.viene?'\u2713':'\u2716')+'</span>'
+         + '<span class="mid"><span class="tt">'+(mia.viene?'CI SONO':'NON VENGO')+'</span>'
+         + '<span class="ds">'+esc(rias.length?rias.join(' \u00b7 '):'battuta del giorno')+'</span></span>'
+         + '<span class="giu">'+(adesApri?'\u2303':'\u2304')+'</span></button>';
+      }
+      h+='<div id="ades-corpo"'+(adesApri?'':' style="display:none"')+'>';
       h+='<div class="sechead">La tua adesione</div>';
       h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold)">';
       h+='<div style="font-size:11px; color:var(--muted); margin-bottom:7px">CI SEI?</div>';
@@ -5743,6 +5773,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
           }
         }
       }
+      h+='</div>';
       h+='</div>';
     }
 
@@ -5887,6 +5918,15 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   function bindGiornata(){
     var root=document.getElementById("giornata-scroll");
+    var ab=document.getElementById("ades-bar");
+    if(ab) ab.onclick=function(){
+      var c=document.getElementById("ades-corpo");
+      if(!c) return;
+      var chiuso = c.style.display==="none";
+      c.style.display = chiuso ? "block" : "none";
+      var g=ab.querySelector(".giu");
+      if(g) g.textContent = chiuso ? "\u2303" : "\u2304";
+    };
     root.querySelectorAll("[data-ades]").forEach(function(b){
       b.onclick=function(){ salvaAdesione(b.dataset.ades==="si"); };
     });
@@ -7976,6 +8016,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   function apriAreaDaBattuta(id){
     var a = aree.find(function(x){ return x.id === id; });
     if(!a){ toast("Mappa non trovata"); return; }
+    mappaVenutoDa = "giornata";      // il tasto indietro deve riportarmi alla giornata
     if(!puoVedereAree() && !puoMappare()){ toast("Non hai il permesso di vedere le mappe"); return; }
     modoMappa = "campo";
     areaAttivaId = id;
@@ -7997,6 +8038,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      tasto vecchio le passava l'evento del clic invece dell'id — quindi non
      succedeva piu' niente, senza nemmeno un messaggio. Nomi diversi. */
   function apriAreaInLaboratorio(id){
+    mappaVenutoDa = null;
     modoMappa = "laboratorio";
     areaAttivaId = id;
     areaApertaInMappa = true;
@@ -8091,7 +8133,17 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     bl.title = vistaMappa.linee ? "Linee: accese" : "Linee: spente";
   }
 
+  /* Da dove sono arrivato alla mappa. Senza questo il tasto indietro
+     rispediva SEMPRE in Mappe, anche a chi era entrato dalla giornata. */
+  var mappaVenutoDa = null;
   function tornaIndietroDaMappa(){
+    if(mappaVenutoDa === "giornata"){
+      mappaVenutoDa = null;
+      areaApertaInMappa = false;
+      showView("giornata");
+      if(typeof renderGiornata === "function") renderGiornata();
+      return;
+    }
     // se ero arrivato dalla scheda di una mappa, torno li'
     if(areaDett){ showView("areadett"); renderSchedaArea(); return; }
     if(areaApertaInMappa){ showView("aree"); renderAree(); return; }
