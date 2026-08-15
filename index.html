@@ -1052,6 +1052,82 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 #sergente .ok{font-family:'Arial Narrow',Impact,sans-serif; font-size:19px; letter-spacing:3px;
   padding:13px 30px; border-radius:10px; background:var(--gold); color:#241d13; border:none; font-weight:700;}
 
+
+/* ---- la sezione della singola mappa della giornata ---- */
+#gm-ante{width:100%; display:block; border-radius:12px; border:1px solid var(--dark3); background:#34401f;}
+.gm-legenda{display:flex; gap:13px; flex-wrap:wrap; font-size:10.5px; color:var(--muted); margin:8px 2px 4px;}
+.gm-legenda i{display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:5px; vertical-align:-1px;}
+.gm-tit{display:flex; align-items:baseline; gap:9px; margin-bottom:9px;}
+.gm-tit .nm{font-family:'Arial Narrow',Impact,sans-serif; font-size:27px; letter-spacing:1px; color:var(--cream);}
+.gm-tit .ds{font-size:11.5px; color:var(--muted);}
+
+
+/* ---- la nuvoletta della comunicazione urgente ---- */
+#nuvoletta{position:fixed; inset:0; z-index:3400; display:none; background:rgba(8,5,3,.88);
+  align-items:center; justify-content:center; padding:20px;}
+#nuvoletta.show{display:flex; animation:nv-sfuma .25s ease-out;}
+@keyframes nv-sfuma{from{opacity:0}to{opacity:1}}
+#nuvoletta .bolla{position:relative; max-width:400px; width:100%;
+  background:linear-gradient(#FFF6E2,#F3E4C4); color:#2b2416; border-radius:22px;
+  padding:20px 20px 18px; box-shadow:0 18px 50px #000000a0;
+  animation:nv-entra .34s cubic-bezier(.2,.9,.3,1.35); max-height:82vh; overflow-y:auto;}
+@keyframes nv-entra{from{transform:scale(.86) translateY(18px); opacity:0} to{transform:none; opacity:1}}
+#nuvoletta .bolla:after{content:""; position:absolute; left:38px; bottom:-17px; width:0; height:0;
+  border-left:16px solid transparent; border-right:16px solid transparent; border-top:18px solid #F3E4C4;}
+#nuvoletta .cap{display:flex; align-items:center; gap:9px; margin-bottom:10px;}
+#nuvoletta .cap .em{font-size:26px;}
+#nuvoletta .t1{font-family:'Arial Narrow',Impact,sans-serif; font-size:22px; letter-spacing:1px;
+  line-height:1; color:#8a2b18;}
+#nuvoletta .t2{font-size:11px; color:#7a6a4a; margin-top:2px;}
+#nuvoletta .titolo{font-size:17px; font-weight:700; margin-top:4px;}
+#nuvoletta .testo{font-size:16.5px; line-height:1.55; margin:6px 0 12px; white-space:pre-wrap;}
+#nuvoletta .firma{font-size:11.5px; color:#7a6a4a; border-top:1px solid #00000018; padding-top:9px;}
+#nuvoletta .ok{width:100%; margin-top:14px; padding:14px; border:none; border-radius:12px;
+  background:#8a2b18; color:#fff; font-family:'Arial Narrow',Impact,sans-serif; font-size:19px; letter-spacing:2px;}
+/* l'annuncio urgente in bacheca */
+.card.urgente{background:#5a2a1e2b; border-color:#C0392B66; border-left:5px solid #E04A34;}
+.bollo-urg{display:inline-block; background:#C0392B; color:#fff; font-size:9.5px; font-weight:700;
+  letter-spacing:1px; border-radius:20px; padding:3px 8px; margin-right:7px; vertical-align:2px;}
+/* la spunta urgente nel modulo */
+#m-ann-urg{display:flex; align-items:center; gap:12px; border-radius:12px; padding:12px 13px;
+  margin-top:12px; border:1px solid var(--dark3); background:#00000030; width:100%; text-align:left;}
+#m-ann-urg.on{background:#5a2a1e33; border-color:#C0392B88;}
+#m-ann-urg .box{width:26px; height:26px; border-radius:7px; border:2px solid var(--dark3);
+  flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:15px; color:#fff;}
+#m-ann-urg.on .box{background:#C0392B; border-color:#C0392B;}
+#m-ann-urg .tt{font-size:14.5px; color:var(--cream);}
+#m-ann-urg .ds{font-size:11px; color:var(--muted); margin-top:2px;}
+#m-ann-urg.on .ds{color:#E8BDB5;}
+
+
+/* ---- tendina di chi viene ---- */
+.cvbar{display:flex; align-items:center; gap:12px; width:100%; text-align:left; border-radius:14px;
+  padding:11px 13px; background:var(--dark2); border:1px solid var(--dark3);
+  border-left:6px solid var(--gold); color:var(--cream);}
+.cvbar .em{font-size:20px;}
+.cvbar .mid{flex:1; min-width:0;}
+.cvbar .tt{font-family:'Arial Narrow',Impact,sans-serif; font-size:20px; letter-spacing:1px; display:block; line-height:1;}
+.cvbar .ds{font-size:11.5px; color:var(--muted); display:block; margin-top:3px;}
+.cvbar .giu{font-size:17px; opacity:.75;}
+.cvlista{display:none; margin-top:8px;}
+.cvlista.on{display:block;}
+.cvfil{display:flex; gap:6px; background:#00000035; padding:4px; border-radius:11px; margin-bottom:9px;}
+.cvfil button{flex:1; padding:8px 4px; border:none; border-radius:8px; background:transparent;
+  color:var(--muted); font-size:12px;}
+.cvfil button.on{background:var(--dark3); color:var(--cream); font-weight:700;}
+.aderente{display:flex; align-items:center; gap:10px; background:#ffffff08; border:1px solid var(--dark3);
+  border-radius:11px; padding:10px 11px; margin-bottom:7px;}
+.aderente.assente{opacity:.45;}
+.aderente .pallino{width:11px; height:11px; border-radius:50%; flex-shrink:0;}
+.aderente .nm{font-size:14px; color:var(--cream);}
+.aderente .ds{font-size:10.5px; color:var(--muted); margin-top:2px;}
+.aderente .sp{margin-left:auto; border:1px solid var(--dark3); background:transparent; color:var(--muted);
+  border-radius:18px; padding:7px 11px; font-size:11.5px; white-space:nowrap;}
+.aderente .sp.si{background:#2d5a3f; border-color:#3d7a55; color:#fff;}
+.btn.rosso{background:#8a3b2e; border-color:#8a3b2e; color:#fff;}
+#m-prescon .avv{font-size:12.5px; line-height:1.6; margin-top:10px; padding:10px 11px; border-radius:10px;
+  background:#5a2a1e33; border:1px solid #C0392B55; color:#F0C9C0;}
+
 </style>
 </head>
 <body>
@@ -1674,6 +1750,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       </div>
     </section>
 
+
+    <!-- LA MAPPA DELLA GIORNATA: anteprima e tracciate solo di questa mappa -->
+    <section class="view" id="v-giomappa">
+      <div class="backbar">
+        <button id="gm-indietro">‹ Giornata</button>
+        <div class="ttl" id="gm-titolo">Mappa</div>
+      </div>
+      <div class="scroll" id="giomappa-scroll"></div>
+    </section>
+
     <section class="view" id="v-info">
       <div class="backbar">
         <button data-home>‹ Home</button>
@@ -1861,6 +1947,37 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   </div>
 </div>
 
+
+<!-- LA NUVOLETTA: comunicazione urgente del capocaccia -->
+<div id="nuvoletta">
+  <div class="bolla">
+    <div class="cap">
+      <span class="em">&#128227;</span>
+      <span><div class="t1">COMUNICAZIONE IMPORTANTE</div>
+        <div class="t2" id="nv-quando">dal capocaccia</div></span>
+    </div>
+    <div class="titolo" id="nv-titolo"></div>
+    <div class="testo" id="nv-testo"></div>
+    <div class="firma" id="nv-firma"></div>
+    <button class="ok" id="nv-ok">HO LETTO</button>
+  </div>
+</div>
+
+
+<!-- MODALE: conferma della presenza, una per volta -->
+<div class="modal" id="m-prescon">
+  <div class="sheet">
+    <h3 id="pc-tit">SEGNO PRESENTE?</h3>
+    <div style="font-size:17px; color:var(--gold); margin-top:2px" id="pc-nome">—</div>
+    <p class="hint" id="pc-testo" style="margin-top:8px"></p>
+    <div class="avv" id="pc-avviso"></div>
+    <div class="btnrow" style="margin-top:15px">
+      <button class="btn line" id="pc-no">Annulla</button>
+      <button class="btn primary" id="pc-si">Sì, c'è</button>
+    </div>
+  </div>
+</div>
+
 <!-- MENU GENERALE -->
 <div id="menu">
   <div class="panel">
@@ -1891,6 +2008,11 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     <input id="m-ann-titolo" type="text" autocomplete="off" placeholder="Es. Battuta di domenica">
     <label>Testo</label>
     <textarea id="m-ann-testo" style="min-height:110px" placeholder="Scrivi la comunicazione…"></textarea>
+    <button id="m-ann-urg">
+      <span class="box"></span>
+      <span><div class="tt">🚨 Urgente</div>
+        <div class="ds">La vedono in bacheca quando ci passano</div></span>
+    </button>
     <div class="btnrow" style="margin-top:15px">
       <button class="btn line" id="m-ann-annulla">Annulla</button>
       <button class="btn primary" id="m-ann-salva">Pubblica</button>
@@ -2534,7 +2656,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.90";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.93";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -2772,6 +2894,11 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     caricaMeteo();                    // vento e temperatura in Home
     caricaOrdineHome();               // l'ordine delle caselle scelto dal capo
     controllaBattutaGiochi();         // con la battuta aperta i giochi si chiudono
+    controllaUrgenti();               // la nuvoletta del capocaccia
+    setInterval(controllaUrgenti, 60000);
+    document.addEventListener("visibilitychange", function(){
+      if(!document.hidden) controllaUrgenti();
+    });
     await caricaRitrovi();
     caricaTracce();           // le linee dei tracciatori
     caricaSettori();          // i rettangoli dei settori
@@ -5426,6 +5553,159 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     return me && tc.membro_id === me.membro_id;   // fuori, solo le proprie
   }
 
+
+  /* L'elenco delle tracciate: lo stesso pezzo serve nella giornata (la propria)
+     e dentro la sezione della mappa (tutte quelle di quella mappa). */
+  function htmlTracciate(lista){
+    var h='';
+    lista.forEach(function(tc){
+        var t = tracce.find(function(x){ return x.id===tc.traccia_id; });
+        var ar = aree.find(function(x){ return x.id===tc.area_id; });
+        var nseg = segnalazioni.filter(function(x){ return x.tracciata_id===tc.id; });
+        var ent = nseg.filter(function(x){ return x.tipo==="entrata"; }).length;
+        var usc = nseg.filter(function(x){ return x.tipo==="uscita"; }).length;
+        h+='<div class="card" data-tcapri="'+tc.id+'" style="margin-bottom:7px; cursor:pointer"><div style="display:flex; align-items:center; gap:8px">';
+        h+='<span style="font-size:15px">'+(tc.chiusa_il ? '\u2713' : '\u23f1')+'</span>';
+        if(tc.letta_il) h+='<span style="font-size:10px; color:#7be0a8; flex-shrink:0">vista</span>';
+        h+='<div style="flex:1; min-width:0">';
+        h+='<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(nomeDi(tc.membro_id))+'</div>';
+        h+='<div style="font-size:10.5px; color:var(--muted)">'
+         + esc(t ? t.nome : (ar ? ar.nome : 'zona'))
+         + (tc.dichiarata ? ' \u00b7 dichiarata'
+                          : (tc.chiusa_il ? ' \u00b7 ' + (Number(tc.distanza||0)/1000).toFixed(2) + ' km'
+                                          : ' \u00b7 in corso'))
+         + '</div></div>';
+        if(ent||usc){
+          h+='<div style="text-align:right; flex-shrink:0">';
+          if(ent) h+='<div style="font-size:11px; color:#7be0a8">\u2193 '+ent+'</div>';
+          if(usc) h+='<div style="font-size:11px; color:#e08a8a">\u2191 '+usc+'</div>';
+          h+='</div>';
+        }
+        h+='<span style="font-size:15px; color:var(--muted); flex-shrink:0">\u203a</span>';
+        h+='</div>';
+        if(possoToccareTracciata(tc)){
+          h+='<button class="btn line" data-segnadopo="'+tc.id+'|'+(tc.area_id||"")+'" style="margin-top:8px; font-size:11.5px; padding:8px">\ud83d\udc17 Segna cosa hai visto</button>';
+          h+='<button class="btn line" data-tcdel="'+tc.id+'" style="margin-top:6px; font-size:11.5px; padding:8px">\u2715 Cancella questa tracciata</button>';
+        }else if(comeCapo()){
+          // il capocaccia la guarda e la spunta: non la tocca
+          h+='<button class="btn line" data-tcletta="'+tc.id+'" style="margin-top:8px; font-size:11.5px; padding:8px'
+           + (tc.letta_il ? '; background:#2d5a3f; border-color:#3d7a55; color:#fff' : '')+'">'
+           + (tc.letta_il ? "\u2713 Gi\u00e0 vista" : "Segna come vista")+'</button>';
+        }
+        if(tc.note){
+          h+='<div style="margin-top:7px; padding-top:7px; border-top:1px solid var(--dark3); font-size:12px; color:var(--cream); line-height:1.5; white-space:pre-wrap">'+esc(tc.note)+'</div>';
+        }
+        h+='</div>';
+      });
+    return h;
+  }
+
+  /* gli stessi agganci servono nella giornata e nella sezione della mappa */
+  function agganciaTracciate(root){
+    root.querySelectorAll("[data-tcapri]").forEach(function(c){
+      c.onclick=function(ev){
+        // i bottoni dentro la scheda fanno il loro mestiere, non aprono il dettaglio
+        if(ev && ev.target && ev.target.closest && ev.target.closest("button")) return;
+        apriDettaglioTracciata(c.dataset.tcapri);
+      };
+    });
+    root.querySelectorAll("[data-tcletta]").forEach(function(b){
+      b.onclick=function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        segnaTracciataLetta(b.dataset.tcletta);
+      };
+    });
+    root.querySelectorAll("[data-tcdel]").forEach(function(b){
+      b.onclick=function(){ eliminaTracciata(b.dataset.tcdel); };
+    });
+    root.querySelectorAll("[data-segnadopo]").forEach(function(b){
+      b.onclick=function(){
+        var p=b.dataset.segnadopo.split("|");
+        var tc=tracciate.find(function(x){ return x.id===p[0]; });
+        if(tc) iniziaSegnRemota(tc, p[1]||tc.area_id);
+      };
+    });
+  }
+
+
+  /* ---- l'elenco dentro la tendina di "chi viene" ---- */
+  var cvFiltro = "tutti", cvAperta = false;
+  function cvRighe(){
+    var box = document.getElementById("cv-righe");
+    if(!box) return;
+    var capo = puoGestireBattute() && vistaGiornata==="capo";
+    var conclusa = giornataAperta && giornataAperta.stato==="conclusa";
+    var righe = adesioni.slice().sort(function(a,b){
+      return (b.presente?1:0)-(a.presente?1:0) || (b.viene?1:0)-(a.viene?1:0);
+    });
+    var h="";
+    righe.forEach(function(a){
+      var pres = a.presente===true;
+      var no = !a.viene && !pres;
+      if(cvFiltro==="presenti" && !pres) return;
+      if(cvFiltro==="mancano" && pres) return;
+      var m = membri.find(function(x){ return x.id===a.membro_id; });
+      var ar = aree.find(function(x){ return x.id===a.area_tracciata; });
+      var col = pres ? "#5DAE6A" : (no ? "#6b6b6b" : "#E0B878");
+      var det = [];
+      if(a.viene && a.ospiti) det.push(a.ospiti+" ospit"+(a.ospiti===1?"e":"i"));
+      if(a.viene && a.tracciatore) det.push("tracciatore"+(ar?" \u00b7 "+esc(ar.nome):""));
+      if(!a.viene && !pres) det.push(a.presente_da==="assente" ? "non si \u00e8 presentato" : "non viene");
+      var origine = pres ? etichettaOrigine(a.presente_da) : "";
+      h+='<div class="aderente'+(no?" assente":"")+'">'
+       + '<span class="pallino" style="background:'+col+'"></span>'
+       + '<span style="flex:1; min-width:0"><div class="nm">'+esc(m?m.nome:"\u2014")+'</div>'
+       + '<div class="ds">'+(det.join(" \u00b7 ")||"prenotato")+(origine?(" \u00b7 "+esc(origine)):"")+'</div></span>';
+      if(capo && !conclusa){
+        h+='<button class="sp'+(pres?" si":"")+'" data-pres1="'+a.id+'">'+(pres?"\u2713 c\'\u00e8":"segna")+'</button>';
+      }
+      h+='</div>';
+    });
+    box.innerHTML = h || '<div class="card" style="font-size:12px; color:var(--muted)">Nessuno in questo elenco.</div>';
+    box.querySelectorAll("[data-pres1]").forEach(function(b){
+      b.onclick = function(){ chiediPresenzaSingola(b.dataset.pres1); };
+    });
+  }
+  /* la conferma: un tocco per sbaglio qui diventa una posta assegnata a chi non c'e' */
+  function chiediPresenzaSingola(idAdes){
+    var a = adesioni.find(function(x){ return x.id===idAdes; });
+    if(!a) return;
+    var m = membri.find(function(x){ return x.id===a.membro_id; });
+    var metto = !a.presente;
+    var nome = m ? m.nome : "questo componente";
+    var testo = metto
+      ? (a.viene ? "Aveva prenotato ma non risulta ancora arrivato. Confermi che \u00e8 qui?"
+                 : "Non aveva prenotato. Confermi che \u00e8 arrivato ed \u00e8 qui adesso?")
+      : ("Adesso risulta presente: " + etichettaOrigine(a.presente_da) + ".");
+    var avviso = metto
+      ? "Se lo segni e non c'\u00e8, gli tocca una posta e resta il buco: l'animale esce da l\u00ec e i cani vanno dietro."
+      : "Se gli avevi gi\u00e0 dato una posta, quella posta resta scoperta: rifai la distribuzione.";
+    document.getElementById("pc-tit").textContent = metto ? "SEGNO PRESENTE?" : "TOLGO LA PRESENZA?";
+    document.getElementById("pc-nome").textContent = nome;
+    document.getElementById("pc-testo").textContent = testo;
+    document.getElementById("pc-avviso").textContent = avviso;
+    var ok = document.getElementById("pc-si");
+    ok.textContent = metto ? "S\u00ec, c'\u00e8" : "S\u00ec, toglila";
+    ok.className = "btn " + (metto ? "primary" : "rosso");
+    ok.onclick = async function(){
+      document.getElementById("m-prescon").classList.remove("show");
+      var ora = new Date().toISOString();
+      var dati = metto ? {presente:true, presente_da:"capo", presente_il:ora}
+                       : {presente:false, presente_da:"assente", presente_il:ora};
+      try{
+        var r = await sb.from("hn_adesioni").update(dati).eq("id", a.id).select().single();
+        if(r.error) throw r.error;
+        var k = adesioni.findIndex(function(x){ return x.id===r.data.id; });
+        if(k>=0) adesioni[k]=r.data;
+        toast(metto ? (nome+" segnato presente") : ("Presenza tolta a "+nome));
+      }catch(e){ toast("Serve la rete"); return; }
+      renderGiornata();
+      var l=document.getElementById("cv-lista");
+      if(l && cvAperta){ l.classList.add("on"); document.getElementById("cv-giu").textContent="\u2303"; cvRighe(); }
+    };
+    document.getElementById("m-prescon").classList.add("show");
+  }
+
   function renderGiornata(){
     var root=document.getElementById("giornata-scroll");
     var b=giornataAperta;
@@ -5556,9 +5836,13 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
           var nSeg = segnalazioni.filter(function(x){
             var tc = tracciate.find(function(y){ return y.id === x.tracciata_id; });
             return tc && tc.area_id === idA; }).length;
-          h+='<button class="cubo'+(fatte?' spento':'')+'" data-giarea="'+idA+'" style="min-width:150px">';
+          var nTc = tracciate.filter(function(x){ return x.area_id===idA; }).length;
+          var nNl = tracciate.filter(function(x){ return x.area_id===idA && !x.letta_il; }).length;
+          h+='<button class="cubo'+(fatte?' spento':'')+'" data-giomap="'+idA+'" style="min-width:150px">';
           h+='<div class="et">'+esc(arC.nome)+'</div>';
           h+='<div class="rg"><span class="n">'+((arC.poste||[]).length)+'</span><span class="t">poste</span></div>';
+          if(nTc) h+='<div class="rg"><span class="n" style="color:#c9b3e0">'+nTc+'</span><span class="t">tracciate'
+                   + (nNl?(' \u00b7 '+nNl+' da leggere'):'')+'</span></div>';
           if(nSeg) h+='<div class="rg"><span class="n" style="color:#7be0a8">'+nSeg+'</span><span class="t">segnalazioni</span></div>';
           if(fatte) h+='<div class="rg"><span class="t">gi\u00e0 battuta'+(fatte>1?' '+fatte+' volte':'')+'</span></div>';
           h+='<div class="vai">guarda \u203a</div></button>';
@@ -5711,10 +5995,11 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     // --- LA MIA ADESIONE (per tutti) ---
     if(b.stato==="aperta"){
       var mia=miaAdesione();
+      var hTrac="";      // il pezzo del tracciatore: si stacca e va in una sezione sua
       /* Detto "ci sono", il pannello si chiude in una barra sola come la radio:
          occupava mezza schermata per una cosa gia' decisa. Resta aperto per chi
          non ha ancora risposto e per il tracciatore, che dentro ha il suo giro. */
-      var adesApri = !(mia && mia.viene) || !!(mia.tracciatore && mia.area_tracciata);
+      var adesApri = !(mia && mia.viene);   // detto ci sono, la barra resta chiusa: il giro sta sotto
       if(mia){
         var rias=[];
         if(mia.viene && (mia.ospiti||0)>0) rias.push((mia.ospiti)+' ospit'+((mia.ospiti)===1?'e':'i'));
@@ -5761,48 +6046,48 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
           // L'ASSEGNAZIONE DEL TRACCIATORE: grande e con la sua linea dentro
           if(ar2){
             var lineeMie = tracceDi(ar2.id);
-            h+='<div style="margin-top:11px; background:#4a3560; border:1px solid #7B5EA7; border-radius:12px; padding:13px">';
-            h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.6px; margin-bottom:5px">SEI ASSEGNATO A</div>';
-            h+='<div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:32px; letter-spacing:1px; color:#fff; line-height:1; margin-bottom:4px">'+esc(ar2.nome).toUpperCase()+'</div>';
-            h+='<div style="font-size:11.5px; color:#c9b3e0; margin-bottom:10px">'
+            hTrac+='<div style="margin-top:11px; background:#4a3560; border:1px solid #7B5EA7; border-radius:12px; padding:13px">';
+            hTrac+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.6px; margin-bottom:5px">SEI ASSEGNATO A</div>';
+            hTrac+='<div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:32px; letter-spacing:1px; color:#fff; line-height:1; margin-bottom:4px">'+esc(ar2.nome).toUpperCase()+'</div>';
+            hTrac+='<div style="font-size:11.5px; color:#c9b3e0; margin-bottom:10px">'
              + (ar2.comune?esc(ar2.comune)+' \u00b7 ':'')
              + ((ar2.poste||[]).length)+' poste'
              + (lineeMie.length?(' \u00b7 '+lineeMie.length+' line'+(lineeMie.length===1?'a':'e')+' da fare'):'')
              + '</div>';
-            h+='<button class="btn line" data-giarea="'+ar2.id+'" style="font-size:12px; padding:9px">🗺️ Vedi la mappa</button>';
-            h+='</div>';   /* il banner finisce qui: le linee stanno SOTTO, come nel disegno */
+            hTrac+='<button class="btn line" data-giarea="'+ar2.id+'" style="font-size:12px; padding:9px">🗺️ Vedi la mappa</button>';
+            hTrac+='</div>';   /* il banner finisce qui: le linee stanno SOTTO, come nel disegno */
             if(lineeMie.length){
-              h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
+              hTrac+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
               var giaFatte = tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
               lineeMie.forEach(function(t){
                 var kmt=(Number(t.distanza||0)/1000).toFixed(2);
                 var fatta = giaFatte.find(function(x){ return x.traccia_id===t.id && x.chiusa_il; });
-                h+='<div style="margin-bottom:8px">';
-                h+='<button class="btn" data-gitr="'+t.id+'" style="background:'+(fatta?'#2d5a3f':'#7B5EA7')+'; color:#fff; width:100%; text-align:left; padding:12px 13px">';
-                h+='<div style="font-size:14px; font-weight:700">'+(fatta?'\u2713 ':'\u3030\ufe0f ')+esc(t.nome)+'</div>';
-                h+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'
+                hTrac+='<div style="margin-bottom:8px">';
+                hTrac+='<button class="btn" data-gitr="'+t.id+'" style="background:'+(fatta?'#2d5a3f':'#7B5EA7')+'; color:#fff; width:100%; text-align:left; padding:12px 13px">';
+                hTrac+='<div style="font-size:14px; font-weight:700">'+(fatta?'\u2713 ':'\u3030\ufe0f ')+esc(t.nome)+'</div>';
+                hTrac+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'
                  + (fatta ? ('gi\u00e0 fatta' + (fatta.dichiarata ? ' \u00b7 dichiarata'
                              : ' \u00b7 ' + (Number(fatta.distanza||0)/1000).toFixed(2) + ' km'))
                           : (kmt + ' km \u00b7 tocca per aprire la tracciata'))
                  + '</div></button>';
                 if(!fatta && !tracciataAperta){
-                  h+='<button class="btn line" data-gidich="'+t.id+'" style="width:100%; margin-top:4px; font-size:11.5px; padding:8px">L\'ho gi\u00e0 fatta senza aprirla</button>';
+                  hTrac+='<button class="btn line" data-gidich="'+t.id+'" style="width:100%; margin-top:4px; font-size:11.5px; padding:8px">L\'ho gi\u00e0 fatta senza aprirla</button>';
                 }
-                h+='</div>';
+                hTrac+='</div>';
               });
             }else if(ar2.percorso && ar2.percorso.punti && ar2.percorso.punti.length>4){
               var kmt2=(ar2.percorso.distanza/1000).toFixed(2);
               var mnt2=Math.round((ar2.percorso.durata||0)/60);
-              h+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
-              h+='<button class="btn" id="gi-segui" style="background:#7B5EA7; color:#fff; width:100%; text-align:left; padding:12px 13px">';
-              h+='<div style="font-size:14px; font-weight:700">🐾 Segui il percorso</div>';
-              h+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'+kmt2+' km · ~'+mnt2+' min a passo di mappatura</div>';
-              h+='</button>';
+              hTrac+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
+              hTrac+='<button class="btn" id="gi-segui" style="background:#7B5EA7; color:#fff; width:100%; text-align:left; padding:12px 13px">';
+              hTrac+='<div style="font-size:14px; font-weight:700">🐾 Segui il percorso</div>';
+              hTrac+='<div style="font-size:10.5px; color:#e0d4f0; margin-top:2px">'+kmt2+' km · ~'+mnt2+' min a passo di mappatura</div>';
+              hTrac+='</button>';
             }else{
-              h+='<div style="font-size:11px; color:#c9b3e0; line-height:1.5; margin-top:8px">Questa mappa non ha ancora una linea di tracciamento. Chiedi al capocaccia di disegnarla.</div>';
+              hTrac+='<div style="font-size:11px; color:#c9b3e0; line-height:1.5; margin-top:8px">Questa mappa non ha ancora una linea di tracciamento. Chiedi al capocaccia di disegnarla.</div>';
             }
           }else{
-            h+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'+
+            hTrac+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'+
                (areeSeg.length ? 'Il capocaccia ti assegnerà a un\'area.'
                                : 'Il capocaccia deciderà le aree e ti assegnerà.')+'</div>';
           }
@@ -5810,102 +6095,40 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       }
       h+='</div>';
       h+='</div>';
+      if(hTrac){ h+='<div class="sechead">La tua traccia</div>'+hTrac; }
     }
 
-    // --- CHI VIENE ---
+    // --- CHI VIENE E CHI C'E': una tendina sola ---
+    // prima erano due elenchi lunghi uno sotto l'altro; adesso una barra che si apre
+    var aTutti = adesioni.slice();
+    var nSi = aTutti.filter(function(a){ return a.viene; }).length;
+    var nPres = aTutti.filter(function(a){ return a.presente; }).length;
+    var nOsp = aTutti.reduce(function(t,a){ return t + (a.viene ? (a.ospiti||0) : 0); }, 0);
+    var nTrac = aTutti.filter(function(a){ return a.viene && a.tracciatore; }).length;
     h+='<div class="sechead">Chi viene</div>';
-    if(!adesioni.length){
-      h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna risposta ancora.</div>';
+    h+='<button class="cvbar" id="cv-bar"><span class="em">\ud83d\udc65</span>'
+     + '<span class="mid"><span class="tt">'+nSi+' S\u00cc \u00b7 '+nPres+' PRESENTI</span>'
+     + '<span class="ds">'+nOsp+' ospiti \u00b7 '+nTrac+' tracciatori \u00b7 '
+     + Math.max(0,nSi-nPres)+' non ancora arrivati</span></span>'
+     + '<span class="giu" id="cv-giu">\u2304</span></button>';
+    h+='<div class="cvlista" id="cv-lista"><div class="cvfil">'
+     + '<button class="on" data-fil="tutti">Tutti</button>'
+     + '<button data-fil="presenti">Presenti</button>'
+     + '<button data-fil="mancano">Mancano</button></div><div id="cv-righe"></div>';
+    if(capo && !conclusa){
+      h+='<button class="btn line" id="gi-presenze" style="margin-top:6px">\u2713 Segna in blocco</button>';
     }
-    adesioni.filter(function(a){return a.viene;}).forEach(function(a){
-      var m=membri.find(function(x){return x.id===a.membro_id;});
-      var ar=aree.find(function(x){return x.id===a.area_tracciata;});
-      h+='<div class="aderente">';
-      h+='<div class="pallino" style="background:#5DAE6A"></div>';
-      h+='<div class="nm">'+esc(m?m.nome:"—")+'</div>';
-      if(a.ospiti) h+='<span style="font-size:9px; color:#9fc8ed">+'+a.ospiti+' osp</span>';
-      if(a.tracciatore) h+='<span class="tagtr">tracciatore'+(ar?' · '+esc(ar.nome):'')+'</span>';
-      h+='</div>';
-    });
-    adesioni.filter(function(a){return !a.viene;}).forEach(function(a){
-      var m=membri.find(function(x){return x.id===a.membro_id;});
-      h+='<div class="aderente no"><div class="pallino" style="background:#4a3f2c"></div>';
-      h+='<div class="nm">'+esc(m?m.nome:"—")+' — non viene</div></div>';
-    });
+    h+='</div>';
 
-    // --- CHI C'E' DAVVERO ---
-    var presenti = adesioni.filter(function(a){ return a.presente; });
-    var assenti  = adesioni.filter(function(a){ return a.viene && a.presente_da==="assente"; });
-    if(presenti.length || assenti.length || conclusa || capoReale){
-      h+='<div class="sechead">Presenti sul posto</div>';
-      if(!presenti.length){
-        h+='<div class="card" style="font-size:12px; color:var(--muted); line-height:1.5">'+
-           (conclusa ? 'Nessuno risulta presente.'
-                     : 'Ancora nessuno. Si segnano da soli arrivando al ritrovo, oppure li segni tu.')+'</div>';
+    // --- LE TRACCIATE ---
+    // il capo le trova dentro la mappa a cui appartengono, cosi' la giornata resta corta;
+    // qui resta solo la propria, per aggiungerci quello che si e' visto
+    if(!capo){
+      var mieTc = tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
+      if(mieTc.length){
+        h+='<div class="sechead">La tua tracciata</div>';
+        h+=htmlTracciate(mieTc);
       }
-      presenti.forEach(function(a){
-        var m=membri.find(function(x){return x.id===a.membro_id;});
-        h+='<div class="aderente">';
-        h+='<div class="pallino" style="background:var(--gold)"></div>';
-        h+='<div class="nm">'+esc(m?m.nome:"—")+'</div>';
-        h+='<span style="font-size:9px; color:var(--muted)">'+etichettaOrigine(a.presente_da)+'</span>';
-        h+='</div>';
-      });
-      assenti.forEach(function(a){
-        var m=membri.find(function(x){return x.id===a.membro_id;});
-        h+='<div class="aderente no"><div class="pallino" style="background:#6a3030"></div>';
-        h+='<div class="nm">'+esc(m?m.nome:"—")+' — non si è presentato</div></div>';
-      });
-      if(capo && !conclusa){
-        h+='<button class="btn line" id="gi-presenze" style="margin-top:8px; margin-bottom:6px">✓ Segna chi c\'è</button>';
-      }
-    }
-
-
-    // --- LE TRACCIATE DELLA GIORNATA (le vede il capo) ---
-    // il capo le vede tutte; ognuno vede almeno la propria, per aggiungerci quello che ha visto
-    var tcDaMostrare = capo ? tracciate : tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
-    if(tcDaMostrare.length){
-      h+='<div class="sechead">'+(capo ? "Tracciate" : "La tua tracciata")+'</div>';
-      tcDaMostrare.forEach(function(tc){
-        var t = tracce.find(function(x){ return x.id===tc.traccia_id; });
-        var ar = aree.find(function(x){ return x.id===tc.area_id; });
-        var nseg = segnalazioni.filter(function(x){ return x.tracciata_id===tc.id; });
-        var ent = nseg.filter(function(x){ return x.tipo==="entrata"; }).length;
-        var usc = nseg.filter(function(x){ return x.tipo==="uscita"; }).length;
-        h+='<div class="card" data-tcapri="'+tc.id+'" style="margin-bottom:7px; cursor:pointer"><div style="display:flex; align-items:center; gap:8px">';
-        h+='<span style="font-size:15px">'+(tc.chiusa_il ? '\u2713' : '\u23f1')+'</span>';
-        if(tc.letta_il) h+='<span style="font-size:10px; color:#7be0a8; flex-shrink:0">vista</span>';
-        h+='<div style="flex:1; min-width:0">';
-        h+='<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(nomeDi(tc.membro_id))+'</div>';
-        h+='<div style="font-size:10.5px; color:var(--muted)">'
-         + esc(t ? t.nome : (ar ? ar.nome : 'zona'))
-         + (tc.dichiarata ? ' \u00b7 dichiarata'
-                          : (tc.chiusa_il ? ' \u00b7 ' + (Number(tc.distanza||0)/1000).toFixed(2) + ' km'
-                                          : ' \u00b7 in corso'))
-         + '</div></div>';
-        if(ent||usc){
-          h+='<div style="text-align:right; flex-shrink:0">';
-          if(ent) h+='<div style="font-size:11px; color:#7be0a8">\u2193 '+ent+'</div>';
-          if(usc) h+='<div style="font-size:11px; color:#e08a8a">\u2191 '+usc+'</div>';
-          h+='</div>';
-        }
-        h+='<span style="font-size:15px; color:var(--muted); flex-shrink:0">\u203a</span>';
-        h+='</div>';
-        if(possoToccareTracciata(tc)){
-          h+='<button class="btn line" data-segnadopo="'+tc.id+'|'+(tc.area_id||"")+'" style="margin-top:8px; font-size:11.5px; padding:8px">\ud83d\udc17 Segna cosa hai visto</button>';
-          h+='<button class="btn line" data-tcdel="'+tc.id+'" style="margin-top:6px; font-size:11.5px; padding:8px">\u2715 Cancella questa tracciata</button>';
-        }else if(comeCapo()){
-          // il capocaccia la guarda e la spunta: non la tocca
-          h+='<button class="btn line" data-tcletta="'+tc.id+'" style="margin-top:8px; font-size:11.5px; padding:8px'
-           + (tc.letta_il ? '; background:#2d5a3f; border-color:#3d7a55; color:#fff' : '')+'">'
-           + (tc.letta_il ? "\u2713 Gi\u00e0 vista" : "Segna come vista")+'</button>';
-        }
-        if(tc.note){
-          h+='<div style="margin-top:7px; padding-top:7px; border-top:1px solid var(--dark3); font-size:12px; color:var(--cream); line-height:1.5; white-space:pre-wrap">'+esc(tc.note)+'</div>';
-        }
-        h+='</div>';
-      });
     }
 
     // --- DELEGA DELLA CASSA (solo il cassiere) ---
@@ -5953,6 +6176,25 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   function bindGiornata(){
     var root=document.getElementById("giornata-scroll");
+    var cvb=document.getElementById("cv-bar");
+    if(cvb) cvb.onclick=function(){
+      var l=document.getElementById("cv-lista");
+      cvAperta = !l.classList.contains("on");
+      l.classList.toggle("on", cvAperta);
+      document.getElementById("cv-giu").textContent = cvAperta ? "\u2303" : "\u2304";
+      if(cvAperta) cvRighe();
+    };
+    if(cvAperta){
+      var l0=document.getElementById("cv-lista");
+      if(l0){ l0.classList.add("on"); document.getElementById("cv-giu").textContent="\u2303"; cvRighe(); }
+    }
+    root.querySelectorAll("[data-fil]").forEach(function(b){
+      b.onclick=function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        root.querySelectorAll("[data-fil]").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on"); cvFiltro=b.dataset.fil; cvRighe();
+      };
+    });
     var ar0=document.getElementById("gi-arrivato");
     if(ar0) ar0.onclick=async function(){
       ar0.disabled=true; ar0.textContent="Segno\u2026";
@@ -6020,35 +6262,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     root.querySelectorAll("[data-sin]").forEach(function(b){
       b.onclick=function(){ apriSintesi(b.dataset.sin); };
     });
+    root.querySelectorAll("[data-giomap]").forEach(function(c){
+      c.onclick=function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        apriMappaGiornata(c.dataset.giomap);
+      };
+    });
     root.querySelectorAll("[data-giarea]").forEach(function(c){
       c.onclick=function(ev){
         if(ev && ev.stopPropagation) ev.stopPropagation();
         apriAreaDaBattuta(c.dataset.giarea);
       };
     });
-    root.querySelectorAll("[data-tcapri]").forEach(function(c){
-      c.onclick=function(ev){
-        // i bottoni dentro la scheda fanno il loro mestiere, non aprono il dettaglio
-        if(ev && ev.target && ev.target.closest && ev.target.closest("button")) return;
-        apriDettaglioTracciata(c.dataset.tcapri);
-      };
-    });
-    root.querySelectorAll("[data-tcletta]").forEach(function(b){
-      b.onclick=function(ev){
-        if(ev && ev.stopPropagation) ev.stopPropagation();
-        segnaTracciataLetta(b.dataset.tcletta);
-      };
-    });
-    root.querySelectorAll("[data-tcdel]").forEach(function(b){
-      b.onclick=function(){ eliminaTracciata(b.dataset.tcdel); };
-    });
-    root.querySelectorAll("[data-segnadopo]").forEach(function(b){
-      b.onclick=function(){
-        var p=b.dataset.segnadopo.split("|");
-        var tc=tracciate.find(function(x){ return x.id===p[0]; });
-        if(tc) iniziaSegnRemota(tc, p[1]||tc.area_id);
-      };
-    });
+    agganciaTracciate(root);
     root.querySelectorAll("[data-gidich]").forEach(function(b){
       b.onclick=function(){
         var t=tracce.find(function(x){ return x.id===b.dataset.gidich; });
@@ -8180,6 +8406,13 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      rispediva SEMPRE in Mappe, anche a chi era entrato dalla giornata. */
   var mappaVenutoDa = null;
   function tornaIndietroDaMappa(){
+    if(mappaVenutoDa === "giomappa"){
+      mappaVenutoDa = null;
+      areaApertaInMappa = false;
+      showView("giomappa");
+      renderMappaGiornata();
+      return;
+    }
     if(mappaVenutoDa === "giornata"){
       mappaVenutoDa = null;
       areaApertaInMappa = false;
@@ -12889,10 +13122,11 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       h+='<div class="empty">Nessun annuncio.<br>'+(puoPubblicare()?"Pubblica il primo per la squadra.":"Le comunicazioni compariranno qui.")+'</div>';
     }
     annunci.forEach(function(a){
-      h+='<div class="card">';
+      h+='<div class="card'+(a.urgente?' urgente':'')+'">';
       h+='<div style="display:flex; align-items:flex-start; gap:9px">';
       h+='<div style="flex:1; min-width:0">';
-      if(a.titolo) h+='<div style="font-size:15px; font-weight:600; color:var(--gold); margin-bottom:5px">'+esc(a.titolo)+'</div>';
+      if(a.urgente || a.titolo) h+='<div style="font-size:15px; font-weight:600; color:var(--gold); margin-bottom:5px">'
+        + (a.urgente?'<span class="bollo-urg">URGENTE</span>':'') + esc(a.titolo||'Comunicazione') + '</div>';
       h+='<div style="font-size:14px; color:var(--cream); line-height:1.55; white-space:pre-wrap">'+esc(a.testo)+'</div>';
       h+='<div style="font-size:11px; color:var(--muted); margin-top:9px">'+esc(a.autore_nome||"")+' · '+fmtData(a.creato_il)+'</div>';
       h+='</div>';
@@ -12904,6 +13138,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(nb) nb.onclick=function(){
       document.getElementById("m-ann-titolo").value="";
       document.getElementById("m-ann-testo").value="";
+      urgenteNuova=false;
+      var u=document.getElementById("m-ann-urg");
+      u.classList.remove("on");
+      u.querySelector(".box").textContent="";
+      u.querySelector(".ds").textContent="La vedono in bacheca quando ci passano";
+      u.onclick=function(){
+        urgenteNuova=!urgenteNuova;
+        u.classList.toggle("on",urgenteNuova);
+        u.querySelector(".box").textContent = urgenteNuova ? "\u2713" : "";
+        u.querySelector(".ds").textContent = urgenteNuova
+          ? "Compare come nuvoletta a schermo a tutta la squadra, e resta in bacheca"
+          : "La vedono in bacheca quando ci passano";
+      };
       document.getElementById("m-annuncio").classList.add("show");
     };
     root.querySelectorAll("[data-delann]").forEach(function(b){
@@ -12920,7 +13167,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     try{
       r=await sb.from("hn_annunci").insert({
         squadra_id:me.squadra_id, titolo:titolo||null, testo:testo,
-        autore_id:me.user_id, autore_nome:me.nome
+        autore_id:me.user_id, autore_nome:me.nome, urgente:urgenteNuova
       }).select().single();
       if(r.error) throw r.error;
     }catch(e){
@@ -12931,6 +13178,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     btn.disabled=false; btn.textContent="Pubblica";
     document.getElementById("m-annuncio").classList.remove("show");
     annunci.unshift(r.data);
+    if(r.data && r.data.urgente) segnaUrgenteLetta(r.data.id);   // l'ho scritta io, non la rileggo
     renderBacheca();
     toast("Annuncio pubblicato");
   }
@@ -13200,6 +13448,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       if(areaAttivaId){ settoriAperti = null; traccaAperta = areaAttivaId; apriTracceDaMappa(); }
     };
     document.getElementById("mt-indietro").onclick=tornaIndietroDaMappa;
+    document.getElementById("gm-indietro").onclick=function(){ showView("giornata"); renderGiornata(); };
     document.getElementById("mt-modifica").onclick=function(){
       if(areaAttivaId) apriPopupArea(areaAttivaId);
     };
@@ -13315,6 +13564,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     // --- SCADENZE ---
     document.getElementById("dc-chiudi").onclick=function(){ document.getElementById("m-doc").classList.remove("show"); docAperto=null; };
     document.getElementById("mt-chiudi").onclick=function(){ document.getElementById("m-meteo").classList.remove("show"); };
+    document.getElementById("pc-no").onclick=function(){ document.getElementById("m-prescon").classList.remove("show"); };
     document.getElementById("sg-ok").onclick=function(){ document.getElementById("sergente").classList.remove("show"); };
     document.getElementById("sergente").onclick=function(e){
       if(e.target.id==="sergente") this.classList.remove("show");
@@ -15120,6 +15370,226 @@ function fineA(){
         g.gain.setValueAtTime(.14,t); g.gain.exponentialRampToValueAtTime(.001,t+.16);
         o.connect(g); g.connect(acSergente.destination); o.start(t); o.stop(t+.18);
       });
+    }catch(e){}
+  }
+
+
+  /* ================= LA MAPPA DELLA GIORNATA =================
+     Toccando una mappa di oggi non si apre più il satellite: si entra qui.
+     In alto l'anteprima a schema, sotto SOLO le tracciate di questa mappa.
+     Così la giornata resta corta e ogni cosa sta sotto la sua mappa. */
+  var gmAreaId = null;
+
+  function apriMappaGiornata(idA){
+    gmAreaId = idA;
+    showView("giomappa");
+    renderMappaGiornata();
+  }
+  function tracciateDiArea(idA){
+    return tracciate.filter(function(x){ return x.area_id === idA; });
+  }
+  function nonLette(idA){
+    return tracciateDiArea(idA).filter(function(x){ return !x.letta_il; }).length;
+  }
+  function renderMappaGiornata(){
+    var root = document.getElementById("giomappa-scroll");
+    if(!root) return;
+    var a = aree.find(function(x){ return x.id === gmAreaId; });
+    if(!a){ root.innerHTML='<div class="hint">Mappa non trovata.</div>'; return; }
+    document.getElementById("gm-titolo").textContent = a.nome;
+
+    var lista = tracciateDiArea(a.id);
+    var nSeg = segnalazioni.filter(function(x){
+      var tc = tracciate.find(function(y){ return y.id === x.tracciata_id; });
+      return tc && tc.area_id === a.id; }).length;
+
+    var h = '<div class="gm-tit"><div class="nm">'+esc(a.nome).toUpperCase()+'</div>'
+          + '<div class="ds">'+((a.poste||[]).length)+' poste \u00b7 '+lista.length+' tracciate</div></div>';
+    h += '<canvas id="gm-ante"></canvas>';
+    h += '<div class="gm-legenda">'
+       + '<span><i style="background:#E8C86A"></i>poste</span>'
+       + '<span><i style="background:#7B5EA7"></i>linee da tracciare</span>'
+       + '<span><i style="background:#4FC3F7"></i>giro fatto</span>'
+       + '<span><i style="background:#E04A34"></i>uscita</span>'
+       + '<span><i style="background:#5DD97A"></i>entrata</span></div>';
+    h += '<button class="btn primary" id="gm-apri" style="margin:10px 0 4px">\ud83d\uddfa\ufe0f Apri la mappa intera</button>';
+
+    h += '<div class="sechead">Le tracciate di questa mappa</div>';
+    if(!lista.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuno \u00e8 ancora andato su questa mappa.</div>';
+    }else{
+      h += htmlTracciate(lista);
+    }
+    if(nSeg){
+      h += '<div class="hint" style="margin-top:10px">'+nSeg+' segnalazion'+(nSeg===1?'e':'i')+' su questa mappa.</div>';
+    }
+    root.innerHTML = h;
+    disegnaAnteprimaArea(document.getElementById("gm-ante"), a);
+    agganciaTracciate(root);
+    var ap = document.getElementById("gm-apri");
+    if(ap) ap.onclick = function(){ mappaVenutoDa = "giomappa"; apriAreaDaBattuta(a.id); };
+  }
+
+  /* l'anteprima: a schema, non satellite. A questa dimensione il satellite
+     è una macchia verde, lo schema fa leggere numeri, linee e crocette. */
+  function disegnaAnteprimaArea(cv, a){
+    if(!cv) return;
+    var W = cv.clientWidth || 340, H = Math.round(W*0.66);
+    var dpr = Math.min(window.devicePixelRatio||1, 2);
+    cv.width = W*dpr; cv.height = H*dpr; cv.style.height = H+"px";
+    var g = cv.getContext("2d");
+    g.setTransform(dpr,0,0,dpr,0,0);
+    g.fillStyle = "#34401f"; g.fillRect(0,0,W,H);
+
+    // tutti i punti che devo far entrare nel riquadro
+    var pts = [];
+    (a.percorso && a.percorso.punti ? a.percorso.punti : []).forEach(function(p){ pts.push([p.lat,p.lng]); });
+    (a.poste||[]).forEach(function(p){ if(p.lat&&p.lng) pts.push([p.lat,p.lng]); });
+    var lin = tracceDi(a.id);
+    lin.forEach(function(t){ (t.punti||[]).forEach(function(p){ pts.push([p.lat,p.lng]); }); });
+    var tcs = tracciateDiArea(a.id);
+    tcs.forEach(function(tc){ (tc.percorso||[]).forEach(function(p){ if(p.lat&&p.lng) pts.push([p.lat,p.lng]); }); });
+    var segs = segnalazioni.filter(function(x){
+      var tc = tracciate.find(function(y){ return y.id===x.tracciata_id; });
+      return tc && tc.area_id===a.id && x.lat && x.lng; });
+    segs.forEach(function(x){ pts.push([x.lat,x.lng]); });
+
+    if(pts.length < 3){
+      g.fillStyle="#ffffff55"; g.font="12px system-ui"; g.textAlign="center";
+      g.fillText("Anteprima non disponibile: manca il contorno", W/2, H/2);
+      return;
+    }
+    var la1=90,la2=-90,ln1=180,ln2=-180;
+    pts.forEach(function(p){
+      la1=Math.min(la1,p[0]); la2=Math.max(la2,p[0]);
+      ln1=Math.min(ln1,p[1]); ln2=Math.max(ln2,p[1]);
+    });
+    var mrg = 14;
+    var dla = Math.max(la2-la1, 1e-6), dln = Math.max(ln2-ln1, 1e-6);
+    var k = Math.min((W-mrg*2)/dln, (H-mrg*2)/dla);
+    function X(lng){ return mrg + (lng-ln1)*k + ((W-mrg*2)-dln*k)/2; }
+    function Y(lat){ return mrg + (la2-lat)*k + ((H-mrg*2)-dla*k)/2; }
+
+    g.strokeStyle="#ffffff10"; g.lineWidth=1;
+    for(var i=1;i<6;i++){ g.beginPath(); g.moveTo(W/6*i,0); g.lineTo(W/6*i,H); g.stroke(); }
+    for(var j=1;j<4;j++){ g.beginPath(); g.moveTo(0,H/4*j); g.lineTo(W,H/4*j); g.stroke(); }
+
+    // il confine
+    if(a.percorso && a.percorso.punti && a.percorso.punti.length>2){
+      g.strokeStyle="#E8843C"; g.lineWidth=2.5; g.beginPath();
+      a.percorso.punti.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); });
+      g.closePath(); g.stroke();
+    }
+    // le linee da tracciare
+    g.strokeStyle="#7B5EA7"; g.lineWidth=3;
+    lin.forEach(function(t){
+      var pp=t.punti||[]; if(pp.length<2) return;
+      g.beginPath(); pp.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); }); g.stroke();
+    });
+    // i giri fatti davvero
+    g.strokeStyle="#4FC3F7"; g.lineWidth=2.2;
+    tcs.forEach(function(tc){
+      var pp=tc.percorso||[]; if(pp.length<2) return;
+      g.beginPath(); pp.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); }); g.stroke();
+    });
+    // le poste, col numero
+    (a.poste||[]).forEach(function(p){
+      if(!p.lat||!p.lng) return;
+      g.fillStyle="#E8C86A"; g.strokeStyle="#241d13"; g.lineWidth=1.5;
+      g.beginPath(); g.arc(X(p.lng),Y(p.lat),9,0,7); g.fill(); g.stroke();
+      g.fillStyle="#241d13"; g.font="700 10px system-ui"; g.textAlign="center"; g.textBaseline="middle";
+      g.fillText(String(p.numero||""), X(p.lng), Y(p.lat));
+    });
+    // le segnalazioni: FRECCE, non crocette. Verde che punta dentro = entrata,
+    // rossa che punta fuori = uscita. La direzione la ricavo dal centro dell'area.
+    var cLat=0, cLng=0, nP=0;
+    (a.percorso && a.percorso.punti ? a.percorso.punti : []).forEach(function(p){ cLat+=p.lat; cLng+=p.lng; nP++; });
+    if(!nP){ (a.poste||[]).forEach(function(p){ if(p.lat){ cLat+=p.lat; cLng+=p.lng; nP++; } }); }
+    var CX0 = nP ? X(cLng/nP) : W/2, CY0 = nP ? Y(cLat/nP) : H/2;
+    segs.forEach(function(x){
+      var px=X(x.lng), py=Y(x.lat);
+      var dx=CX0-px, dy=CY0-py, m0=Math.sqrt(dx*dx+dy*dy)||1;
+      dx/=m0; dy/=m0;
+      var entra = String(x.tipo||"").toLowerCase().indexOf("entr")>=0;
+      var verso = entra ? 1 : -1;      // entrata punta dentro, uscita punta fuori
+      var L=26;
+      var ax=px-dx*L*verso*.5, ay=py-dy*L*verso*.5;
+      var bx=px+dx*L*verso*.5, by=py+dy*L*verso*.5;
+      var col = entra ? "#5DD97A" : "#E04A34";
+      g.strokeStyle=col; g.lineWidth=3.4; g.lineCap="round";
+      g.beginPath(); g.moveTo(ax,ay); g.lineTo(bx,by); g.stroke();
+      var ang=Math.atan2(by-ay,bx-ax);
+      g.fillStyle=col; g.beginPath();
+      g.moveTo(bx,by);
+      g.lineTo(bx-9*Math.cos(ang-.45), by-9*Math.sin(ang-.45));
+      g.lineTo(bx-9*Math.cos(ang+.45), by-9*Math.sin(ang+.45));
+      g.closePath(); g.fill();
+      if(x.capi){
+        g.fillStyle="#fff"; g.strokeStyle="rgba(0,0,0,.6)"; g.lineWidth=3;
+        g.font="700 12px system-ui"; g.textAlign="center"; g.textBaseline="middle";
+        g.strokeText(String(x.capi), bx+dx*13*verso, by+dy*13*verso);
+        g.fillText(String(x.capi), bx+dx*13*verso, by+dy*13*verso);
+      }
+    });
+  }
+
+
+  /* ================= COMUNICAZIONE URGENTE DEL CAPOCACCIA =================
+     Si scrive in bacheca con la spunta. Spuntata, esce come nuvoletta sopra
+     ogni cosa a chi apre l'app - e anche a chi ce l'ha gia' aperta in mano,
+     perche' un "si parte mezz'ora prima" deve arrivare adesso, non domani. */
+  var urgenteNuova = false;          // la spunta nel modulo del nuovo annuncio
+  var nuvolettaAperta = false;
+
+  function urgentiLette(){
+    try{ return JSON.parse(localStorage.getItem("hunter_urgenti_lette")) || []; }catch(e){ return []; }
+  }
+  function segnaUrgenteLetta(id){
+    var v = urgentiLette();
+    if(v.indexOf(id)<0){ v.push(id); }
+    if(v.length>40) v = v.slice(-40);
+    try{ localStorage.setItem("hunter_urgenti_lette", JSON.stringify(v)); }catch(e){}
+  }
+  function urgenteDaMostrare(){
+    var lette = urgentiLette(), oggi = oggiISO();
+    var t=null;
+    (annunci||[]).forEach(function(a){
+      if(!a.urgente) return;
+      if(String(a.creato_il||"").slice(0,10) !== oggi) return;   // vale per la giornata
+      if(lette.indexOf(a.id)>=0) return;
+      if(!t) t=a;
+    });
+    return t;
+  }
+  function mostraNuvoletta(){
+    if(nuvolettaAperta) return;
+    var a = urgenteDaMostrare();
+    if(!a) return;
+    document.getElementById("nv-titolo").textContent = a.titolo || "";
+    document.getElementById("nv-testo").textContent  = a.testo || "";
+    document.getElementById("nv-quando").textContent = "dal capocaccia \u00b7 " + fmtData(a.creato_il);
+    document.getElementById("nv-firma").textContent  = (a.autore_nome||"") + " \u00b7 capocaccia";
+    document.getElementById("nuvoletta").classList.add("show");
+    nuvolettaAperta = true;
+    document.getElementById("nv-ok").onclick = function(){
+      segnaUrgenteLetta(a.id);
+      document.getElementById("nuvoletta").classList.remove("show");
+      nuvolettaAperta = false;
+      renderBacheca();
+    };
+  }
+  /* ogni tanto guardo se ne e' arrivata una mentre l'app era aperta */
+  async function controllaUrgenti(){
+    if(!me || !me.squadra_id) return;
+    try{
+      var r = await sb.from("hn_annunci").select("*")
+                .eq("squadra_id", me.squadra_id).eq("urgente", true)
+                .order("creato_il", {ascending:false}).limit(5);
+      if(r.error) return;
+      (r.data||[]).forEach(function(a){
+        if(!annunci.some(function(x){ return x.id===a.id; })) annunci.unshift(a);
+      });
+      mostraNuvoletta();
     }catch(e){}
   }
 
