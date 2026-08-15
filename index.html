@@ -2275,6 +2275,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       <div id="mp-note" style="font-size:13px; color:var(--cream); line-height:1.5;">—</div>
     </div>
 
+    <div id="mp-verifica" style="display:none; background:#3a2c4a; border:1px solid #B98CE0;
+      border-radius:11px; padding:11px 12px; margin-bottom:10px">
+      <div style="font-size:12.5px; color:#E0C9F0; line-height:1.5">
+        <b>Posta da verificare</b> — è stata messa da mappa, non sul terreno.
+        Quando ci sei sopra, tocca qui: prendo la posizione vera del GPS e la correggo.
+      </div>
+      <button class="btn line" id="mp-certifica" style="margin-top:9px; background:#4a3560; border-color:#B98CE0; color:#E0C9F0">
+        📍 Sono qui: certifica col GPS
+      </button>
+    </div>
     <div class="btnrow" style="margin-bottom:8px">
       <button class="btn line" id="mp-numero">🔢 Cambia numero</button>
     </div>
@@ -2694,7 +2704,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.95";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.96";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3427,11 +3437,15 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     mapReady=true;
   }
-  function iconPosta(n,tipo,inCoda){
+  function iconPosta(n,tipo,inCoda,daVerificare){
     var col = tipo==="occasionale" ? "#E0922B" : (tipo==="controposta" ? "#7B5EA7" : "#C0392B");
-    var bordo = inCoda ? "3px dashed #9FC8ED" : "3px solid #F0E6D2";
+    /* messa da mappa e mai certificata sul terreno: bordo tratteggiato viola e il punto
+       interrogativo. Si vede a colpo d'occhio quali poste sono ancora da controllare. */
+    var bordo = daVerificare ? "3px dashed #B98CE0" : (inCoda ? "3px dashed #9FC8ED" : "3px solid #F0E6D2");
     return L.divIcon({className:"", iconSize:[30,30], iconAnchor:[15,15],
-      html:'<div style="width:30px;height:30px;border-radius:50%;background:'+col+';border:'+bordo+';display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.5)">'+n+'</div>'});
+      html:'<div style="position:relative;width:30px;height:30px;border-radius:50%;background:'+col+';border:'+bordo+';display:flex;align-items:center;justify-content:center;color:#fff;font:700 13px sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.5)">'+n
+        + (daVerificare ? '<span style="position:absolute;top:-7px;right:-7px;background:#B98CE0;color:#241d13;width:15px;height:15px;border-radius:50%;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center">?</span>' : '')
+        + '</div>'});
   }
   function iconUser(){
     return L.divIcon({className:"", iconSize:[18,18], iconAnchor:[9,9],
@@ -3568,7 +3582,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       if(soloMie && !soloMie[p.id]) return;
       // in anteprima di sezione le altre poste non si disegnano
       if(stAnte && !postaNelSettore(p, stAnte)) return;
-      var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda)}).addTo(posteLayer);
+      var m=L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||(i+1), p.tipo, p.in_coda, p.da_verificare)}).addTo(posteLayer);
       m.on("click", function(){
         // mentre sto lavorando sulla mappa la scheda della posta non deve
         // saltare fuori: intralcia il lavoro
@@ -4235,6 +4249,48 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     return out;
   }
 
+
+  /* CERTIFICARE UNA POSTA MESSA DA REMOTO
+     Era rimasta indietro: le poste segnate da mappa nascono "da verificare" e
+     restano cosi' finche' qualcuno non ci va sopra e prende la posizione vera. */
+  async function certificaPosta(){
+    var p = postaAperta;
+    if(!p) return;
+    if(!pos){ toast("Aspetto il segnale GPS\u2026"); serveGPS("posta"); return; }
+    if(pos.acc > 25){
+      chiediConfermaGps(p);
+      return;
+    }
+    await salvaCertifica(p);
+  }
+  function chiediConfermaGps(p){
+    if(!confermaCert){
+      confermaCert = true;
+      toast("Precisione " + Math.round(pos.acc) + " m: tocca ancora per confermare");
+      setTimeout(function(){ confermaCert = false; }, 6000);
+      return;
+    }
+    confermaCert = false;
+    salvaCertifica(p);
+  }
+  var confermaCert = false;
+  async function salvaCertifica(p){
+    var dati = { lat: pos.lat, lng: pos.lng, accuratezza: Math.round(pos.acc), da_verificare: false };
+    try{
+      var r = await sb.from("hn_poste").update(dati).eq("id", p.id).select().single();
+      if(r.error) throw r.error;
+      var a = areaAttiva() || aree.find(function(x){ return (x.poste||[]).some(function(y){ return y.id===p.id; }); });
+      if(a){
+        var k = (a.poste||[]).findIndex(function(x){ return x.id===p.id; });
+        if(k>=0) a.poste[k] = r.data;
+      }
+      postaAperta = r.data;
+      toast("Posta certificata sul terreno \u00b7 \u00b1"+Math.round(pos.acc)+" m");
+    }catch(e){ toast("Non riesco a salvare: serve la rete"); return; }
+    document.getElementById("m-posta-info").classList.remove("show");
+    renderPoste(); renderSchedaArea();
+  }
+
   function apriSchedaPosta(p){
     var a=areaAttiva(); if(!a) return;
     postaAperta=p;
@@ -4247,6 +4303,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     var note=(p.note||"").trim();
     document.getElementById("mp-note").textContent = note || "Nessuna nota. Toccane l'aggiunta per scriverne una.";
     document.getElementById("mp-note").style.color = note ? "var(--cream)" : "var(--muted)";
+    var bv = document.getElementById("mp-verifica");
+    bv.style.display = (p.da_verificare && puoMappare()) ? "block" : "none";
     document.getElementById("m-posta-info").classList.add("show");
     miniReset("mp-schema");
     setTimeout(function(){
@@ -13776,6 +13834,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       postaAperta=null;
     };
     document.getElementById("mp-modifica").onclick=apriNote;
+    document.getElementById("mp-certifica").onclick=certificaPosta;
     document.getElementById("mp-vista").onclick=apriVistaPostaiolo;
     // note
     document.getElementById("m-note-salva").onclick=salvaNote;
@@ -15513,6 +15572,7 @@ function fineA(){
     h += '<canvas id="gm-ante"></canvas>';
     h += '<div class="gm-legenda">'
        + '<span><i style="background:#E8C86A"></i>poste</span>'
+       + '<span><i style="background:#B98CE0"></i>da verificare</span>'
        + '<span><i style="background:#7B5EA7"></i>linee da tracciare</span>'
        + '<span><i style="background:#4FC3F7"></i>giro fatto</span>'
        + '<span><i style="background:#E04A34"></i>uscita</span>'
@@ -15552,13 +15612,22 @@ function fineA(){
     function buono(p){
       return p && isFinite(p.lat) && isFinite(p.lng) && p.lat!==0 && p.lng!==0;
     }
+    /* Il percorso a volte e' un elenco, a volte {punti:[...]}, a volte un testo JSON:
+       trattarlo per quello che non e' faceva esplodere il disegno e restava il verde muto. */
+    function puntiDi(x){
+      if(!x) return [];
+      if(typeof x === "string"){ try{ x = JSON.parse(x); }catch(e){ return []; } }
+      if(Array.isArray(x)) return x;
+      if(Array.isArray(x.punti)) return x.punti;
+      return [];
+    }
     var pts = [];
-    (a.percorso && a.percorso.punti ? a.percorso.punti : []).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); });
+    puntiDi(a.percorso).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); });
     (a.poste||[]).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); });
     var lin = tracceDi(a.id);
-    lin.forEach(function(t){ (t.punti||[]).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
+    lin.forEach(function(t){ puntiDi(t.punti).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
     var tcs = tracciateDiArea(a.id);
-    tcs.forEach(function(tc){ (tc.percorso||[]).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
+    tcs.forEach(function(tc){ puntiDi(tc.percorso).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
     var segs = segnalazioni.filter(function(x){
       var tc = tracciate.find(function(y){ return y.id===x.tracciata_id; });
       return tc && tc.area_id===a.id && x.lat && x.lng; });
@@ -15587,10 +15656,10 @@ function fineA(){
     for(var j=1;j<4;j++){ g.beginPath(); g.moveTo(0,H/4*j); g.lineTo(W,H/4*j); g.stroke(); }
 
     // il confine
-    if(a.percorso && a.percorso.punti && a.percorso.punti.length>2){
+    if(puntiDi(a.percorso).length>2){
       g.strokeStyle="#E8843C"; g.lineWidth=2.5; g.beginPath();
       var primo=true;
-      a.percorso.punti.forEach(function(p){
+      puntiDi(a.percorso).forEach(function(p){
         if(!buono(p)) return;
         if(primo){ g.moveTo(X(p.lng),Y(p.lat)); primo=false; } else g.lineTo(X(p.lng),Y(p.lat));
       });
@@ -15599,19 +15668,20 @@ function fineA(){
     // le linee da tracciare
     g.strokeStyle="#7B5EA7"; g.lineWidth=3;
     lin.forEach(function(t){
-      var pp=(t.punti||[]).filter(buono); if(pp.length<2) return;
+      var pp=puntiDi(t.punti).filter(buono); if(pp.length<2) return;
       g.beginPath(); pp.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); }); g.stroke();
     });
     // i giri fatti davvero
     g.strokeStyle="#4FC3F7"; g.lineWidth=2.2;
     tcs.forEach(function(tc){
-      var pp=(tc.percorso||[]).filter(buono); if(pp.length<2) return;
+      var pp=puntiDi(tc.percorso).filter(buono); if(pp.length<2) return;
       g.beginPath(); pp.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); }); g.stroke();
     });
     // le poste, col numero
     (a.poste||[]).forEach(function(p){
       if(!buono(p)) return;
-      g.fillStyle="#E8C86A"; g.strokeStyle="#241d13"; g.lineWidth=1.5;
+      /* messa da mappa e non certificata sul terreno: si vede che e' da verificare */
+      g.fillStyle = p.da_verificare ? "#B98CE0" : "#E8C86A"; g.strokeStyle="#241d13"; g.lineWidth=1.5;
       g.beginPath(); g.arc(X(p.lng),Y(p.lat),9,0,7); g.fill(); g.stroke();
       g.fillStyle="#241d13"; g.font="700 10px system-ui"; g.textAlign="center"; g.textBaseline="middle";
       g.fillText(String(p.numero||""), X(p.lng), Y(p.lat));
@@ -15619,7 +15689,7 @@ function fineA(){
     // le segnalazioni: FRECCE, non crocette. Verde che punta dentro = entrata,
     // rossa che punta fuori = uscita. La direzione la ricavo dal centro dell'area.
     var cLat=0, cLng=0, nP=0;
-    (a.percorso && a.percorso.punti ? a.percorso.punti : []).forEach(function(p){ cLat+=p.lat; cLng+=p.lng; nP++; });
+    puntiDi(a.percorso).forEach(function(p){ if(!buono(p)) return; cLat+=+p.lat; cLng+=+p.lng; nP++; });
     if(!nP){ (a.poste||[]).forEach(function(p){ if(p.lat){ cLat+=p.lat; cLng+=p.lng; nP++; } }); }
     var CX0 = nP ? X(cLng/nP) : W/2, CY0 = nP ? Y(cLat/nP) : H/2;
     segs.forEach(function(x){
