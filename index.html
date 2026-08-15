@@ -2741,7 +2741,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.98";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.99";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6235,28 +6235,13 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     }
     if(capo) h+='<button class="btn line" id="gi-ritrovo" style="margin-bottom:14px">📌 Scegli il punto di ritrovo</button>';
 
-    // --- AREE SEGNALATE ---
+    // --- LE MAPPE DA TRACCIARE: l'elenco non si ripete ---
+    /* Erano scritte due volte: qui e nelle "Mappe di oggi". Sono le stesse.
+       Resta il tasto per sceglierle, che quello serve. */
     var areeSeg = b.aree_segnalate || [];
-    if((areeSeg.length || capo) && vistaGiornata==="capo"){
-      h+='<div class="sechead">Aree segnalate per la tracciata</div>';
-      if(areeSeg.length){
-        h+='<div class="card" style="background:#4a3320; border:1px solid #6b4a28">';
-        areeSeg.forEach(function(aid, i){
-          var ar=aree.find(function(x){return x.id===aid;});
-          var nTr=adesioni.filter(function(a){return a.viene && a.tracciatore && a.area_tracciata===aid;}).length;
-          h+='<div data-giarea="'+aid+'" style="display:flex; align-items:center; gap:8px; padding:8px 0; cursor:pointer;'+(i?'border-top:1px solid #6b4a28':'')+'">';
-          h+='<span style="font-size:13px">🌲</span>';
-          h+='<span style="flex:1; font-size:13px; color:var(--cream)">'+esc(ar?ar.nome:"area")+'</span>';
-          h+='<span style="font-size:11px; color:'+(nTr?'var(--gold)':'var(--muted)')+'">'+(nTr?nTr+' tracciator'+(nTr===1?'e':'i'):'nessuno')+'</span>';
-          h+='<span style="font-size:14px; color:var(--muted)">🗺️</span>';
-          h+='</div>';
-        });
-        h+='</div>';
-        h+='<div style="font-size:10.5px; color:var(--muted); margin:-8px 0 12px 2px">Tocca una mappa per vederla dal satellite.</div>';
-      }else{
-        h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna area segnalata.</div>';
-      }
-      if(capo) h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">🌲 Scegli le aree da segnalare</button>';
+    if(capo && vistaGiornata==="capo"){
+      h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">\ud83c\udf32 '
+       + (areeSeg.length ? "Cambia le mappe da tracciare" : "Scegli le mappe da tracciare")+'</button>';
     }
 
     // --- IL MIO TRATTO (se il capo mi ha affidato una sezione) ---
@@ -9696,13 +9681,18 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   }
 
   function avvisaErroreTracciata(e){
+    /* Prima diceva "mancano le tabelle, lancia l'SQL della 1.47" anche quando le
+       tabelle c'erano e il problema era un permesso o una colonna: una diagnosi
+       sbagliata fa perdere mezz'ora. Adesso si riporta la risposta ESATTA. */
     var m = (e && (e.message || e.hint || e.details)) ? String(e.message || e.hint || e.details) : "";
-    if(m.indexOf("hn_tracciate") >= 0 || m.indexOf("hn_segnalazioni") >= 0 ||
-       m.indexOf("does not exist") >= 0 || m.indexOf("schema cache") >= 0){
-      alert("Mancano le tabelle della tracciata sul database.\n\nLancia l'SQL della versione 1.47 nell'editor di Supabase, poi riprova.");
-      return;
+    var cod = (e && e.code) ? (" [" + e.code + "]") : "";
+    var spiega = "";
+    if(m.indexOf("does not exist") >= 0 || m.indexOf("schema cache") >= 0){
+      spiega = "\n\nManca una tabella o una colonna sul database.";
+    }else if(m.indexOf("row-level security") >= 0 || m.indexOf("violates") >= 0){
+      spiega = "\n\nIl database non ti autorizza a scrivere qui (permessi RLS).";
     }
-    alert("Non ha funzionato.\n\nIl database ha risposto:\n" + (m || "errore sconosciuto"));
+    alert("Non ha funzionato." + spiega + "\n\nIl database ha risposto:\n" + (m || "errore sconosciuto") + cod);
   }
 
   /* il cammino si registra a ogni aggancio del GPS */
@@ -15896,17 +15886,19 @@ function fineA(){
       if(Array.isArray(x.punti)) return x.punti;
       return [];
     }
+    /* IL RIQUADRO SI MISURA SULLA MAPPA, NON SUI GIRI.
+       Bastava un punto GPS vagante di una tracciata (o una segnalazione lontana)
+       per allargare tutto e schiacciare le poste in un angolo. Il terreno lo
+       definiscono le POSTE e il contorno: il resto si disegna dove capita. */
     var pts = [];
     puntiDi(a.percorso).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); });
     (a.poste||[]).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); });
     var lin = tracceDi(a.id);
-    lin.forEach(function(t){ puntiDi(t.punti).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
     var tcs = tracciateDiArea(a.id);
-    tcs.forEach(function(tc){ puntiDi(tc.percorso).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
     var segs = segnalazioni.filter(function(x){
       var tc = tracciate.find(function(y){ return y.id===x.tracciata_id; });
       return tc && tc.area_id===a.id && x.lat && x.lng; });
-    segs.forEach(function(x){ if(buono(x)) pts.push([+x.lat,+x.lng]); });
+    /* le segnalazioni NON allargano il riquadro: se una e' fuori mappa, sta fuori */
 
     if(pts.length < 3){
       g.fillStyle="#ffffff77"; g.font="12px system-ui"; g.textAlign="center";
@@ -15920,7 +15912,12 @@ function fineA(){
       la1=Math.min(la1,p[0]); la2=Math.max(la2,p[0]);
       ln1=Math.min(ln1,p[1]); ln2=Math.max(ln2,p[1]);
     });
-    var mrg = 14;
+    var mrg = 18;
+    /* un filo di respiro attorno: le poste non devono toccare il bordo */
+    var respiro = 0.12;
+    var dla0 = la2-la1, dln0 = ln2-ln1;
+    la1 -= dla0*respiro; la2 += dla0*respiro;
+    ln1 -= dln0*respiro; ln2 += dln0*respiro;
     var dla = Math.max(la2-la1, 1e-6), dln = Math.max(ln2-ln1, 1e-6);
     var k = Math.min((W-mrg*2)/dln, (H-mrg*2)/dla);
     function X(lng){ return mrg + (lng-ln1)*k + ((W-mrg*2)-dln*k)/2; }
