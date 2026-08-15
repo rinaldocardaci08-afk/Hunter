@@ -1224,14 +1224,6 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         <div id="radiobox"></div>
         <div id="meteobox"></div>
 
-        <button class="tile wide" id="tile-bacheca" style="margin-bottom:10px">
-          <div class="ic">📢</div>
-          <div class="tx">
-            <div class="nm">Bacheca</div>
-            <div class="ds">Annunci e comunicazioni</div>
-          </div>
-        </button>
-
         <div class="grid" id="home-caselle"></div>
       </div>
     </section>
@@ -2519,7 +2511,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.87";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.88";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -13145,8 +13137,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     document.querySelectorAll(".tile[data-go]").forEach(function(t){
       t.onclick=function(){ showView(t.dataset.go); };
     });
-    var tb=document.getElementById("tile-bacheca");
-    if(tb) tb.onclick=function(){ showView("bacheca"); };
+
     document.querySelectorAll(".tile[data-soon]").forEach(function(t){
       t.onclick=function(){ toast(t.dataset.soon+" — in arrivo"); };
     });
@@ -14863,6 +14854,7 @@ function fineA(){
      e spegnere da Amministrazione. L'ordine sta su hn_config, quindi vale
      per tutta la squadra. */
   var CASELLE_HOME = [
+    {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca",          ds:"Annunci e comunicazioni",     go:"bacheca", wide:true},
     {k:"battute",    ic:"\ud83d\udd25", nm:"Battute",          ds:"Calendario e adesioni",       go:"battute"},
     {k:"aree",       ic:"\ud83d\udccd", nm:"Mappe e poste",    ds:"Crea e modifica i terreni",   go:"aree"},
     {k:"mezzo",      ic:"\ud83d\ude97", nm:"Il mio mezzo",     ds:"Dove ho parcheggiato \u00b7 anche senza rete", azione:"mezzo"},
