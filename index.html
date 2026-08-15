@@ -438,8 +438,15 @@
   #autobox .quando{font-size:10.5px; color:var(--muted); margin-top:2px;}
 
   /* ---------- ASSEGNAZIONE DELLE POSTE ---------- */
-  .posriga{display:flex; align-items:center; gap:10px; background:var(--dark2);
-    border:1px solid var(--dark3); border-radius:11px; padding:10px 11px; margin-bottom:6px;}
+  /* due per riga: una sezione da 8 poste passa da otto righe a quattro */
+  .postegriglia{display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-bottom:6px;}
+  @media (max-width:330px){ .postegriglia{grid-template-columns:1fr;} }
+  .posriga{display:flex; align-items:center; gap:9px; background:var(--dark2);
+    border:1px solid var(--dark3); border-radius:11px; padding:10px 10px; margin-bottom:0;
+    min-width:0;}
+  .postegriglia .posriga .chi .n{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .postegriglia .posriga .chi .s{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .postegriglia .posriga > span:last-child{display:none;}
   .posriga.presa{border-color:#2d5a3f;}
   .posriga.scelta{border-color:var(--gold); background:#3a2c18;}
   .posriga .pallino{width:24px; height:24px; border-radius:50%; flex-shrink:0;
@@ -2687,7 +2694,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.94";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v1.95";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5666,7 +5673,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(!box) return;
     var capo = puoGestireBattute() && vistaGiornata==="capo";
     var conclusa = giornataAperta && giornataAperta.stato==="conclusa";
-    var righe = adesioni.slice().sort(function(a,b){
+    /* Si parte dai COMPONENTI, non dalle adesioni: chi non ha mai risposto non ha
+       nessuna riga, ma è quello che ti si presenta al ritrovo e va segnato lo stesso. */
+    var righe = (membri||[]).filter(function(m){ return m.attivo !== false; }).map(function(m){
+      var a = adesioni.find(function(x){ return x.membro_id === m.id; });
+      return a ? a : { id:null, membro_id:m.id, viene:false, presente:false, mai:true };
+    }).sort(function(a,b){
       return (b.presente?1:0)-(a.presente?1:0) || (b.viene?1:0)-(a.viene?1:0);
     });
     var h="";
@@ -5681,32 +5693,35 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       var det = [];
       if(a.viene && a.ospiti) det.push(a.ospiti+" ospit"+(a.ospiti===1?"e":"i"));
       if(a.viene && a.tracciatore) det.push("tracciatore"+(ar?" \u00b7 "+esc(ar.nome):""));
-      if(!a.viene && !pres) det.push(a.presente_da==="assente" ? "non si \u00e8 presentato" : "non viene");
+      if(!a.viene && !pres) det.push(a.mai ? "non ha risposto"
+                                    : (a.presente_da==="assente" ? "non si \u00e8 presentato" : "non viene"));
       var origine = pres ? etichettaOrigine(a.presente_da) : "";
       h+='<div class="aderente'+(no?" assente":"")+'">'
        + '<span class="pallino" style="background:'+col+'"></span>'
        + '<span style="flex:1; min-width:0"><div class="nm">'+esc(m?m.nome:"\u2014")+'</div>'
        + '<div class="ds">'+(det.join(" \u00b7 ")||"prenotato")+(origine?(" \u00b7 "+esc(origine)):"")+'</div></span>';
       if(capo && !conclusa){
-        h+='<button class="sp'+(pres?" si":"")+'" data-pres1="'+a.id+'">'+(pres?"\u2713 c\'\u00e8":"segna")+'</button>';
+        h+='<button class="sp'+(pres?" si":"")+'" data-pres1="'+(a.id||"")+'" data-membro="'+a.membro_id+'">'
+         + (pres?"\u2713 c\'\u00e8":"segna")+'</button>';
       }
       h+='</div>';
     });
     box.innerHTML = h || '<div class="card" style="font-size:12px; color:var(--muted)">Nessuno in questo elenco.</div>';
     box.querySelectorAll("[data-pres1]").forEach(function(b){
-      b.onclick = function(){ chiediPresenzaSingola(b.dataset.pres1); };
+      b.onclick = function(){ chiediPresenzaSingola(b.dataset.pres1, b.dataset.membro); };
     });
   }
   /* la conferma: un tocco per sbaglio qui diventa una posta assegnata a chi non c'e' */
-  function chiediPresenzaSingola(idAdes){
-    var a = adesioni.find(function(x){ return x.id===idAdes; });
-    if(!a) return;
+  function chiediPresenzaSingola(idAdes, membroId){
+    var a = idAdes ? adesioni.find(function(x){ return x.id===idAdes; }) : null;
+    if(!a) a = { id:null, membro_id:membroId, viene:false, presente:false, mai:true };
     var m = membri.find(function(x){ return x.id===a.membro_id; });
     var metto = !a.presente;
     var nome = m ? m.nome : "questo componente";
     var testo = metto
       ? (a.viene ? "Aveva prenotato ma non risulta ancora arrivato. Confermi che \u00e8 qui?"
-                 : "Non aveva prenotato. Confermi che \u00e8 arrivato ed \u00e8 qui adesso?")
+                 : (a.mai ? "Non ha nemmeno risposto alla prenotazione. Confermi che \u00e8 arrivato ed \u00e8 qui adesso?"
+                          : "Non aveva prenotato. Confermi che \u00e8 arrivato ed \u00e8 qui adesso?"))
       : ("Adesso risulta presente: " + etichettaOrigine(a.presente_da) + ".");
     var avviso = metto
       ? "Se lo segni e non c'\u00e8, gli tocca una posta e resta il buco: l'animale esce da l\u00ec e i cani vanno dietro."
@@ -5724,10 +5739,18 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       var dati = metto ? {presente:true, presente_da:"capo", presente_il:ora}
                        : {presente:false, presente_da:"assente", presente_il:ora};
       try{
-        var r = await sb.from("hn_adesioni").update(dati).eq("id", a.id).select().single();
+        var r;
+        if(a.id){
+          r = await sb.from("hn_adesioni").update(dati).eq("id", a.id).select().single();
+        }else{
+          /* non aveva nemmeno prenotato: la riga si crea adesso, "non prenotato ma presente" */
+          r = await sb.from("hn_adesioni").insert(Object.assign({
+                battuta_id: giornataAperta.id, membro_id: a.membro_id, viene:false
+              }, dati)).select().single();
+        }
         if(r.error) throw r.error;
         var k = adesioni.findIndex(function(x){ return x.id===r.data.id; });
-        if(k>=0) adesioni[k]=r.data;
+        if(k>=0) adesioni[k]=r.data; else adesioni.push(r.data);
         toast(metto ? (nome+" segnato presente") : ("Presenza tolta a "+nome));
       }catch(e){ toast("Serve la rete"); return; }
       renderGiornata();
@@ -6085,7 +6108,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
              + ((ar2.poste||[]).length)+' poste'
              + (lineeMie.length?(' \u00b7 '+lineeMie.length+' line'+(lineeMie.length===1?'a':'e')+' da fare'):'')
              + '</div>';
-            hTrac+='<button class="btn line" data-giarea="'+ar2.id+'" style="font-size:12px; padding:9px">🗺️ Vedi la mappa</button>';
+            /* Il tasto lo metto solo se la mappa la puo' davvero aprire. La regola:
+               la mappa che ti hanno dato da tracciare oggi la vedi comunque - e'
+               l'incarico stesso che ti autorizza, altrimenti non puoi farlo. */
+            hTrac+='<button class="btn line" data-giarea="'+ar2.id+'" style="font-size:12px; padding:9px">\ud83d\uddfa\ufe0f Vedi la mappa</button>';
             hTrac+='</div>';   /* il banner finisce qui: le linee stanno SOTTO, come nel disegno */
             if(lineeMie.length){
               hTrac+='<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:11px 0 6px">IL GIRO CHE TI ASPETTA</div>';
@@ -6126,6 +6152,15 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       }
       h+='</div>';
       h+='</div>';
+      if(!capo){
+        /* La tua traccia e' UNA SOLA sezione: il giro da fare e, sotto, quello gia' fatto.
+           Niente seconda sezione "la tua tracciata": e' la stessa cosa in due momenti. */
+        var mieTc = tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
+        if(mieTc.length){
+          hTrac += '<div style="font-size:10px; color:#c9b3e0; letter-spacing:.5px; margin:14px 0 6px">QUELLO CHE HAI GIA\' FATTO</div>';
+          hTrac += htmlTracciate(mieTc);
+        }
+      }
       if(hTrac){ h+='<div class="sechead">La tua traccia</div>'+hTrac; }
     }
 
@@ -6151,16 +6186,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     }
     h+='</div>';
 
-    // --- LE TRACCIATE ---
-    // il capo le trova dentro la mappa a cui appartengono, cosi' la giornata resta corta;
-    // qui resta solo la propria, per aggiungerci quello che si e' visto
-    if(!capo){
-      var mieTc = tracciate.filter(function(x){ return x.membro_id===me.membro_id; });
-      if(mieTc.length){
-        h+='<div class="sechead">La tua tracciata</div>';
-        h+=htmlTracciate(mieTc);
-      }
-    }
+    // le tracciate del capo stanno dentro la mappa a cui appartengono;
+    // quelle del cacciatore sono gia' finite dentro "La tua traccia", qui non si ripete niente
 
     // --- DELEGA DELLA CASSA (solo il cassiere) ---
     if(isCassiere() && b.id && vistaGiornata==="capo"){
@@ -7643,14 +7670,18 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         h += '<div style="font-size:11px; color:#c9b3e0; margin:-6px 0 8px 2px">'
            + (sonoVicediSezione(bs, st.id) ? "Comandi tu questo tratto" : ("Comanda " + esc(nomeDi(vic))))+'</div>';
       }
+      h += '<div class="postegriglia">';
       sue.forEach(function(p){ fatte[p.id]=true; h += rigaPosta(p); });
+      h += '</div>';
     });
     // le poste fuori sezione le distribuisce il capo: il vice ha il suo tratto
     if(puoGestireBattute()){
       var fuori = (a.poste||[]).filter(function(p){ return !fatte[p.id]; }).sort(ordinaPoste);
       if(fuori.length){
         h += '<div class="sechead">'+(settoriDi(apAreaId).length ? "Senza sezione" : "Poste")+'</div>';
+        h += '<div class="postegriglia">';
         fuori.forEach(function(p){ h += rigaPosta(p); });
+        h += '</div>';
       }
     }else if(!sez.length){
       h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
@@ -8341,11 +8372,20 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   }
 
   /* dalla battuta la mappa si apre in modalita' CAMPO: si guarda, non si tocca */
+  /* l'incarico autorizza: se oggi devi tracciare quella mappa, quella la vedi */
+  function mappaAssegnataAMe(id){
+    var mia = miaAdesione();
+    return !!(mia && mia.tracciatore && mia.area_tracciata === id);
+  }
   function apriAreaDaBattuta(id){
     var a = aree.find(function(x){ return x.id === id; });
     if(!a){ toast("Mappa non trovata"); return; }
-    mappaVenutoDa = "giornata";      // il tasto indietro deve riportarmi alla giornata
-    if(!puoVedereAree() && !puoMappare()){ toast("Non hai il permesso di vedere le mappe"); return; }
+    /* se sto arrivando dall'anteprima della mappa NON lo sovrascrivo: il tasto
+       indietro deve riportare dove sono entrato, non sempre alla giornata */
+    if(mappaVenutoDa !== "giomappa") mappaVenutoDa = "giornata";
+    if(!puoVedereAree() && !puoMappare() && !mappaAssegnataAMe(id)){
+      toast("Non hai il permesso di vedere le mappe"); return;
+    }
     modoMappa = "campo";
     areaAttivaId = id;
     areaApertaInMappa = true;
@@ -15507,21 +15547,28 @@ function fineA(){
     g.fillStyle = "#34401f"; g.fillRect(0,0,W,H);
 
     // tutti i punti che devo far entrare nel riquadro
+    /* UN SOLO punto senza coordinate mandava a monte tutto il riquadro: il minimo
+       diventava "non è un numero" e non si disegnava più niente. Ora entrano solo numeri veri. */
+    function buono(p){
+      return p && isFinite(p.lat) && isFinite(p.lng) && p.lat!==0 && p.lng!==0;
+    }
     var pts = [];
-    (a.percorso && a.percorso.punti ? a.percorso.punti : []).forEach(function(p){ pts.push([p.lat,p.lng]); });
-    (a.poste||[]).forEach(function(p){ if(p.lat&&p.lng) pts.push([p.lat,p.lng]); });
+    (a.percorso && a.percorso.punti ? a.percorso.punti : []).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); });
+    (a.poste||[]).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); });
     var lin = tracceDi(a.id);
-    lin.forEach(function(t){ (t.punti||[]).forEach(function(p){ pts.push([p.lat,p.lng]); }); });
+    lin.forEach(function(t){ (t.punti||[]).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
     var tcs = tracciateDiArea(a.id);
-    tcs.forEach(function(tc){ (tc.percorso||[]).forEach(function(p){ if(p.lat&&p.lng) pts.push([p.lat,p.lng]); }); });
+    tcs.forEach(function(tc){ (tc.percorso||[]).forEach(function(p){ if(buono(p)) pts.push([+p.lat,+p.lng]); }); });
     var segs = segnalazioni.filter(function(x){
       var tc = tracciate.find(function(y){ return y.id===x.tracciata_id; });
       return tc && tc.area_id===a.id && x.lat && x.lng; });
-    segs.forEach(function(x){ pts.push([x.lat,x.lng]); });
+    segs.forEach(function(x){ if(buono(x)) pts.push([+x.lat,+x.lng]); });
 
     if(pts.length < 3){
-      g.fillStyle="#ffffff55"; g.font="12px system-ui"; g.textAlign="center";
-      g.fillText("Anteprima non disponibile: manca il contorno", W/2, H/2);
+      g.fillStyle="#ffffff77"; g.font="12px system-ui"; g.textAlign="center";
+      g.fillText("Anteprima non disponibile", W/2, H/2-8);
+      g.fillStyle="#ffffff44"; g.font="11px system-ui";
+      g.fillText("questa mappa non ha coordinate valide", W/2, H/2+10);
       return;
     }
     var la1=90,la2=-90,ln1=180,ln2=-180;
@@ -15542,24 +15589,28 @@ function fineA(){
     // il confine
     if(a.percorso && a.percorso.punti && a.percorso.punti.length>2){
       g.strokeStyle="#E8843C"; g.lineWidth=2.5; g.beginPath();
-      a.percorso.punti.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); });
+      var primo=true;
+      a.percorso.punti.forEach(function(p){
+        if(!buono(p)) return;
+        if(primo){ g.moveTo(X(p.lng),Y(p.lat)); primo=false; } else g.lineTo(X(p.lng),Y(p.lat));
+      });
       g.closePath(); g.stroke();
     }
     // le linee da tracciare
     g.strokeStyle="#7B5EA7"; g.lineWidth=3;
     lin.forEach(function(t){
-      var pp=t.punti||[]; if(pp.length<2) return;
+      var pp=(t.punti||[]).filter(buono); if(pp.length<2) return;
       g.beginPath(); pp.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); }); g.stroke();
     });
     // i giri fatti davvero
     g.strokeStyle="#4FC3F7"; g.lineWidth=2.2;
     tcs.forEach(function(tc){
-      var pp=tc.percorso||[]; if(pp.length<2) return;
+      var pp=(tc.percorso||[]).filter(buono); if(pp.length<2) return;
       g.beginPath(); pp.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); }); g.stroke();
     });
     // le poste, col numero
     (a.poste||[]).forEach(function(p){
-      if(!p.lat||!p.lng) return;
+      if(!buono(p)) return;
       g.fillStyle="#E8C86A"; g.strokeStyle="#241d13"; g.lineWidth=1.5;
       g.beginPath(); g.arc(X(p.lng),Y(p.lat),9,0,7); g.fill(); g.stroke();
       g.fillStyle="#241d13"; g.font="700 10px system-ui"; g.textAlign="center"; g.textBaseline="middle";
