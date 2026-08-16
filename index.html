@@ -1233,11 +1233,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .posriga.osp{background:#1F4E7922; border-color:#4A90C255;}
 
 /* ---- la settimana a colonne ---- */
-.cubo.largo{min-width:224px; max-width:224px;}
-.cubo.chiuso{min-width:60px; max-width:60px; opacity:.32; padding:11px 6px; pointer-events:none;
-  background:#00000020; text-align:center;}
-.cubo.chiuso .et{font-size:12px; line-height:1.3;}
-.cubo.chiuso .no{font-size:17px; margin-top:12px; opacity:.6;}
+.cubo.largo{min-width:168px; max-width:168px; min-height:230px;}
+@media (min-width:430px){ .cubo.largo{min-width:186px; max-width:186px;} }
+.cubo.chiuso{min-width:46px; max-width:46px; opacity:.30; padding:11px 4px; pointer-events:none;
+  background:#00000020; text-align:center; min-height:230px;}
+.cubo.chiuso .et{font-size:11px; line-height:1.25;}
+.cubo.chiuso .no{font-size:15px; margin-top:10px; opacity:.6;}
 .cubo .ucc{display:flex; align-items:center; gap:8px; margin:9px 0 2px; border-radius:11px;
   padding:8px 9px; background:linear-gradient(100deg,#5A2418,#3A1710);
   border:1px solid #C0392B55; border-left:4px solid #E04A34;}
@@ -2894,7 +2895,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.41";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.42";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5615,6 +5616,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     x.setDate(x.getDate() - ((x.getDay()+6)%7));
     return x;
   }
+  /* La settimana comincia dal GIOVEDI': lunedi', martedi' e mercoledi' non si
+     caccia, e mettendoli davanti spingevano fuori schermo le giornate buone. */
+  function inizioSettimana(d){
+    var x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var q = (x.getDay() - 4 + 7) % 7;    // 4 = giovedi'
+    x.setDate(x.getDate() - q);
+    return x;
+  }
 
 
   /* ---- LA SETTIMANA: uccisioni per giorno e per mappa ----
@@ -5704,7 +5713,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   function renderSettimana(){
     var root=document.getElementById("battute-scroll");
-    var lun = lunediDi(new Date());
+    var lun = inizioSettimana(new Date());
     lun.setDate(lun.getDate() + settOffset*7);
     var dom = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+6);
     var oggi = iso(new Date());
@@ -5805,16 +5814,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         idsMese.push(b.id); nGiornateMese++;
       }
     });
+    /* in vista settimana il riassunto e' della SETTIMANA. Quello del mese sta
+       nella vista mese: ognuno dove uno lo va a cercare. */
     if(idsSett.length){
       h += '<div class="sechead">La settimana</div>';
       h += htmlRiassunto(lun.getDate()+' '+MESI[lun.getMonth()].slice(0,3)+' \u2014 '
              + dom.getDate()+' '+MESI[dom.getMonth()].slice(0,3),
              riassunto(fattiSett, svolteSett, idsSett));
-    }
-    if(idsMese.length){
-      h += '<div class="sechead">Il mese</div>';
-      h += htmlRiassunto(MESI[gio.getMonth()]+' '+gio.getFullYear(),
-             riassunto(fattiMese, svolteMese, idsMese), "mese");
+    }else{
+      h += '<div class="card" style="margin-top:14px; font-size:12px; color:var(--muted)">'
+        +  'In questa settimana non c\'\u00e8 ancora nessuna giornata aperta.</div>';
     }
 
     root.innerHTML=h;
@@ -5957,6 +5966,20 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     }
     h+='</div>';
 
+    // il riassunto del mese, sotto il calendario
+    var idsM = [], fattiM = [], svolteM = [];
+    battute.forEach(function(b){
+      if(!b.id || !b.data) return;
+      var d3 = daIso(b.data);
+      if(d3.getMonth()===calMese && d3.getFullYear()===calAnno) idsM.push(b.id);
+    });
+    fattiM  = fattiMese.filter(function(f){ return idsM.indexOf(f.battuta_id)>=0; });
+    svolteM = svolteMese.filter(function(x){ return idsM.indexOf(x.giornata_id)>=0; });
+    if(idsM.length){
+      h+='<div class="sechead">Il mese</div>';
+      h+=htmlRiassunto(MESI[calMese]+' '+calAnno, riassunto(fattiM, svolteM, idsM), "mese");
+    }
+
     h+='<div class="callegenda">';
     h+='<span><i style="background:var(--brown); border:1px solid var(--gold)"></i> adesioni aperte</span>';
     h+='<span><i style="background:#3a2a1f; border:1px solid #6b4a28"></i> battuta chiusa</span>';
@@ -5972,6 +5995,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     }
 
     root.innerHTML=h;
+
+    /* i dati del mese: una volta sola, come per la settimana */
+    var chiaveM = calAnno+"-"+calMese+"|"+idsM.join(",");
+    if(idsM.length && meseCaricato !== chiaveM && !renderCalendario.__caricando){
+      renderCalendario.__caricando = true;
+      caricaSettimana([], idsM, chiaveM).then(function(){
+        meseCaricato = chiaveM;
+        renderCalendario.__caricando = false;
+        if(document.getElementById("v-battute").classList.contains("active") && vistaCal==="mese"){
+          renderCalendario();
+        }
+      });
+    }
 
     root.querySelectorAll("[data-vcal]").forEach(function(b){
       b.onclick=function(){ vistaCal=b.dataset.vcal; renderCalendario(); };
@@ -6536,6 +6572,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
             +(viva?'in corso':'chiusa')+' \u00b7 '+inc+' incarich'+(inc===1?'io':'i')
             +' \u00b7 '+cp.perc+'% delle poste</div>';
           h+='</div>';
+          if(!viva && capo && !conclusa){
+            /* una battuta chiusa si deve poter riaprire: se ci si accorge dopo
+               di aver sbagliato una posta o un abbattimento, senza matita
+               bisognerebbe rifare tutto */
+            h+='<button class="inf" data-bsmod="'+bs.id+'" style="width:auto; padding:0 10px; height:28px; font-size:12px">\u270e</button>';
+          }
           h+='<span style="font-size:15px; color:var(--muted)">\u203a</span>';
           h+='</div></div>';
         });
@@ -6969,6 +7011,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(bib) bib.onclick=apriSceltaBattuta;
     root.querySelectorAll("[data-viceapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.viceapri); };
+    });
+    root.querySelectorAll("[data-bsmod]").forEach(function(b){
+      b.onclick=function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        riapriBattutaSvolta(b.dataset.bsmod);
+      };
     });
     root.querySelectorAll("[data-bsapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.bsapri); };
@@ -8010,6 +8058,34 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       renderGiornata();
       apriAssegnazioni(r.data.id);
     }catch(e){ avvisaErroreAssegnazione(e); }
+  }
+
+
+  /* RIAPRIRE UNA BATTUTA CHIUSA: capita di accorgersi dopo di una posta
+     sbagliata o di un abbattimento da correggere. Si riapre solo se non ce
+     n'e' un'altra in corso, altrimenti si finirebbe con due battute aperte. */
+  async function riapriBattutaSvolta(id){
+    var bs = battutaSvoltaDi(id);
+    if(!bs || !puoGestireBattute()) return;
+    if(!bs.chiusa_il){ toast("Questa battuta \u00e8 gi\u00e0 aperta"); return; }
+    var altra = battuteSvolte.find(function(x){ return !x.chiusa_il && x.id !== id; });
+    if(altra){
+      alert("C'\u00e8 gi\u00e0 una battuta in corso su \u00ab" + nomeBattuta(altra) + "\u00bb.\n\n"
+        + "Chiudi quella prima di riaprire questa: due battute aperte insieme non si possono avere.");
+      return;
+    }
+    if(!confirm("Riaprire la battuta su \u00ab" + nomeBattuta(bs) + "\u00bb?\n\n"
+      + "Torna quella in corso e potrai correggere poste e incarichi.")) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_battute_svolte").update({chiusa_il:null}).eq("id", id).select().single();
+      if(r.error) throw r.error;
+      var k = battuteSvolte.findIndex(function(x){ return x.id === id; });
+      if(k>=0) battuteSvolte[k] = r.data;
+      bsAperta = id;
+      toast("Battuta riaperta: correggi quello che serve");
+    }catch(e){ avvisaErroreAssegnazione(e); return; }
+    renderGiornata();
   }
 
   async function chiudiBattutaSvolta(id){
