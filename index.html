@@ -2787,7 +2787,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.31";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.32";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4410,6 +4410,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   function apriSchedaPosta(p){
     var a=areaAttiva(); if(!a) return;
     postaAperta=p;
+    /* la mappa si mette SOPRA la posta, non a mille metri: cosi' si vede
+       il terreno attorno, che e' il motivo per cui la stai aprendo */
+    try{
+      if(map && p && isFinite(p.lat) && isFinite(p.lng) &&
+         document.getElementById("v-mappa").classList.contains("active")){
+        map.setView([p.lat, p.lng], 19);
+      }
+    }catch(e){}
     document.getElementById("mp-num").textContent=p.numero||"?";
     document.getElementById("mp-num").style.background =
       p.tipo==="occasionale" ? "#E0922B" : (p.tipo==="controposta" ? "#7B5EA7" : "#C0392B");
@@ -4778,9 +4786,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     }
     // inquadro la posta e i suoi vicini, ZOOMATO
     var punti=[[p.lat,p.lng]].concat(vic.map(function(v){return [v.p.lat,v.p.lng];}));
-    if(pos) punti.push([pos.lat,pos.lng]);
-    if(punti.length>1) mvMap.fitBounds(L.latLngBounds(punti).pad(0.28), {maxZoom:18});
-    else mvMap.setView([p.lat,p.lng], 18);
+    /* se sono lontano NON allargo per farmi stare dentro: la mappa serve a
+       vedere la posta e chi ha accanto, alla distanza ci pensa la freccia */
+    var lontano = pos ? (distM(pos, p) > 300) : true;
+    if(pos && !lontano) punti.push([pos.lat,pos.lng]);
+    if(punti.length>1) mvMap.fitBounds(L.latLngBounds(punti).pad(0.30), {maxZoom:19});
+    else mvMap.setView([p.lat,p.lng], 19);
   }
 
   /* SCHEMA: la posta al centro, zoomata sui vicini */
@@ -8728,6 +8739,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       h += '<div style="font-size:13.5px; color:var(--cream); font-weight:600">'+esc(st.nome)+'</div>';
       h += '<div style="font-size:10.5px; color:var(--muted)">'+sue.length+' post'+(sue.length===1?'a':'e')+' · tocca per vederle</div>';
       h += '</div>';
+      if(puoMappare()){
+        h += '<button class="inf" data-sezmod="'+st.id+'" style="width:auto; padding:0 9px; height:28px; font-size:12px">\u270e</button>';
+      }
       h += '<button class="inf" data-vis="settori|'+st.id+'" style="width:auto; padding:0 9px; height:28px; font-size:11px">'
          + (nasc ? "mostra" : "nascondi") + '</button>';
       h += '</div></div>';
@@ -8750,6 +8764,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       h += '<div style="font-size:10.5px; color:var(--muted)">'+km+' km · '
          + (t.origine === "camminata" ? "camminata" : "disegnata")+'</div>';
       h += '</div>';
+      if(puoMappare()){
+        h += '<button class="inf" data-linmod="'+t.id+'" style="width:auto; padding:0 9px; height:28px; font-size:12px">\u270e</button>';
+      }
       h += '<button class="inf" data-vis="tracce|'+t.id+'" style="width:auto; padding:0 9px; height:28px; font-size:11px">'
          + (nasc ? "mostra" : "nascondi") + '</button>';
       h += '</div></div>';
@@ -8795,6 +8812,18 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     root.querySelectorAll("[data-sezapri]").forEach(function(b){
       b.onclick = function(){ mostraPosteSezione(b.dataset.sezapri); };
+    });
+    root.querySelectorAll("[data-sezmod]").forEach(function(b){
+      b.onclick = function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        modificaSettore(b.dataset.sezmod);
+      };
+    });
+    root.querySelectorAll("[data-linmod]").forEach(function(b){
+      b.onclick = function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        rinominaTraccia(b.dataset.linmod);
+      };
     });
     root.querySelectorAll("[data-postaapri]").forEach(function(b){
       b.onclick = function(){
