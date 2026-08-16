@@ -966,9 +966,11 @@
 #radiobox .radio.spenta{background:var(--dark2); border-color:var(--dark3);
   border-left-color:var(--dark3); color:var(--muted);}
 #meteobox{margin-bottom:14px;}
-#meteobox .met{display:flex; align-items:center; gap:13px; width:100%; text-align:left;
+#meteobox .met, .met{display:flex; align-items:center; gap:13px; width:100%; text-align:left;
   background:var(--dark2); border:1px solid var(--dark3); border-radius:14px; padding:12px 13px;
   color:var(--cream);}
+.met .vento{font-family:'Arial Narrow',Impact,sans-serif; font-size:20px; letter-spacing:1px; line-height:1.05;}
+.met .sotto{font-size:12px; color:var(--muted); margin-top:3px;}
 .rosa{width:60px; height:60px; border-radius:50%; border:2px solid var(--dark3); position:relative;
   flex-shrink:0; background:radial-gradient(circle at 50% 50%, #ffffff10, transparent 70%);}
 .rosa .freccia{position:absolute; left:calc(50% - 8px); top:6px; font-size:17px; color:var(--gold);
@@ -2422,6 +2424,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   <div style="background:var(--dark); width:100%; display:flex; flex-direction:column;">
     <div style="background:#1d3a5a; padding:calc(12px + env(safe-area-inset-top)) 14px 12px; display:flex; align-items:center; gap:10px;">
       <div style="flex:1; font-size:13px; color:#9fc8ed;">👁 Anteprima — così la vede il postaiolo</div>
+      <button id="mv-mappa" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:7px 11px;font-size:13px;">🗺️ Mappa</button>
       <button id="mv-chiudi" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:7px 13px;font-size:13px;">Chiudi</button>
     </div>
     <div style="flex:1; padding:14px; overflow-y:auto;">
@@ -2784,7 +2787,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.20";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.30";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5774,7 +5777,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         var nseg = segnalazioni.filter(function(x){ return x.tracciata_id===tc.id; });
         var ent = nseg.filter(function(x){ return x.tipo==="entrata"; }).length;
         var usc = nseg.filter(function(x){ return x.tipo==="uscita"; }).length;
-        h+='<div class="card" data-tcapri="'+tc.id+'" style="margin-bottom:7px; cursor:pointer"><div style="display:flex; align-items:center; gap:8px">';
+        h+='<div class="card" data-tcapri="'+tc.id+'" style="margin-bottom:7px; cursor:pointer'
+        + (tc.letta_il ? '; opacity:.45' : '')+'"><div style="display:flex; align-items:center; gap:8px">';
         h+='<span style="font-size:15px">'+(tc.chiusa_il ? '\u2713' : '\u23f1')+'</span>';
         if(tc.letta_il) h+='<span style="font-size:10px; color:#7be0a8; flex-shrink:0">vista</span>';
         h+='<div style="flex:1; min-width:0">';
@@ -8398,6 +8402,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      Quindi si apre stretta sulla tua posta, con SOLO le due piu' vicine, e vale
      anche per il capocaccia - li' sta facendo il cacciatore, non il comandante. */
   var soloMiaPosta = null;      // {postaId, vicine:[id,id]} finche' resta acceso
+  /* "Portami alla mia posta" apre la VISTA DEL POSTAIOLO - freccia, metri che
+     mancano e nota di sicurezza - anche al capocaccia: li' sta andando in posta
+     come chiunque altro. La mappa intera resta a un tocco di distanza. */
   function apriMiaPostaInMappa(){
     var mp = laMiaPosta();
     if(!mp){ toast("Non hai ancora una posta"); return; }
@@ -8405,6 +8412,18 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(!a){ toast("Mappa non trovata"); return; }
     var p = (a.poste||[]).find(function(x){ return x.id === mp.posta_id; });
     if(!p){ toast("Posta non trovata sulla mappa"); return; }
+    areaAttivaId = mp.area_id;
+    postaAperta = p;
+    apriVistaPostaiolo();
+    return;
+  }
+  function apriMiaPostaSullaMappa(){
+    var mp = laMiaPosta();
+    if(!mp) return;
+    var a = aree.find(function(x){ return x.id === mp.area_id; });
+    if(!a) return;
+    var p = (a.poste||[]).find(function(x){ return x.id === mp.posta_id; });
+    if(!p) return;
     var vic = posteVicine(a, p, 2).map(function(x){ return x.id; });
     soloMiaPosta = { postaId: p.id, vicine: vic };
     modoMappa = "campo";
@@ -9069,7 +9088,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       h += '<div style="font-size:13px; color:var(--cream); font-weight:600">'+esc(st.nome)+'</div>';
       h += '<div style="font-size:10.5px; color:var(--muted)">'+np+' post'+(np===1?'a':'e')+' dentro</div>';
       h += '</div>';
-      if(puoMappare()) h += '<button class="btn line" data-stdel="'+st.id+'" style="width:auto; padding:7px 10px; font-size:12px; flex:0 0 auto">🗑</button>';
+      if(puoMappare()){
+        h += '<button class="btn line" data-stmod="'+st.id+'" style="width:auto; padding:7px 10px; font-size:12px; flex:0 0 auto">\u270e</button>';
+        h += '<button class="btn line" data-stdel="'+st.id+'" style="width:auto; padding:7px 10px; font-size:12px; flex:0 0 auto">🗑</button>';
+      }
       h += '</div></div>';
     });
 
@@ -9090,23 +9112,42 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     m.querySelectorAll("[data-stdel]").forEach(function(b){
       b.onclick = function(){ eliminaSettore(b.dataset.stdel); };
     });
+    m.querySelectorAll("[data-stmod]").forEach(function(b){
+      b.onclick = function(){ modificaSettore(b.dataset.stmod); };
+    });
     var n = document.getElementById("st-nuovo");
     if(n) n.onclick = iniziaDisegnoSettore;
   }
 
   /* --- il disegno del rettangolo --- */
-  function iniziaDisegnoSettore(){
+  /* MODIFICARE una sezione: aggiungere la posta nuova o togliere quella sbagliata.
+     Non c'era, e senza si doveva cancellare la sezione e rifarla da capo. */
+  function modificaSettore(id){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    var st = settori.find(function(x){ return x.id === id; });
+    if(!st) return;
+    var a = aree.find(function(x){ return x.id === st.area_id; });
+    if(!a){ toast("Mappa non trovata"); return; }
+    settoriAperti = a.id;
+    iniziaDisegnoSettore(st);
+  }
+  function iniziaDisegnoSettore(daModificare){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var a = aree.find(function(x){ return x.id === settoriAperti; });
     if(!a) return;
     if(!a.poste || !a.poste.length){ toast("Questa mappa non ha poste"); return; }
     document.getElementById("m-settori").classList.remove("show");
-    disegnoSettore = {areaId:a.id, scelte:[], forma:null, segni:[]};
+    var gia = (daModificare && daModificare.poste_ids) ? daModificare.poste_ids.slice() : [];
+    disegnoSettore = {areaId:a.id, scelte:gia, forma:null, segni:[],
+                      modificaId: daModificare ? daModificare.id : null,
+                      nomeGia: daModificare ? daModificare.nome : null};
     areaAttivaId = a.id;
     areaApertaInMappa = true;
     aggiornaPills();
-    document.getElementById("st-sub").textContent = "tocca le poste che ne fanno parte";
-    document.getElementById("st-ok").disabled = true;
+    document.getElementById("st-sub").textContent = daModificare
+      ? ("tocca per aggiungere o togliere \u00b7 " + gia.length + " dentro adesso")
+      : "tocca le poste che ne fanno parte";
+    document.getElementById("st-ok").disabled = !gia.length;
     document.getElementById("stbanner").classList.add("show");
     showView("mappa");
     setTimeout(function(){
@@ -9192,6 +9233,13 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       return false;
     });
     var np = disegnoSettore.scelte.length;
+    if(disegnoSettore.modificaId){
+      chiediNomeLinea("Nome della sezione",
+        "Puoi anche cambiarle nome.",
+        np + " post" + (np===1?"a":"e") + " dentro",
+        disegnoSettore.nomeGia || proposta, scriviSettore);
+      return;
+    }
     chiediNomeLinea("Nome della sezione",
       "Come la chiami? Serve al vice per riconoscere il suo tratto.",
       np + " post" + (np===1?"a":"e") + " dentro",
@@ -9208,18 +9256,29 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     var la = scelte.map(function(p){ return Number(p.lat); });
     var ln = scelte.map(function(p){ return Number(p.lng); });
     try{
-      var r = await sb.from("hn_settori").insert({
+      var riga = {
         squadra_id:me.squadra_id, area_id:d.areaId, nome:nome,
         poste_ids: d.scelte.slice(),
         lat1:Math.min.apply(null,la), lng1:Math.min.apply(null,ln),
         lat2:Math.max.apply(null,la), lng2:Math.max.apply(null,ln),
         creato_da:me.membro_id
-      }).select().single();
-      if(r.error) throw r.error;
-      settori.push(r.data);
+      };
+      var r;
+      if(d.modificaId){
+        /* sto correggendo una sezione che c'e' gia': aggiorno, non ne creo un'altra */
+        delete riga.creato_da;
+        r = await sb.from("hn_settori").update(riga).eq("id", d.modificaId).select().single();
+        if(r.error) throw r.error;
+        var k = settori.findIndex(function(x){ return x.id === d.modificaId; });
+        if(k>=0) settori[k] = r.data;
+      }else{
+        r = await sb.from("hn_settori").insert(riga).select().single();
+        if(r.error) throw r.error;
+        settori.push(r.data);
+      }
       chiudiDisegnoSettore();
       disegnaSettori();
-      toast("Settore salvato: " + nome);
+      toast((d.modificaId?"Sezione aggiornata: ":"Settore salvato: ") + nome);
       settoriAperti = r.data.area_id;
       document.getElementById("m-settori").classList.add("show");
       renderSettoriElenco();
@@ -9357,7 +9416,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       if(inLaboratorio()){
         // impostazione: si guarda dove passa e semmai si cancella
         h += '<button class="btn line" data-trvedi="'+t.id+'" style="font-size:12px; padding:9px">👁 Vedi dove passa</button>';
-        if(puoMappare()) h += '<button class="btn line" data-trdel="'+t.id+'" style="font-size:12px; padding:9px; flex:0 0 46px">🗑</button>';
+        if(puoMappare()){
+          h += '<button class="btn line" data-trnome="'+t.id+'" style="font-size:12px; padding:9px; flex:0 0 46px">\u270e</button>';
+          h += '<button class="btn line" data-trdel="'+t.id+'" style="font-size:12px; padding:9px; flex:0 0 46px">🗑</button>';
+        }
       }else{
         h += '<button class="btn line" data-trvedi="'+t.id+'" style="font-size:12px; padding:9px">👁 Vedi</button>';
         h += '<button class="btn primary" data-trsegui="'+t.id+'" style="font-size:12px; padding:9px">🐾 Segui</button>';
@@ -9404,6 +9466,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     m.querySelectorAll("[data-trdel]").forEach(function(b){
       b.onclick = function(){ eliminaTraccia(b.dataset.trdel); };
+    });
+    m.querySelectorAll("[data-trnome]").forEach(function(b){
+      b.onclick = function(){ rinominaTraccia(b.dataset.trnome); };
     });
     var d = document.getElementById("tr-disegna");
     if(d) d.onclick = iniziaDisegnoTraccia;
@@ -9642,6 +9707,26 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       avvisaErroreLinea(e);
       return false;
     }
+  }
+
+
+  /* rinominare una linea: prima si poteva solo cancellarla e rifarla */
+  function rinominaTraccia(id){
+    var t = tracce.find(function(x){ return x.id === id; });
+    if(!t) return;
+    chiediNomeLinea("Nome della linea", "Come la chiami fra voi.",
+      ((Number(t.distanza||0)/1000).toFixed(2)) + " km", t.nome || "", async function(nuovo){
+        if(!nuovo || nuovo === t.nome) return;
+        try{
+          var r = await sb.from("hn_tracce").update({nome:nuovo}).eq("id", id).select().single();
+          if(r.error) throw r.error;
+          var k = tracce.findIndex(function(x){ return x.id === id; });
+          if(k>=0) tracce[k] = r.data;
+          toast("Rinominata: " + nuovo);
+          renderTracceElenco();
+          disegnaTracce();
+        }catch(e){ toast("Non riesco a rinominarla"); }
+      });
   }
 
   async function eliminaTraccia(id){
@@ -10227,6 +10312,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
                 .eq("id", id).select().single();
       if(r.error) throw r.error;
       tc.letta_il = ora; tc.letta_da = ora ? me.membro_id : null;
+      /* la riga deve diventare trasparente SUBITO, anche se sto guardando
+         la sezione della mappa e non la giornata */
+      if(document.getElementById("v-giomappa") &&
+         document.getElementById("v-giomappa").classList.contains("active")){
+        renderMappaGiornata();
+      }
       renderGiornata();
       toast(ora ? "Segnata come vista" : "Tolta la spunta");
     }catch(e){ avvisaErroreTracciata(e); }
@@ -14225,6 +14316,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     document.getElementById("m-note-annulla").onclick=function(){ document.getElementById("m-note").classList.remove("show"); };
     // vista postaiolo
     document.getElementById("mv-chiudi").onclick=function(){ document.getElementById("m-vista").classList.remove("show"); };
+    document.getElementById("mv-mappa").onclick=function(){
+      document.getElementById("m-vista").classList.remove("show");
+      apriMiaPostaSullaMappa();     // la mappa intera, con la tua e le due vicine
+    };
     document.querySelectorAll(".vpill").forEach(function(b){ b.onclick=function(){ mvSetMode(b.dataset.vmode); }; });
     document.getElementById("mvz-piu").onclick=function(){ miniZoom("mv-schema", 1.5); };
     document.getElementById("mvz-meno").onclick=function(){ miniZoom("mv-schema", 0.67); };
@@ -15722,9 +15817,12 @@ function fineA(){
     var v = hh.precipitation_probability ? hh.precipitation_probability[i] : 0;
     return Number(v)||0;
   }
+  /* Le ore della battuta: dalle 9 alle 15. Prima guardavo l'alba, ma
+     all'alba si traccia, non si batte. */
+  var ORE_BATTUTA = [9, 15];
   function fasceMeteo(){
     var asc=[], bag=[];
-    for(var h=5; h<=19; h++){ (probOra(h)>=40 ? bag : asc).push(h); }
+    for(var h=ORE_BATTUTA[0]; h<=ORE_BATTUTA[1]; h++){ (probOra(h)>=40 ? bag : asc).push(h); }
     return {asc:asc, bag:bag};
   }
   function disegnaMeteo(){
@@ -15756,7 +15854,8 @@ function fineA(){
              || ('. Meglio prima delle '+f.bag[0])) : '')+'</span></div>';
     }else{
       h += '<div class="mt-avviso" style="background:#2f7a4f33; border-color:#5DD97A66; border-left-color:#5DD97A; color:#cfeeda">'
-         + '<span style="font-size:19px">\u2713</span><span>Nessuna pioggia prevista nelle ore della battuta.</span></div>';
+         + '<span style="font-size:19px">\u2713</span><span>Nessuna pioggia prevista fra le '
+         + ORE_BATTUTA[0]+' e le '+ORE_BATTUTA[1]+', le ore della battuta.</span></div>';
     }
 
     h += '<div class="sechead">Quando piove</div><canvas id="mt-pioggia"></canvas>';
@@ -15800,14 +15899,14 @@ function fineA(){
       x.fillStyle = "rgba(255,255,255,.3)"; x.font = "9px system-ui"; x.textAlign = "right";
       x.fillText(v+"%", m-4, y+3);
     });
-    var da = 4, a = 20, n = a-da+1, bw = (w/n)*0.72;
-    // la fascia della battuta, dietro
+    var da = 5, a = 21, n = a-da+1, bw = (w/n)*0.72;
+    /* le ore che contano per una battuta sono le 9-15, non l'alba */
     x.fillStyle = "rgba(224,184,120,.10)";
-    x.fillRect(m+((6-da)/n)*w, 8, ((11-6)/n)*w, h+4);
+    x.fillRect(m+((ORE_BATTUTA[0]-da)/n)*w, 8, ((ORE_BATTUTA[1]-ORE_BATTUTA[0])/n)*w, h+4);
     x.strokeStyle = "rgba(224,184,120,.5)"; x.setLineDash([4,3]); x.lineWidth = 1;
-    x.strokeRect(m+((6-da)/n)*w, 8, ((11-6)/n)*w, h+4); x.setLineDash([]);
+    x.strokeRect(m+((ORE_BATTUTA[0]-da)/n)*w, 8, ((ORE_BATTUTA[1]-ORE_BATTUTA[0])/n)*w, h+4); x.setLineDash([]);
     x.fillStyle = "rgba(224,184,120,.85)"; x.font = "700 9px system-ui"; x.textAlign = "left";
-    x.fillText("BATTUTA", m+((6-da)/n)*w+4, 18);
+    x.fillText("BATTUTA", m+((ORE_BATTUTA[0]-da)/n)*w+4, 18);
     for(var hh=da; hh<=a; hh++){
       var v = probOra(hh), xx = m+((hh-da)/n)*w + (w/n-bw)/2, alt = (v/100)*h;
       x.fillStyle = v>=40 ? "#4FA3D8" : "rgba(79,163,216,.35)";
