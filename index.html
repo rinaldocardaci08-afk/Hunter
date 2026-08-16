@@ -1187,6 +1187,47 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .aderente.ospite{background:#1F4E7922; border-color:#4A90C255;}
 .aderente.ospite .nm:before{content:"\1F464 "; font-size:11px;}
 
+
+/* ---- la schermata meteo, a tutto schermo ---- */
+#m-meteo{position:fixed; inset:0; z-index:2900; background:#1b1710; display:none; flex-direction:column;}
+#m-meteo.show{display:flex;}
+#m-meteo .mt-cap{display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--dark3);
+  padding:calc(env(safe-area-inset-top) + 12px) 14px 11px;}
+#m-meteo .mt-n1{font-size:18px; font-weight:600; color:var(--cream);}
+#m-meteo .mt-n2{font-size:11.5px; color:var(--muted); margin-top:2px;}
+#m-meteo .mt-x{width:44px; height:44px; border-radius:50%; background:#00000055; border:1px solid var(--dark3);
+  color:var(--cream); font-size:18px; flex-shrink:0;}
+#m-meteo .mt-corpo{flex:1; overflow-y:auto; padding:12px 14px 20px;}
+#mt-pioggia{width:100%; display:block; border-radius:10px; border:1px solid var(--dark3);}
+.mt-giorni{display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;}
+.mt-g{min-width:76px; border-radius:12px; padding:9px 6px; text-align:center; border:1px solid var(--dark3);
+  background:#ffffff08; color:var(--cream);}
+.mt-g.on{background:var(--gold); color:#241d13; border-color:var(--gold);}
+.mt-g .dd{font-size:10.5px; opacity:.85;}
+.mt-g .tt{font-family:'Arial Narrow',Impact,sans-serif; font-size:17px; margin:3px 0 1px;}
+.mt-g .tt span{opacity:.65; font-size:13px;}
+.mt-g .pp{font-size:10px; opacity:.85;}
+.mt-avviso{display:flex; align-items:center; gap:10px; background:#5a2a1e33; border:1px solid #C0392B66;
+  border-left:5px solid #E04A34; border-radius:11px; padding:10px 12px; margin-top:11px;
+  font-size:12.5px; line-height:1.5; color:#F0C9C0;}
+.mt-fasce{display:flex; gap:7px; margin-top:9px;}
+.mt-f{flex:1; border-radius:10px; padding:9px 5px; text-align:center; font-size:11px; border:1px solid; color:#fff;}
+.mt-f b{display:block; font-family:'Arial Narrow',Impact,sans-serif; font-size:17px; margin-top:2px;}
+.mt-f.asciutto{background:linear-gradient(160deg,#2F7A4F,#17452C); border-color:#5DD97A;}
+.mt-f.bagnato{background:linear-gradient(160deg,#3E6FCC,#22418A); border-color:#8FB6FF;}
+.mt-f.vento{background:linear-gradient(160deg,#8A7327,#4A3D12); border-color:#E0B878;}
+/* le caselle del meteo: colori pieni, non il marrone di tutto il resto */
+.mini{border-radius:10px; padding:9px 4px; text-align:center; border:1px solid; font-size:11px; color:#fff;}
+.mini b{display:block; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px; margin-top:2px;}
+.mini span{opacity:.85;}
+.m-t{background:linear-gradient(160deg,#2E8BA8,#1B5C73); border-color:#4FC3F7;}
+.m-p{background:linear-gradient(160deg,#3E6FCC,#24418A); border-color:#8FB6FF;}
+.m-a{background:linear-gradient(160deg,#E0742C,#9A4410); border-color:#FFC26B;}
+.m-max{background:linear-gradient(160deg,#D9452E,#8A2415); border-color:#FF8A75;}
+.m-min{background:linear-gradient(160deg,#4A86D9,#22468A); border-color:#9BC7FF;}
+.m-raf{background:linear-gradient(160deg,#8A7327,#4A3D12); border-color:#E0B878;}
+#meteobox .luogo{font-size:11px; color:var(--gold); margin-top:3px;}
+
 </style>
 </head>
 <body>
@@ -1986,15 +2027,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
 
 <!-- MODALE: meteo esteso -->
-<div class="modal" id="m-meteo">
-  <div class="sheet">
-    <h3>Meteo della giornata</h3>
-    <div id="mt-corpo"><div class="loading">Carico…</div></div>
-    <div class="btnrow" style="margin-top:12px">
-      <button class="btn line" id="mt-chiudi">Chiudi</button>
+<div id="m-meteo">
+  <div class="mt-cap">
+    <div style="flex:1; min-width:0">
+      <div class="mt-n1" id="mt-luogo">Meteo</div>
+      <div class="mt-n2" id="mt-sotto"></div>
     </div>
-    <div class="hint" style="margin-top:8px; text-align:center">dati Open-Meteo · CC BY 4.0</div>
+    <button class="mt-x" id="mt-chiudi">&#10005;</button>
   </div>
+  <div class="mt-corpo" id="mt-corpo"><div class="loading">Carico…</div></div>
+  <div class="hint" style="text-align:center; padding:6px 0 calc(env(safe-area-inset-bottom) + 10px)">dati Open-Meteo · CC BY 4.0</div>
 </div>
 
 
@@ -2741,7 +2783,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.00";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.10";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -14027,6 +14069,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     // --- SCADENZE ---
     document.getElementById("dc-chiudi").onclick=function(){ document.getElementById("m-doc").classList.remove("show"); docAperto=null; };
     document.getElementById("mt-chiudi").onclick=function(){ document.getElementById("m-meteo").classList.remove("show"); };
+    window.addEventListener("resize", function(){ if(document.getElementById("m-meteo").classList.contains("show")) graficoPioggia(); });
     document.getElementById("pc-no").onclick=function(){ document.getElementById("m-prescon").classList.remove("show"); };
     document.getElementById("sentinella").onclick=apriGuasti;
     document.getElementById("gu-chiudi").onclick=function(){ document.getElementById("m-guasti").classList.remove("show"); };
@@ -15546,36 +15589,59 @@ function fineA(){
   var meteo = null;
   var DIRE = ["nord","nord-est","est","sud-est","sud","sud-ovest","ovest","nord-ovest"];
   function daDove(gradi){ return DIRE[Math.round(((gradi%360)/45))%8]; }
+  /* una sola funzione per chiedere il meteo di un punto qualsiasi:
+     serve per casa (dove sono io) e per la mappa (dove si va a cacciare) */
+  async function chiediMeteo(lat, lng){
+    var k = "hunter_meteo_" + lat.toFixed(2) + "_" + lng.toFixed(2);
+    try{
+      var c = JSON.parse(localStorage.getItem(k));
+      if(c && c.giorno===oggiISO() && (Date.now()-c.preso) < 3*3600*1000) return c.dati;
+    }catch(e){}
+    try{
+      var u = "https://api.open-meteo.com/v1/forecast?latitude="+lat.toFixed(4)
+        +"&longitude="+lng.toFixed(4)
+        +"&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+        +"&hourly=temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
+        +"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,wind_speed_10m_max,wind_gusts_10m_max,wind_direction_10m_dominant,sunrise,sunset"
+        +"&timezone=auto&forecast_days=7";
+      var rr = await fetch(u);
+      if(!rr.ok) throw new Error("meteo "+rr.status);
+      var d = await rr.json();
+      try{ localStorage.setItem(k, JSON.stringify({giorno:oggiISO(), preso:Date.now(), dati:d})); }catch(e2){}
+      return d;
+    }catch(e){
+      try{
+        var c2 = JSON.parse(localStorage.getItem(k));
+        if(c2) return c2.dati;
+      }catch(e3){}
+      return null;
+    }
+  }
+  /* il nome del posto: le coordinate non dicono niente a nessuno.
+     Lo chiedo allo stesso servizio che l'app usa gia' per cercare i luoghi. */
+  async function nomeLuogo(lat, lng){
+    var k = "hunter_luogo_" + lat.toFixed(2) + "_" + lng.toFixed(2);
+    try{ var c = localStorage.getItem(k); if(c) return c; }catch(e){}
+    try{
+      var u = "https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=12&accept-language=it&lat="
+            + lat.toFixed(4) + "&lon=" + lng.toFixed(4);
+      var r = await fetch(u);
+      if(!r.ok) throw new Error("luogo");
+      var d = await r.json();
+      var a = d.address || {};
+      var nome = a.village || a.town || a.city || a.municipality || a.county || d.name || "";
+      if(nome) try{ localStorage.setItem(k, nome); }catch(e2){}
+      return nome;
+    }catch(e){ return ""; }
+  }
+  var meteoLuogo = "";
   async function caricaMeteo(){
     var p = pos || ultimaPosNota();
     if(!p) return;
-    var chiave = "hunter_meteo";
-    try{
-      var c=JSON.parse(localStorage.getItem(chiave));
-      if(c && c.giorno===oggiISO() && Math.abs(c.lat-p.lat)<.05 && Math.abs(c.lng-p.lng)<.05
-         && (Date.now()-c.preso) < 3*3600*1000){
-        meteo=c.dati; renderMeteo(); return;
-      }
-    }catch(e){}
-    try{
-      var u="https://api.open-meteo.com/v1/forecast?latitude="+p.lat.toFixed(4)
-        +"&longitude="+p.lng.toFixed(4)
-        +"&current=temperature_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
-        +"&hourly=temperature_2m,precipitation_probability,wind_speed_10m,wind_direction_10m,wind_gusts_10m"
-        +"&daily=temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset"
-        +"&timezone=auto&forecast_days=1";
-      var rr=await fetch(u);
-      if(!rr.ok) throw new Error("meteo "+rr.status);
-      meteo=await rr.json();
-      try{ localStorage.setItem(chiave, JSON.stringify({
-        giorno:oggiISO(), lat:p.lat, lng:p.lng, preso:Date.now(), dati:meteo })); }catch(e2){}
-    }catch(e){
-      try{
-        var c2=JSON.parse(localStorage.getItem(chiave));
-        if(c2 && c2.giorno===oggiISO()) meteo=c2.dati;
-      }catch(e3){}
-    }
+    meteo = await chiediMeteo(p.lat, p.lng);
     renderMeteo();
+    var n = await nomeLuogo(p.lat, p.lng);
+    if(n){ meteoLuogo = n; renderMeteo(); }
   }
   function rosaHtml(gradi, dim){
     return '<div class="rosa"'+(dim?' style="width:'+dim+'px;height:'+dim+'px"':'')+'>'
@@ -15587,80 +15653,135 @@ function fineA(){
     if(!box) return;
     if(!meteo || !meteo.current){ box.innerHTML=""; return; }
     var c=meteo.current, d=meteo.daily||{};
-    var alba=(d.sunrise&&d.sunrise[0])?d.sunrise[0].slice(11,16):"—";
+    var alba=(d.sunrise&&d.sunrise[0])?d.sunrise[0].slice(11,16):"\u2014";
+    var pio=(d.precipitation_probability_max&&d.precipitation_probability_max[0]!=null)?d.precipitation_probability_max[0]:0;
     box.innerHTML='<button class="met" id="meteo-tocca">'
       + rosaHtml(c.wind_direction_10m)
       + '<span style="flex:1; min-width:0">'
       + '<div class="vento">VENTO DA '+daDove(c.wind_direction_10m).toUpperCase()+'</div>'
       + '<div class="sotto">'+Math.round(c.wind_speed_10m)+' km/h \u00b7 raffiche '
       + Math.round(c.wind_gusts_10m||0)+'</div>'
+      + (meteoLuogo ? '<div class="luogo">\ud83d\udccd '+esc(meteoLuogo)+' \u00b7 dove sei tu</div>' : '')
       + '<div class="strisce" style="grid-template-columns:1fr 1fr 1fr; margin-top:8px">'
-      +   '<span class="mini m-ora"><span class="em">\ud83c\udf21\ufe0f</span><b>'+Math.round(c.temperature_2m)+'\u00b0</b><span>Adesso</span></span>'
-      +   '<span class="mini m-pio"><span class="em">\ud83d\udca7</span><b>'
-      +     ((d.precipitation_probability_max&&d.precipitation_probability_max[0]!=null)?d.precipitation_probability_max[0]:0)+'%</b><span>Pioggia</span></span>'
-      +   '<span class="mini m-alb"><span class="em">\ud83c\udf05</span><b>'+alba+'</b><span>Alba</span></span>'
+      +   '<span class="mini m-t"><span class="em">\ud83c\udf21\ufe0f</span><b>'+Math.round(c.temperature_2m)+'\u00b0</b><span>Adesso</span></span>'
+      +   '<span class="mini m-p"><span class="em">\ud83d\udca7</span><b>'+pio+'%</b><span>Pioggia</span></span>'
+      +   '<span class="mini m-a"><span class="em">\ud83c\udf05</span><b>'+alba+'</b><span>Alba</span></span>'
       + '</div></span></button>';
-    document.getElementById("meteo-tocca").onclick=apriMeteo;
+    document.getElementById("meteo-tocca").onclick=function(){ apriMeteo(meteo, meteoLuogo||"Dove sei tu", "meteo di dove sei"); };
   }
-  function termometro(val, min, max, c1, c2){
-    var k=Math.max(0, Math.min(1, (val-min)/(max-min)));
-    return '<div class="term"><i style="height:'+Math.round(6+k*29)+'px;background:linear-gradient('+c1+','+c2+')"></i>'
-         + '<b style="background:'+c2+'"></b></div>';
-  }
-  function apriMeteo(){
-    var corpo=document.getElementById("mt-corpo");
-    if(!meteo || !meteo.current){ corpo.innerHTML='<p class="hint">Meteo non disponibile senza rete.</p>'; }
-    else{
-      var c=meteo.current, d=meteo.daily||{}, hh=meteo.hourly||{};
-      var alba=(d.sunrise&&d.sunrise[0])?d.sunrise[0].slice(11,16):"—";
-      var tram=(d.sunset&&d.sunset[0])?d.sunset[0].slice(11,16):"—";
-      var tmax=d.temperature_2m_max?Math.round(d.temperature_2m_max[0]):null;
-      var tmin=d.temperature_2m_min?Math.round(d.temperature_2m_min[0]):null;
-      var h='<div class="card" style="padding:13px">';
-      h+='<div style="display:flex; align-items:center; gap:14px">'
-       + rosaHtml(c.wind_direction_10m,74)
-       + '<div><div class="vento" style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:25px">VENTO DA '
-       + daDove(c.wind_direction_10m).toUpperCase()+'</div>'
-       + '<div class="sotto" style="font-size:12.5px; color:var(--muted); margin-top:3px">'
-       + Math.round(c.wind_speed_10m)+' km/h \u00b7 raffiche '+Math.round(c.wind_gusts_10m||0)
-       + '<br>la freccia indica <b>dove va</b> l\'aria</div></div></div>';
-      h+='<div class="caselle">'
-       + '<div class="cas c-ora">'+termometro(c.temperature_2m,-5,35,"#4FC3F7","#2E8BA8")
-       +   '<div><div class="val">'+Math.round(c.temperature_2m)+'\u00b0</div><div class="et">Adesso</div>'
-       +   '<div class="ds">fuori, all\'ombra</div></div></div>'
-       + '<div class="cas c-max">'+termometro(tmax==null?15:tmax,-5,35,"#FFC26B","#E0742C")
-       +   '<div><div class="val">'+(tmax==null?"\u2013":tmax+"\u00b0")+'</div><div class="et">Massima</div>'
-       +   '<div class="ds">nel pomeriggio</div></div></div>'
-       + '<div class="cas c-min">'+termometro(tmin==null?5:tmin,-5,35,"#9BC7FF","#3E6FCC")
-       +   '<div><div class="val">'+(tmin==null?"\u2013":tmin+"\u00b0")+'</div><div class="et">Minima</div>'
-       +   '<div class="ds">all\'alba, nei valloni meno</div></div></div>'
-       + '<div class="cas c-per">'+termometro(c.apparent_temperature,-5,35,"#D3AEF0","#8A5AB8")
-       +   '<div><div class="val">'+Math.round(c.apparent_temperature)+'\u00b0</div><div class="et">Percepita</div>'
-       +   '<div class="ds">col vento addosso</div></div></div>'
-       + '</div>';
-      h+='<div class="strisce">'
-       + '<div class="mini m-pio"><div class="em">\ud83d\udca7</div><b>'
-       +   ((d.precipitation_probability_max&&d.precipitation_probability_max[0]!=null)?d.precipitation_probability_max[0]:0)+'%</b><span>Pioggia</span></div>'
-       + '<div class="mini m-raf"><div class="em">\ud83c\udf2c\ufe0f</div><b>'+Math.round(c.wind_gusts_10m||0)+'</b><span>Raffiche</span></div>'
-       + '<div class="mini m-alb"><div class="em">\ud83c\udf05</div><b>'+alba+'</b><span>Alba</span></div>'
-       + '<div class="mini m-tra"><div class="em">\ud83c\udf07</div><b>'+tram+'</b><span>Tramonto</span></div>'
-       + '</div>';
-      if(hh.time && hh.time.length){
-        h+='<div class="ore">';
-        for(var i=6;i<=18;i+=2){
-          if(!hh.time[i]) continue;
-          var raf=Math.round(hh.wind_gusts_10m?hh.wind_gusts_10m[i]:0);
-          h+='<div class="ora'+(raf>=25?" forte":"")+'">'
-           + '<div class="h">'+hh.time[i].slice(11,16)+'</div>'
-           + '<div class="fr" style="transform:rotate('+Math.round((hh.wind_direction_10m[i]+180)%360)+'deg)">\u25b2</div>'
-           + '<div class="v">'+Math.round(hh.wind_speed_10m[i])+'</div></div>';
-        }
-        h+='</div>';
-      }
-      h+='</div>';
-      corpo.innerHTML=h;
-    }
+
+  /* ---------- LA SCHERMATA METEO A TUTTO SCHERMO ----------
+     L'ora della pioggia e' l'informazione che fa spostare una battuta:
+     sta in mezzo, grande, con la fascia della battuta segnata sopra. */
+  var mtDati = null, mtGiorno = 0, mtLuogo = "", mtSotto = "";
+  function apriMeteo(dati, luogo, sotto){
+    mtDati = dati || meteo; mtGiorno = 0;
+    mtLuogo = luogo || ""; mtSotto = sotto || "";
     document.getElementById("m-meteo").classList.add("show");
+    disegnaMeteo();
+  }
+  function probOra(h){
+    var hh = mtDati && mtDati.hourly ? mtDati.hourly : null;
+    if(!hh || !hh.time) return 0;
+    var i = mtGiorno*24 + h;
+    var v = hh.precipitation_probability ? hh.precipitation_probability[i] : 0;
+    return Number(v)||0;
+  }
+  function fasceMeteo(){
+    var asc=[], bag=[];
+    for(var h=5; h<=19; h++){ (probOra(h)>=40 ? bag : asc).push(h); }
+    return {asc:asc, bag:bag};
+  }
+  function disegnaMeteo(){
+    var corpo = document.getElementById("mt-corpo");
+    document.getElementById("mt-luogo").textContent = mtLuogo || "Meteo";
+    document.getElementById("mt-sotto").textContent = mtSotto || "";
+    if(!mtDati || !mtDati.daily){ corpo.innerHTML='<p class="hint">Meteo non disponibile senza rete.</p>'; return; }
+    var d = mtDati.daily, i = mtGiorno;
+    var g = ["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
+    var h = '<div class="mt-giorni">';
+    (d.time||[]).forEach(function(t, k){
+      var dt = new Date(t+"T12:00:00");
+      var pio = d.precipitation_probability_max ? (d.precipitation_probability_max[k]||0) : 0;
+      var col = pio>=60 ? "#3E6FCC" : (pio>=30 ? "#5E7FA8" : "#2F7A4F");
+      h += '<button class="mt-g'+(k===i?" on":"")+'" data-mtg="'+k+'"'
+         + (k===i?"":' style="background:linear-gradient(160deg,'+col+'55,'+col+'22); border-color:'+col+'"')+'>'
+         + '<div class="dd">'+(k===0?"Oggi":g[dt.getDay()]+" "+dt.getDate())+'</div>'
+         + '<div class="tt">'+Math.round(d.temperature_2m_max?d.temperature_2m_max[k]:0)+'\u00b0'
+         + '<span>/'+Math.round(d.temperature_2m_min?d.temperature_2m_min[k]:0)+'\u00b0</span></div>'
+         + '<div class="pp">\ud83d\udca7'+pio+'%</div></button>';
+    });
+    h += '</div>';
+
+    var f = fasceMeteo();
+    if(f.bag.length){
+      h += '<div class="mt-avviso"><span style="font-size:19px">\u26a0\ufe0f</span><span>Pioggia prevista '
+         + '<b>dalle '+f.bag[0]+' alle '+(f.bag[f.bag.length-1]+1)+'</b>'
+         + (f.asc.length ? ('. Asciutto dalle '+f.asc.filter(function(x){ return x>f.bag[f.bag.length-1]; })[0]
+             || ('. Meglio prima delle '+f.bag[0])) : '')+'</span></div>';
+    }else{
+      h += '<div class="mt-avviso" style="background:#2f7a4f33; border-color:#5DD97A66; border-left-color:#5DD97A; color:#cfeeda">'
+         + '<span style="font-size:19px">\u2713</span><span>Nessuna pioggia prevista nelle ore della battuta.</span></div>';
+    }
+
+    h += '<div class="sechead">Quando piove</div><canvas id="mt-pioggia"></canvas>';
+    h += '<div class="mt-fasce">'
+       + '<div class="mt-f asciutto">meglio<b>'+(f.asc.length ? (f.asc[0]+"\u2013"+(f.asc[Math.min(4,f.asc.length-1)]+1)) : "\u2014")+'</b></div>'
+       + '<div class="mt-f bagnato">da evitare<b>'+(f.bag.length ? (f.bag[0]+"\u2013"+(f.bag[f.bag.length-1]+1)) : "niente")+'</b></div>'
+       + '<div class="mt-f vento">vento<b>'+Math.round(d.wind_speed_10m_max?d.wind_speed_10m_max[i]:0)+' km/h</b></div>'
+       + '</div>';
+
+    var dir = d.wind_direction_10m_dominant ? d.wind_direction_10m_dominant[i] : 0;
+    h += '<div class="sechead">Il resto del giorno</div>';
+    h += '<div class="card"><div style="display:flex; align-items:center; gap:14px">'
+       + rosaHtml(dir, 66)
+       + '<div><div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:23px; letter-spacing:1px">VENTO DA '
+       + daDove(dir).toUpperCase()+'</div>'
+       + '<div class="hint">raffiche fino a '+Math.round(d.wind_gusts_10m_max?d.wind_gusts_10m_max[i]:0)+' km/h</div></div></div>'
+       + '<div class="strisce" style="grid-template-columns:1fr 1fr 1fr 1fr; margin-top:11px">'
+       + '<div class="mini m-max"><div class="em">\ud83c\udf21\ufe0f</div><b>'+Math.round(d.temperature_2m_max[i])+'\u00b0</b><span>Massima</span></div>'
+       + '<div class="mini m-min"><div class="em">\u2744\ufe0f</div><b>'+Math.round(d.temperature_2m_min[i])+'\u00b0</b><span>Minima</span></div>'
+       + '<div class="mini m-p"><div class="em">\ud83d\udca7</div><b>'+(d.precipitation_probability_max?d.precipitation_probability_max[i]:0)+'%</b><span>Pioggia</span></div>'
+       + '<div class="mini m-a"><div class="em">\ud83c\udf05</div><b>'+(d.sunrise&&d.sunrise[i]?d.sunrise[i].slice(11,16):"\u2014")+'</b><span>Alba</span></div>'
+       + '</div></div>';
+    corpo.innerHTML = h;
+    corpo.querySelectorAll("[data-mtg]").forEach(function(b){
+      b.onclick = function(){ mtGiorno = +b.dataset.mtg; disegnaMeteo(); };
+    });
+    graficoPioggia();
+  }
+  function graficoPioggia(){
+    var cv = document.getElementById("mt-pioggia");
+    if(!cv) return;
+    var W = cv.clientWidth || 320, H = 130, dpr = Math.min(window.devicePixelRatio||1, 2);
+    cv.width = W*dpr; cv.height = H*dpr; cv.style.height = H+"px";
+    var x = cv.getContext("2d"); x.setTransform(dpr,0,0,dpr,0,0);
+    x.fillStyle = "#00000030"; x.fillRect(0,0,W,H);
+    var m = 28, w = W-m-8, h = H-32;
+    x.strokeStyle = "rgba(255,255,255,.08)"; x.lineWidth = 1;
+    [0,25,50,75,100].forEach(function(v){
+      var y = 10+h-(v/100)*h;
+      x.beginPath(); x.moveTo(m,y); x.lineTo(W-8,y); x.stroke();
+      x.fillStyle = "rgba(255,255,255,.3)"; x.font = "9px system-ui"; x.textAlign = "right";
+      x.fillText(v+"%", m-4, y+3);
+    });
+    var da = 4, a = 20, n = a-da+1, bw = (w/n)*0.72;
+    // la fascia della battuta, dietro
+    x.fillStyle = "rgba(224,184,120,.10)";
+    x.fillRect(m+((6-da)/n)*w, 8, ((11-6)/n)*w, h+4);
+    x.strokeStyle = "rgba(224,184,120,.5)"; x.setLineDash([4,3]); x.lineWidth = 1;
+    x.strokeRect(m+((6-da)/n)*w, 8, ((11-6)/n)*w, h+4); x.setLineDash([]);
+    x.fillStyle = "rgba(224,184,120,.85)"; x.font = "700 9px system-ui"; x.textAlign = "left";
+    x.fillText("BATTUTA", m+((6-da)/n)*w+4, 18);
+    for(var hh=da; hh<=a; hh++){
+      var v = probOra(hh), xx = m+((hh-da)/n)*w + (w/n-bw)/2, alt = (v/100)*h;
+      x.fillStyle = v>=40 ? "#4FA3D8" : "rgba(79,163,216,.35)";
+      x.fillRect(xx, 10+h-alt, bw, Math.max(alt,1));
+      if(hh%3===0){
+        x.fillStyle = "rgba(255,255,255,.45)"; x.font = "9px system-ui"; x.textAlign = "center";
+        x.fillText(String(hh), xx+bw/2, H-8);
+      }
+    }
   }
 
 
@@ -15884,6 +16005,10 @@ function fineA(){
        + '<span><i style="background:#E04A34"></i>uscita</span>'
        + '<span><i style="background:#5DD97A"></i>entrata</span></div>';
     h += '<button class="btn primary" id="gm-apri" style="margin:10px 0 4px">\ud83d\uddfa\ufe0f Apri la mappa intera</button>';
+    h += '<button class="met" id="gm-meteo" style="margin-top:8px"><span class="rosa"></span>'
+       + '<span style="flex:1; min-width:0"><div class="vento">METEO SU '+esc(a.nome).toUpperCase()+'</div>'
+       + '<div class="sotto" id="gm-meteo-ds">tocca per il tempo su questa mappa</div></span>'
+       + '<span style="color:var(--muted)">\u203a</span></button>';
 
     h += '<div class="sechead">Le tracciate di questa mappa</div>';
     if(!lista.length){
@@ -15899,6 +16024,28 @@ function fineA(){
     agganciaTracciate(root);
     var ap = document.getElementById("gm-apri");
     if(ap) ap.onclick = function(){ mappaVenutoDa = "giomappa"; apriAreaDaBattuta(a.id); };
+    var gmm = document.getElementById("gm-meteo");
+    if(gmm){
+      /* il meteo di QUESTA mappa: preso sulla prima posta con coordinate buone.
+         A trenta chilometri da casa il tempo e' un altro. */
+      var p0 = (a.poste||[]).find(function(p){ return p && isFinite(p.lat) && isFinite(p.lng) && p.lat; });
+      if(!p0){ gmm.style.display = "none"; }
+      else{
+        (async function(){
+          var dd = await chiediMeteo(p0.lat, p0.lng);
+          if(!dd || !dd.current) return;
+          var el2 = document.getElementById("gm-meteo-ds");
+          if(el2) el2.textContent = "vento da "+daDove(dd.current.wind_direction_10m)+" "
+            + Math.round(dd.current.wind_speed_10m)+" km/h \u00b7 pioggia "
+            + ((dd.daily && dd.daily.precipitation_probability_max) ? dd.daily.precipitation_probability_max[0] : 0)
+            + "% \u00b7 "+Math.round(dd.current.temperature_2m)+"\u00b0";
+          var ro = gmm.querySelector(".rosa");
+          if(ro) ro.innerHTML = '<span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="o">O</span>'
+            + '<div class="freccia" style="transform:rotate('+Math.round((dd.current.wind_direction_10m+180)%360)+'deg)">\u25b2</div>';
+          gmm.onclick = function(){ apriMeteo(dd, a.nome, "meteo di questa mappa \u00b7 sulla prima posta"); };
+        })();
+      }
+    }
   }
 
   /* l'anteprima: a schema, non satellite. A questa dimensione il satellite
