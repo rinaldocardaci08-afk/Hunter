@@ -2787,7 +2787,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.30";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.31";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5714,13 +5714,43 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   }
 
   /* ---------- pagina del giorno ---------- */
+
+  /* ---- APRIRE UN GIORNO NUOVO ----
+     Un giorno mai aperto non ha ancora un id: le vecchie richieste partivano
+     lo stesso con "undefined" (il database rispondeva 400 quattro volte) e,
+     fallendo, lasciavano in memoria i dati del giorno PRIMA: assegnazioni,
+     mappe e tracciate di un'altra giornata. Da qui si azzera tutto. */
+  function azzeraGiornata(){
+    adesioni = [];
+    ospiti = [];
+    tracciate = [];
+    segnalazioni = [];
+    assegnazioni = [];
+    battuteSvolte = [];
+    bsAperta = null;
+    apAreaId = null;
+    postaDaAssegnare = null;
+    scambioDa = null;
+    strApri = null;
+    cvAperta = false;
+  }
+  function giornataSalvata(){
+    return !!(giornataAperta && giornataAperta.id);
+  }
+
   async function apriGiornata(dataIso){
     var b=battutaDi(dataIso);
     // il cacciatore normale entra solo se le adesioni sono aperte
     if(!b && !puoGestireBattute()){ toast("Adesioni non ancora aperte"); return; }
     giornataAperta = b || { data:dataIso, stato:"nuova", squadra_id:me.squadra_id };
+    azzeraGiornata();             // niente resti del giorno prima
     document.getElementById("gi-titolo").textContent=fmtGiorno(daIso(dataIso));
     showView("giornata");
+    if(!giornataSalvata()){
+      /* giorno nuovo, non ancora sul database: non c'e' niente da chiedere */
+      renderGiornata();
+      return;
+    }
     await caricaTracciate();      // chi ha gia' fatto la sua tracciata
     caricaSegnalazioni();
     await caricaBattuteSvolte();  // le battute gia' aperte oggi
@@ -5944,7 +5974,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   var ospiti = [];
   async function caricaOspiti(){
     ospiti = [];
-    if(!giornataAperta || !giornataAperta.id) return;
+    if(!giornataSalvata()) return;
     try{
       var r = await sb.from("hn_ospiti").select("*").eq("battuta_id", giornataAperta.id).order("creato_il");
       if(!r.error) ospiti = r.data || [];
@@ -6912,7 +6942,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   /* aggiorna il conteggio dei sì sulla battuta (per il calendario) */
   async function ricontaBattuta(){
-    if(!giornataAperta || !giornataAperta.id) return;
+    if(!giornataSalvata()) return;
     try{
       var r=await sb.from("hn_adesioni").select("viene").eq("battuta_id",giornataAperta.id);
       if(r.error) return;
@@ -7626,7 +7656,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   var bsAperta = null;          // la battuta su cui sto distribuendo le poste
 
   async function caricaBattuteSvolte(){
-    if(!giornataAperta) return;
+    if(!giornataSalvata()){ battuteSvolte = []; bsAperta = null; return; }
     try{
       var r = await sb.from("hn_battute_svolte").select("*")
                 .eq("giornata_id", giornataAperta.id).order("numero");
@@ -7744,7 +7774,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   var scambioDa = null;         // prima posta toccata per lo scambio
 
   async function caricaAssegnazioni(){
-    if(!giornataAperta) return;
+    if(!giornataSalvata()){ assegnazioni = []; return; }
     try{
       var r = await sb.from("hn_assegnazioni").select("*").eq("battuta_id", giornataAperta.id);
       if(!r.error) assegnazioni = r.data || [];
@@ -9989,7 +10019,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   }
 
   async function caricaSegnalazioni(){
-    if(!giornataAperta) return;
+    if(!giornataSalvata()){ segnalazioni = []; return; }
     try{
       var r = await sb.from("hn_segnalazioni").select("*").eq("battuta_id", giornataAperta.id);
       if(!r.error) segnalazioni = r.data || [];
@@ -10533,7 +10563,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   var tracciate = [];   // le tracciate della giornata aperta
 
   async function caricaTracciate(){
-    if(!giornataAperta) return;
+    if(!giornataSalvata()){ tracciate = []; return; }
     try{
       var r = await sb.from("hn_tracciate").select("*").eq("battuta_id", giornataAperta.id);
       if(!r.error) tracciate = r.data || [];
