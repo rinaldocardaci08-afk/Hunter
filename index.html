@@ -2314,6 +2314,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       </div>
       <div class="hint" style="text-align:center; margin-bottom:12px">capi visti col visore</div>
       <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
+        <span style="flex:1; font-size:13px">Notte dell'avvistamento</span>
+        <input type="date" id="av-data" style="background:#00000030; border:1px solid var(--dark3); border-radius:10px; padding:10px 12px; color:var(--cream); font-size:15px">
+      </div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
         <span style="flex:1; font-size:13px">Ora dell'avvistamento</span>
         <input type="time" id="av-ora" style="background:#00000030; border:1px solid var(--dark3); border-radius:10px; padding:10px 12px; color:var(--cream); font-size:16px">
       </div>
@@ -3014,7 +3018,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.60";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.61";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4272,12 +4276,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       return;
     }
 
-    var h = "";
-    if(eVisore()){
-      h += '<button class="btn line" id="aree-oss" style="margin-bottom:12px; border-color:#a8402f; '
-        +  'background:#5a1e1422; color:var(--cream)">\ud83d\udd2d Osservazioni notturne</button>';
-    }
-    h+='<div class="sechead">Mappe di '+esc(me?me.squadra_nome:"")+'</div>';
+    var h='<div class="sechead">Mappe di '+esc(me?me.squadra_nome:"")+'</div>';
 
     // avviso a chi può solo guardare
     if(!puoScrivere){
@@ -9269,6 +9268,24 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     h += '</div>';
 
     h += '<button class="btn primary" id="ad-mappa">🗺️ Apri sulla mappa</button>';
+    if(puoMappare()){
+      /* il punto si segna SOLO stando sul posto: le coordinate devono essere
+         quelle vere, non un tocco approssimativo sulla mappa */
+      h += '<button class="btn line" id="ad-ossnuovo" style="margin-top:8px; border-color:#a8402f; background:#5a1e1422; color:var(--cream)">'
+        +  '\ud83d\udd2d Nuovo punto di osservazione \u00b7 dove sono ora</button>';
+    }
+    var ppOss = (typeof puntiDiArea==="function") ? puntiDiArea(a.id) : [];
+    if(ppOss.length){
+      h += '<div class="sechead">Punti di osservazione</div>';
+      ppOss.forEach(function(p){
+        h += '<div class="card" style="margin-bottom:6px"><div style="display:flex; align-items:center; gap:9px">'
+          +  '<span style="font-size:17px">\ud83d\udd2d</span>'
+          +  '<span style="flex:1; min-width:0"><div style="font-size:13.5px; color:var(--cream)">'+esc(p.nome)+'</div>'
+          +  '<div class="hint">'+(p.note?esc(p.note):"punto di osservazione")+'</div></span>'
+          +  (puoMappare()?'<button class="inf" data-ossdel="'+p.id+'" style="width:auto; padding:0 9px; height:28px; font-size:12px">🗑</button>':'')
+          +  '</div></div>';
+      });
+    }
 
     // --- SEZIONI ---
     h += '<div class="sechead">Sezioni</div>';
@@ -9361,8 +9378,11 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     root.querySelectorAll("[data-sezapri]").forEach(function(b){
       b.onclick = function(){ mostraPosteSezione(b.dataset.sezapri); };
     });
-    var bo = root.querySelector("#aree-oss");
-    if(bo) bo.onclick = apriOsservazioni;
+    var bon = root.querySelector("#ad-ossnuovo");
+    if(bon) bon.onclick = function(){ nuovoPuntoOss(areaDett); };
+    root.querySelectorAll("[data-ossdel]").forEach(function(b){
+      b.onclick = function(){ cancellaPuntoOss(b.dataset.ossdel); };
+    });
     root.querySelectorAll("[data-sezmod]").forEach(function(b){
       b.onclick = function(ev){
         if(ev && ev.stopPropagation) ev.stopPropagation();
@@ -16601,6 +16621,7 @@ function fineA(){
      e spegnere da Amministrazione. L'ordine sta su hn_config, quindi vale
      per tutta la squadra. */
   var CASELLE_HOME = [
+    {k:"ossnott",    ic:"\ud83d\udd2d", nm:"Osservazioni notturne", ds:"Punti, luna e avvistamenti col visore", go:"ossnott", soloVisore:true},
     {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca",          ds:"Annunci e comunicazioni",     go:"bacheca", wide:true},
     {k:"battute",    ic:"\ud83d\udd25", nm:"Battute",          ds:"Calendario e adesioni",       go:"battute"},
     {k:"aree",       ic:"\ud83d\udccd", nm:"Mappe e poste",    ds:"Crea e modifica i terreni",   go:"aree"},
@@ -16666,6 +16687,9 @@ function fineA(){
     ordineHome().forEach(function(k){
       if(spente.indexOf(k)>=0) return;
       var c=casellaDi(k);
+      /* la casella dell'osservazione la vede chi ha il visore (e i capi):
+         agli altri non serve e occuperebbe posto */
+      if(c.soloVisore && typeof eVisore==="function" && !eVisore()) return;
       var attr = c.soon ? 'data-soon="'+esc(c.soon)+'"'
                : c.azione ? 'data-azione="'+c.azione+'"'
                : 'data-go="'+c.go+'"';
@@ -17252,7 +17276,7 @@ function fineA(){
      L'avvistamento nasce per la battuta del giorno dopo, ma il legame con la
      giornata puo' restare vuoto: cosi' la sorveglianza fuori dai giorni di
      caccia entrera' domani senza rifare niente. */
-  var ossPunti = [], avvistamenti = [], ossArea = null, ossPunto = null;
+  var ossPunti = [], avvistamenti = [], ossArea = null, ossPunto = null, ossNotte = null;
   var imgCinghiale = null;
 
   function preparaCinghiale(){
@@ -17354,6 +17378,15 @@ function fineA(){
     root.innerHTML = '<div class="loading">Carico…</div>';
     await caricaOsservazioni();
     var h = "";
+    /* Si sceglie la NOTTE: di solito quella che sta per venire, ma se registri
+       il giorno dopo la sposti indietro e i conti restano giusti. */
+    if(!ossNotte) ossNotte = notteDiRiferimento();
+    h += '<div class="card" style="display:flex; align-items:center; gap:11px; margin-bottom:12px">'
+      +  '<span style="font-size:20px">\ud83c\udf19</span>'
+      +  '<span style="flex:1; min-width:0"><div style="font-size:13px; color:var(--cream)">Notte del</div>'
+      +  '<div class="hint" id="oss-notte-txt">' + fmtGiorno(daIso(ossNotte)) + '</div></span>'
+      +  '<input type="date" id="oss-notte" value="'+ossNotte+'" style="background:#00000030; '
+      +  'border:1px solid var(--dark3); border-radius:10px; padding:9px 10px; color:var(--cream); font-size:15px"></div>';
     var recenti = avvistamenti.slice(0, 12);
     var capi7 = capiAvvistati(avvistamenti.filter(function(a){
       return new Date(a.quando||a.notte).getTime() >= Date.now()-7*24*3600*1000; }));
@@ -17363,9 +17396,14 @@ function fineA(){
        + avvistamenti.filter(function(a){ return new Date(a.quando||a.notte).getTime() >= Date.now()-7*24*3600*1000; }).length
        + ' uscite</span></div></div>';
 
-    h += '<div class="sechead">Le mappe e i loro punti</div>';
-    if(!aree.length) h += '<div class="card hint">Nessuna mappa.</div>';
-    aree.forEach(function(a){
+    h += '<div class="sechead">Dove si pu\u00f2 andare</div>';
+    /* solo le mappe che hanno almeno un punto: le altre qui non servono */
+    var conPunti = aree.filter(function(a){ return puntiDiArea(a.id).length; });
+    if(!conPunti.length){
+      h += '<div class="card hint">Nessuna mappa ha ancora un punto di osservazione.<br>'
+        +  'Si creano da <b>Mappe e poste</b>, entrando nella mappa e stando sul posto.</div>';
+    }
+    conPunti.forEach(function(a){
       var pp = puntiDiArea(a.id), rec = avvistamentiRecenti(a.id, 7);
       h += '<div class="card" style="margin-bottom:8px">';
       h += '<div style="display:flex; align-items:center; gap:9px">';
@@ -17374,7 +17412,7 @@ function fineA(){
          + '<div class="hint">'+pp.length+' punt'+(pp.length===1?"o":"i")+' di osservazione'
          + (rec.length ? (' \u00b7 <b style="color:#FF8A75">'+capiAvvistati(rec)+' capi questa settimana</b>') : ' \u00b7 niente questa settimana')
          + '</div></span>';
-      if(puoMappare()) h += '<button class="inf" data-ossnuovo="'+a.id+'" style="width:auto; padding:0 10px; height:28px; font-size:12px">+</button>';
+      /* qui NON si creano punti: si crea dalla scheda della mappa, stando sul posto */
       h += '</div>';
       pp.forEach(function(p){
         h += '<button class="ossriga" data-osspunto="'+p.id+'">'
@@ -17404,11 +17442,10 @@ function fineA(){
          + '</div>';
     });
     root.innerHTML = h;
+    var dn = document.getElementById("oss-notte");
+    if(dn) dn.onchange = function(){ ossNotte = dn.value || notteDiRiferimento(); renderOsservazioni(); };
     root.querySelectorAll("[data-osspunto]").forEach(function(b){
       b.onclick = function(){ apriPuntoOss(b.dataset.osspunto); };
-    });
-    root.querySelectorAll("[data-ossnuovo]").forEach(function(b){
-      b.onclick = function(){ nuovoPuntoOss(b.dataset.ossnuovo); };
     });
     root.querySelectorAll("[data-avvmod]").forEach(function(b){
       b.onclick = function(){ modificaAvvistamento(b.dataset.avvmod); };
@@ -17420,6 +17457,23 @@ function fineA(){
     return gg[d.getDay()]+" "+d.getDate()+" "+MESI[d.getMonth()].slice(0,3)
          + " alle "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   }
+
+  async function cancellaPuntoOss(id){
+    var p = ossPunti.find(function(x){ return x.id===id; });
+    if(!p || !puoMappare()) return;
+    var quanti = avvistamenti.filter(function(a){ return a.punto_id===id; }).length;
+    if(!confirm("Cancellare il punto \u00ab"+p.nome+"\u00bb?\n\n"
+      + (quanti ? ("I "+quanti+" avvistamenti fatti da qui restano nel registro, senza il nome del punto.")
+                : "Non ci sono avvistamenti legati a questo punto."))) return;
+    try{
+      var r = await sb.from("hn_oss_punti").delete().eq("id", id);
+      if(r && r.error) throw r.error;
+      ossPunti = ossPunti.filter(function(x){ return x.id!==id; });
+      toast("Punto cancellato");
+    }catch(e){ toast("Non riesco a cancellarlo"); return; }
+    renderSchedaArea();
+  }
+
   async function nuovoPuntoOss(areaId){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     if(!pos){ toast("Aspetto il segnale GPS: il punto si segna dove sei"); serveGPS("oss"); return; }
@@ -17505,6 +17559,7 @@ function fineA(){
     document.getElementById("m-osspunto").classList.remove("show");
     avvInCorso = { puntoId: ossPunto.id, areaId: ossPunto.area_id,
                    lat:null, lng:null, capi:2, note:"",
+                   notte: ossNotte || notteDiRiferimento(),
                    ora: String(new Date().getHours()).padStart(2,"0")+":"+String(new Date().getMinutes()).padStart(2,"0") };
     apriTelaAvvistamento();
   }
@@ -17514,13 +17569,14 @@ function fineA(){
     if(a.membro_id !== me.membro_id && !puoGestireBattute()){ toast("Non \u00e8 tuo"); return; }
     var d = new Date(a.quando || a.notte);
     avvInCorso = { id:a.id, puntoId:a.punto_id, areaId:a.area_id, lat:a.lat, lng:a.lng,
-                   capi:Number(a.capi)||1, note:a.note||"",
+                   capi:Number(a.capi)||1, note:a.note||"", notte:a.notte,
                    ora: String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0") };
     apriTelaAvvistamento();
   }
   function apriTelaAvvistamento(){
     document.getElementById("av-quanti").textContent = avvInCorso.capi;
     document.getElementById("av-ora").value = avvInCorso.ora;
+    document.getElementById("av-data").value = avvInCorso.notte || notteDiRiferimento();
     document.getElementById("av-note").value = avvInCorso.note || "";
     document.getElementById("av-cancella").style.display = avvInCorso.id ? "block" : "none";
     document.getElementById("m-avvista").classList.add("show");
@@ -17568,7 +17624,7 @@ function fineA(){
     if(!avvInCorso || !avvInCorso.lat){ toast("Tocca la mappa dove li hai visti"); return; }
     var ora = document.getElementById("av-ora").value || avvInCorso.ora;
     var note = (document.getElementById("av-note").value || "").trim();
-    var notte = notteDiRiferimento();
+    var notte = document.getElementById("av-data").value || avvInCorso.notte || notteDiRiferimento();
     var pezzi = String(ora).split(":");
     var quando = new Date(); 
     var dn = daIso(notte);
