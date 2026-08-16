@@ -3018,7 +3018,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.61";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.62";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5776,16 +5776,18 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   }
   /* il riassunto di un periodo qualsiasi: lo stesso conto serve per la settimana e per il mese */
   function riassunto(fatti, svolte, ids){
-    var capi = fatti.reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
-    var perMappa = {}, giornateConBattuta = {};
+    var capi = 0, perMappa = {}, giornateConBattuta = {};
     svolte.forEach(function(bs){
       var a = aree.find(function(x){ return x.id===bs.area_id; });
       var nome = a ? a.nome : "mappa";
-      perMappa[nome] = (perMappa[nome]||0)
-        + fatti.filter(function(f){ return f.battuta_svolta_id===bs.id; })
-               .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+      var k = capiDiSvolta(bs, fatti);
+      perMappa[nome] = (perMappa[nome]||0) + k;
+      capi += k;
       giornateConBattuta[bs.giornata_id] = true;
     });
+    /* lo storico vecchio: fatti senza battuta svolta */
+    capi += fatti.filter(function(f){ return !f.battuta_svolta_id; })
+                 .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
     return {capi:capi, battute:svolte.length, giornate:(ids||[]).length,
             mappe:Object.keys(perMappa), perMappa:perMappa};
   }
@@ -5810,17 +5812,37 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     }
     return h + '</div>';
   }
-  function uccisioniDi(bId){
-    return fattiSett.filter(function(f){ return f.battuta_id===bId; })
-                    .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+  /* DUE FONTI, UNA VERITA'.
+     I capi li conta il capo sulla battuta (capi_abbattuti) appena succede;
+     il sergente li assegna dopo ai cacciatori (hn_fatti). Prima i riassunti
+     leggevano SOLO il sergente: un capo segnato durante la battuta non
+     compariva da nessuna parte finche' non veniva assegnato.
+     Adesso vale il conto del capo, e se manca si usano le assegnazioni. */
+  function capiDiSvolta(bs, fatti){
+    var segnati = Number(bs.capi_abbattuti)||0;
+    if(segnati) return segnati;
+    return (fatti||[]).filter(function(f){ return f.battuta_svolta_id===bs.id; })
+                      .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
   }
+  function uccisioniPeriodo(bId, fatti, svolte){
+    var tot = 0, viste = {};
+    (svolte||[]).filter(function(x){ return x.giornata_id===bId; }).forEach(function(bs){
+      tot += capiDiSvolta(bs, fatti);
+      viste[bs.id] = true;
+    });
+    /* i fatti vecchi, senza battuta, restano contati: e' lo storico di prima */
+    tot += (fatti||[]).filter(function(f){
+      return f.battuta_id===bId && !f.battuta_svolta_id; })
+      .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+    return tot;
+  }
+  function uccisioniDi(bId){ return uccisioniPeriodo(bId, fattiSett, svolteSett); }
   function mappeDi(bId){
     var v = [];
     svolteSett.filter(function(x){ return x.giornata_id===bId; }).forEach(function(bs){
       var a = aree.find(function(x){ return x.id===bs.area_id; });
-      var k = fattiSett.filter(function(f){ return f.battuta_svolta_id===bs.id; })
-                       .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
-      v.push({nome: a ? a.nome : "mappa", numero: bs.numero, capi: k, chiusa: !!bs.chiusa_il});
+      v.push({nome: a ? a.nome : "mappa", numero: bs.numero,
+              capi: capiDiSvolta(bs, fattiSett), chiusa: !!bs.chiusa_il});
     });
     return v;
   }
