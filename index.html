@@ -1274,6 +1274,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .settbox .barre .r{display:flex; align-items:center; gap:9px; font-size:12.5px; padding:3px 0; color:var(--cream);}
 .settbox .barre .b{flex:1; height:7px; background:#00000040; border-radius:4px; overflow:hidden;}
 .settbox .barre .b i{display:block; height:100%; background:var(--gold);}
+.settbox.mese{background:linear-gradient(135deg,#2E3A4A,#1B2430); border-color:#5E7FA8;}
+.settbox.mese .tt{color:#9BC7FF;}
+.settbox.mese .barre .b i{background:#5E9BD9;}
+.settbox.mese .barre .k{color:#9BC7FF;}
 .settbox .barre .k{font-family:'Arial Narrow',Impact,sans-serif; font-size:16px; color:var(--gold); width:24px; text-align:right;}
 
 
@@ -2890,7 +2894,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.40";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.41";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5617,15 +5621,60 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      Un solo giro sul database per tutta la settimana, non uno per giorno. */
   var fattiSett = [];      // gli abbattimenti della settimana mostrata
   var svolteSett = [];     // le battute fatte, per sapere su quale mappa
-  async function caricaSettimana(ids){
+  var fattiMese = [], svolteMese = [], meseCaricato = "", settCaricata = "";
+  async function caricaSettimana(ids, idsMese, chiaveMese){
     fattiSett = []; svolteSett = [];
-    if(!ids.length) return;
+    /* un giro solo per la settimana e uno per il mese: i due riassunti
+       leggono le stesse tabelle, non ha senso interrogarle giorno per giorno */
+    var tutti = (ids||[]).concat(idsMese||[]).filter(function(x,i,v){ return x && v.indexOf(x)===i; });
+    if(!tutti.length) return;
     try{
-      var rf = await sb.from("hn_fatti").select("*").in("battuta_id", ids).eq("tipo","uccisione");
-      if(!rf.error) fattiSett = rf.data || [];
-      var rs = await sb.from("hn_battute_svolte").select("*").in("giornata_id", ids).order("numero");
-      if(!rs.error) svolteSett = rs.data || [];
+      var rf = await sb.from("hn_fatti").select("*").in("battuta_id", tutti).eq("tipo","uccisione");
+      var rs = await sb.from("hn_battute_svolte").select("*").in("giornata_id", tutti).order("numero");
+      var ff = (rf && !rf.error) ? (rf.data||[]) : [];
+      var ss = (rs && !rs.error) ? (rs.data||[]) : [];
+      fattiSett  = ff.filter(function(f){ return ids.indexOf(f.battuta_id)>=0; });
+      svolteSett = ss.filter(function(x){ return ids.indexOf(x.giornata_id)>=0; });
+      fattiMese  = ff.filter(function(f){ return (idsMese||[]).indexOf(f.battuta_id)>=0; });
+      svolteMese = ss.filter(function(x){ return (idsMese||[]).indexOf(x.giornata_id)>=0; });
+      meseCaricato = chiaveMese || "";
     }catch(e){}
+  }
+  /* il riassunto di un periodo qualsiasi: lo stesso conto serve per la settimana e per il mese */
+  function riassunto(fatti, svolte, ids){
+    var capi = fatti.reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+    var perMappa = {}, giornateConBattuta = {};
+    svolte.forEach(function(bs){
+      var a = aree.find(function(x){ return x.id===bs.area_id; });
+      var nome = a ? a.nome : "mappa";
+      perMappa[nome] = (perMappa[nome]||0)
+        + fatti.filter(function(f){ return f.battuta_svolta_id===bs.id; })
+               .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+      giornateConBattuta[bs.giornata_id] = true;
+    });
+    return {capi:capi, battute:svolte.length, giornate:(ids||[]).length,
+            mappe:Object.keys(perMappa), perMappa:perMappa};
+  }
+  function htmlRiassunto(titolo, r, classe){
+    if(!r.giornate) return "";
+    var maxM = Math.max(1, Math.max.apply(null, r.mappe.map(function(x){ return r.perMappa[x]; }).concat([1])));
+    var h = '<div class="settbox '+(classe||"")+'"><div class="tt">'+esc(titolo)+'</div>';
+    h += '<div class="grande"><span class="em">\ud83d\udc17</span><span class="n">'+r.capi+'</span>'
+      +  '<span class="d">cap'+(r.capi===1?"o":"i")+' abbattut'+(r.capi===1?"o":"i")+'<br>'
+      +  'in '+r.battute+' battut'+(r.battute===1?"a":"e")+' su '+r.giornate+' giornat'+(r.giornate===1?"a":"e")+'</span></div>';
+    h += '<div class="quad"><div><b>'+r.giornate+'</b><span>giornate</span></div>'
+      +  '<div><b>'+r.battute+'</b><span>battute</span></div>'
+      +  '<div><b>'+r.mappe.length+'</b><span>mappe battute</span></div></div>';
+    if(r.mappe.length){
+      h += '<div class="barre">';
+      r.mappe.slice().sort(function(a,b){ return r.perMappa[b]-r.perMappa[a]; }).forEach(function(nm){
+        h += '<div class="r"><span style="width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">'+esc(nm)+'</span>'
+          +  '<span class="b"><i style="width:'+Math.round(r.perMappa[nm]/maxM*100)+'%"></i></span>'
+          +  '<span class="k"'+(r.perMappa[nm]?'':' style="color:var(--muted)"')+'>'+r.perMappa[nm]+'</span></div>';
+      });
+      h += '</div>';
+    }
+    return h + '</div>';
   }
   function uccisioniDi(bId){
     return fattiSett.filter(function(f){ return f.battuta_id===bId; })
@@ -5745,38 +5794,27 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       var bq = battutaDi(iso(dq));
       if(bq && bq.id) idsSett.push(bq.id);
     }
-    var capiSett = fattiSett.reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
-    var battSett = svolteSett.length;
-    var perMappa = {};
-    svolteSett.forEach(function(bs){
-      var a = aree.find(function(x){ return x.id===bs.area_id; });
-      var nome = a ? a.nome : "mappa";
-      perMappa[nome] = perMappa[nome] || 0;
-      perMappa[nome] += fattiSett.filter(function(f){ return f.battuta_svolta_id===bs.id; })
-                                 .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
-    });
-    var nomiM = Object.keys(perMappa);
-    if(idsSett.length){
-      var maxM = Math.max(1, Math.max.apply(null, nomiM.map(function(x){ return perMappa[x]; }).concat([1])));
-      h+='<div class="sechead">La settimana</div>';
-      h+='<div class="settbox"><div class="tt">'+lun.getDate()+' '+MESI[lun.getMonth()].slice(0,3)
-       + ' \u2014 '+dom.getDate()+' '+MESI[dom.getMonth()].slice(0,3)+'</div>';
-      h+='<div class="grande"><span class="em">\ud83d\udc17</span><span class="n">'+capiSett+'</span>'
-       + '<span class="d">cap'+(capiSett===1?"o":"i")+' abbattut'+(capiSett===1?"o":"i")+'<br>'
-       + 'in '+battSett+' battut'+(battSett===1?"a":"e")+' su '+idsSett.length+' giornat'+(idsSett.length===1?"a":"e")+'</span></div>';
-      h+='<div class="quad"><div><b>'+idsSett.length+'</b><span>giornate</span></div>'
-       + '<div><b>'+battSett+'</b><span>battute</span></div>'
-       + '<div><b>'+nomiM.length+'</b><span>mappe battute</span></div></div>';
-      if(nomiM.length){
-        h+='<div class="barre">';
-        nomiM.sort(function(a,b2){ return perMappa[b2]-perMappa[a]; }).forEach(function(nm){
-          h+='<div class="r"><span style="width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap">'+esc(nm)+'</span>'
-           + '<span class="b"><i style="width:'+Math.round(perMappa[nm]/maxM*100)+'%"></i></span>'
-           + '<span class="k"'+(perMappa[nm]?'':' style="color:var(--muted)"')+'>'+perMappa[nm]+'</span></div>';
-        });
-        h+='</div>';
+    /* il mese a cui appartiene la settimana mostrata: prendo il giovedi',
+       cosi' una settimana a cavallo fra due mesi finisce dove sta la sua parte grossa */
+    var gio = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+3);
+    var idsMese = [], nGiornateMese = 0;
+    battute.forEach(function(b){
+      if(!b.id || !b.data) return;
+      var d2 = daIso(b.data);
+      if(d2.getMonth()===gio.getMonth() && d2.getFullYear()===gio.getFullYear()){
+        idsMese.push(b.id); nGiornateMese++;
       }
-      h+='</div>';
+    });
+    if(idsSett.length){
+      h += '<div class="sechead">La settimana</div>';
+      h += htmlRiassunto(lun.getDate()+' '+MESI[lun.getMonth()].slice(0,3)+' \u2014 '
+             + dom.getDate()+' '+MESI[dom.getMonth()].slice(0,3),
+             riassunto(fattiSett, svolteSett, idsSett));
+    }
+    if(idsMese.length){
+      h += '<div class="sechead">Il mese</div>';
+      h += htmlRiassunto(MESI[gio.getMonth()]+' '+gio.getFullYear(),
+             riassunto(fattiMese, svolteMese, idsMese), "mese");
     }
 
     root.innerHTML=h;
@@ -5794,10 +5832,15 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         apriCarne(c.dataset.carne);
       };
     });
-    /* i fatti della settimana arrivano dopo: ridisegno una volta sola */
-    if(!renderSettimana.__caricando){
+    /* ATTENZIONE: qui c'era un GIRO INFINITO. Il disegno chiedeva i dati, i dati
+       facevano ridisegnare, il disegno li richiedeva di nuovo... l'app si piantava
+       senza un errore. Adesso si chiede UNA VOLTA SOLA per settimana: la chiave
+       dice cosa e' gia' stato caricato. */
+    var chiaveDati = iso(lun) + "|" + idsSett.join(",") + "|" + idsMese.join(",");
+    if(settCaricata !== chiaveDati && !renderSettimana.__caricando){
       renderSettimana.__caricando = true;
-      caricaSettimana(idsSett).then(function(){
+      caricaSettimana(idsSett, idsMese, gio.getFullYear()+"-"+gio.getMonth()).then(function(){
+        settCaricata = chiaveDati;
         renderSettimana.__caricando = false;
         if(document.getElementById("v-battute").classList.contains("active") && vistaCal==="settimana"){
           renderSettimana();
