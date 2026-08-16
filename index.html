@@ -1351,6 +1351,26 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   background:#00000030; color:var(--cream); font-size:23px;}
 .contacapi .n{font-family:'Arial Narrow',Impact,sans-serif; font-size:42px; width:70px; text-align:center; color:var(--cream);}
 
+
+.contobat{display:flex; align-items:center; gap:12px;}
+.contobat .et{flex:1; min-width:0; font-size:13.5px; color:var(--cream);}
+.contobat .et small{display:block; font-size:10.5px; color:var(--muted); margin-top:2px; font-weight:400;}
+.contobat .cont{display:flex; align-items:center; gap:10px;}
+.contobat .cont button{width:38px; height:38px; border-radius:50%; border:1px solid var(--dark3);
+  background:#00000030; color:var(--cream); font-size:19px;}
+.contobat .cont .v{font-family:'Arial Narrow',Impact,sans-serif; font-size:26px; width:34px; text-align:center;}
+.contobat .solo{font-family:'Arial Narrow',Impact,sans-serif; font-size:26px; color:var(--gold);}
+
+
+.bilancio{display:flex; align-items:center; gap:11px; border-radius:12px; padding:11px 12px;
+  margin-bottom:10px; background:#5a2a1e33; border:1px solid #C0392B66; border-left:5px solid #E04A34;
+  color:#F0C9C0; font-size:12.5px; line-height:1.5;}
+.bilancio.ok{background:#2d5a3f33; border-color:#3d7a5566; border-left-color:#5DD97A; color:#cfeeda;}
+.bilancio.troppi{background:#6B5A2033; border-color:#E0B87866; border-left-color:#E0B878; color:#F0DFAE;}
+.bilancio .em{font-size:20px;}
+.bilancio .tx{flex:1;}
+.bilancio small{display:block; opacity:.85; margin-top:3px;}
+
 </style>
 </head>
 <body>
@@ -2994,7 +3014,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.50";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.60";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -8445,11 +8465,58 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     apAreaId = bs.area_id;
     scambioDa = null;
     var a = aree.find(function(x){ return x.id === bs.area_id; });
-    document.getElementById("ap-titolo").textContent = a ? a.nome : "Poste";
+    /* prima c'era solo il nome della mappa: riaprendo una battuta di tre
+       settimane fa non si capiva di che giornata fosse */
+    var bsQ = bsAperta ? battutaSvoltaDi(bsAperta) : null;
+    var dataQ = giornataAperta ? fmtGiorno(daIso(giornataAperta.data)) : "";
+    document.getElementById("ap-titolo").innerHTML = (a ? esc(a.nome) : "Poste")
+      + (dataQ ? ('<div style="font-size:10.5px; color:var(--muted); font-weight:400; margin-top:2px">'
+          + (bsQ ? (bsQ.numero + "\u00aa battuta \u00b7 ") : "") + esc(dataQ) + '</div>') : '');
     document.getElementById("poste-scroll").innerHTML = '<div class="loading">Carico…</div>';
     showView("poste");
     if(!settori.length) await caricaSettori();
     await caricaAssegnazioni();
+    renderAssegnazioni();
+  }
+
+
+  /* ---- QUANTI NE SONO USCITI: lo segna chi comanda la battuta ----
+     Non si assegnano a nessuno: qui si conta soltanto quello che e' successo
+     sul terreno. A dare i capi ai cacciatori ci pensa il sergente dopo. */
+  function htmlContiBattuta(bs){
+    if(!bs) return "";
+    var capo = puoGestireBattute();
+    var ab = Number(bs.capi_abbattuti)||0, sc = Number(bs.capi_scappati)||0;
+    var h = '<div class="sechead">Cosa \u00e8 successo in questa battuta</div>';
+    h += '<div class="card">';
+    h += '<div class="contobat"><span class="et"><b>\ud83d\udc17 Abbattuti</b><small>capi presi in questa battuta</small></span>';
+    if(capo) h += '<span class="cont"><button data-bsab="-1">\u2212</button><span class="v">'+ab+'</span><button data-bsab="1">+</button></span>';
+    else     h += '<span class="solo">'+ab+'</span>';
+    h += '</div>';
+    h += '<div class="contobat" style="margin-top:10px; padding-top:10px; border-top:1px solid var(--dark3)">'
+      +  '<span class="et"><b>\ud83d\udca8 Scappati</b><small>usciti senza essere presi</small></span>';
+    if(capo) h += '<span class="cont"><button data-bssc="-1">\u2212</button><span class="v">'+sc+'</span><button data-bssc="1">+</button></span>';
+    else     h += '<span class="solo">'+sc+'</span>';
+    h += '</div>';
+    if(capo && ab){
+      h += '<div class="hint" style="margin-top:10px">I '+ab+' cap'+(ab===1?"o":"i")
+        +  ' li assegner\u00e0 il sergente ai cacciatori, a fine giornata.</div>';
+    }
+    h += '</div>';
+    return h;
+  }
+  async function cambiaContoBattuta(campo, delta){
+    if(!bsAperta || !puoGestireBattute()) return;
+    var bs = battutaSvoltaDi(bsAperta);
+    if(!bs) return;
+    var v = Math.max(0, (Number(bs[campo])||0) + delta);
+    var dati = {}; dati[campo] = v;
+    try{
+      var r = await sb.from("hn_battute_svolte").update(dati).eq("id", bs.id).select().single();
+      if(r.error) throw r.error;
+      var k = battuteSvolte.findIndex(function(x){ return x.id===bs.id; });
+      if(k>=0) battuteSvolte[k] = r.data;
+    }catch(e){ toast("Non riesco a salvare: serve la rete"); return; }
     renderAssegnazioni();
   }
 
@@ -8480,6 +8547,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
        + (senza.length ? senza.length+' present'+(senza.length===1?'e senza incarico':'i senza incarico')
                        : 'Tutti i presenti hanno un incarico')
        + '</div>';
+    h += htmlContiBattuta(bsAperta ? battutaSvoltaDi(bsAperta) : null);
     var scoperte = posteScoperte();
     if(scoperte.length){
       h += '<div style="display:flex; align-items:center; gap:10px; background:linear-gradient(100deg,#6E1F14,#3E120C);'
@@ -8628,6 +8696,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     var root = document.getElementById("poste-scroll");
     root.querySelectorAll("[data-posta]").forEach(function(el){
       el.onclick = function(){ toccataPostaDaAssegnare(el.dataset.posta); };
+    });
+    root.querySelectorAll("[data-bsab]").forEach(function(b){
+      b.onclick = function(){ cambiaContoBattuta("capi_abbattuti", +b.dataset.bsab); };
+    });
+    root.querySelectorAll("[data-bssc]").forEach(function(b){
+      b.onclick = function(){ cambiaContoBattuta("capi_scappati", +b.dataset.bssc); };
     });
     var bm = document.getElementById("ap-mappa");
     if(bm) bm.onclick = function(){ apriAreaDaBattuta(apAreaId); };
@@ -12033,6 +12107,23 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       root.innerHTML = h; bindSergente(); return;
     }
 
+    /* Quanti capi sono stati presi davvero, contati dai capi durante le battute:
+       il sergente li deve assegnare TUTTI, e qui vede quanti gliene restano. */
+    var daBattute = smBattute.reduce(function(t,x){ return t + (Number(x.capi_abbattuti)||0); }, 0);
+    var assegnati = smFatti.filter(function(f){ return f.tipo==="uccisione"; })
+                           .reduce(function(t,f){ return t + (Number(f.quanti)||0); }, 0);
+    var scappati = smBattute.reduce(function(t,x){ return t + (Number(x.capi_scappati)||0); }, 0);
+    if(giudice && (daBattute || assegnati)){
+      var restano = daBattute - assegnati;
+      h += '<div class="bilancio'+(restano===0?" ok":(restano<0?" troppi":""))+'">'
+        +  '<span class="em">'+(restano===0?"\u2713":"\ud83d\udc17")+'</span>'
+        +  '<span class="tx">'
+        +  (restano===0 ? ("Tutti gli abbattimenti sono stati assegnati \u00b7 "+daBattute+" cap"+(daBattute===1?"o":"i"))
+            : (restano>0 ? ("Hai ancora <b>"+restano+" abbattiment"+(restano===1?"o":"i")+"</b> da assegnare, su "+daBattute)
+                         : ("Hai assegnato <b>"+(-restano)+"</b> cap"+((-restano)===1?"o":"i")+" in pi\u00f9 di quelli segnati nelle battute")))
+        +  (scappati ? ('<small>'+scappati+' scappat'+(scappati===1?"o":"i")+' senza essere pres'+(scappati===1?"o":"i")+' \u00b7 le padelle non sono obbligatorie</small>') : '')
+        +  '</span></div>';
+    }
     h += '<div class="sechead">'+(giudice ? 'Uccisioni e padelle' : 'La giornata')+'</div>';
     if(!giudice){
       h += '<div class="card" style="font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:8px">'
@@ -12080,6 +12171,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       }
       h += '</div>';
     });
+    /* CONTESA: capita che non si sappia di chi sia il capo abbattuto.
+       Va segnato lo stesso, altrimenti i conti della giornata non tornano. */
+    if(giudice && presenti.length){
+      var fc = smFatti.find(function(f){ return f.tipo==="uccisione" && !f.membro_id; });
+      h += '<div class="card" style="margin-bottom:7px; border-style:dashed">';
+      h += '<div style="display:flex; align-items:center; gap:12px">';
+      h += '<div style="flex:1; min-width:0"><div style="font-size:14px; color:var(--gold)">Contesa</div>'
+        +  '<div class="hint">capo abbattuto che non si assegna a nessuno</div></div>';
+      h += '<div class="cont"><button data-smf="contesa|uccisione|-1">\u2212</button>';
+      h += '<div class="v">'+(fc?fc.quanti:0)+'</div>';
+      h += '<button data-smf="contesa|uccisione|1">+</button></div>';
+      h += '</div></div>';
+    }
 
     h += '<div class="sechead">Verbale</div>';
     if(b && b.verbale){
@@ -12150,9 +12254,13 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   async function cambiaFatto(mid, tipo, delta){
     if(!puoGiudicare() || !smBattutaId) return;   // uccisioni e padelle: solo il giudice
+    /* "contesa" = capo abbattuto senza padrone: si segna con membro_id vuoto */
+    var contesa = (mid === "contesa");
+    if(contesa) mid = null;
     // con piu' battute nella stessa giornata bisogna sapere di quale si parla
     if(smBattute.length > 1 && !smBsId){ toast("Scegli prima la battuta"); return; }
-    var f = fattoDi(mid, tipo);
+    var f = contesa ? smFatti.find(function(x){ return x.tipo===tipo && !x.membro_id; })
+                    : fattoDi(mid, tipo);
     var nuovo = (f ? Number(f.quanti || 0) : 0) + delta;
     if(nuovo < 0) return;
     try{
@@ -12168,7 +12276,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       }else{
         var ri = await sb.from("hn_fatti").insert({
                    squadra_id:me.squadra_id, battuta_id:smBattutaId,
-                   battuta_svolta_id:(smBsId || null), membro_id:mid,
+                   battuta_svolta_id:(smBsId || null), membro_id:(contesa ? null : mid),
                    tipo:tipo, quanti:nuovo, assegnato_da:me.membro_id
                  }).select().single();
         if(ri.error) throw ri.error;
