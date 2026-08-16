@@ -2741,7 +2741,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v1.99";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.00";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9654,11 +9654,51 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   }
   function pulisciTracciataCorso(){ try{ localStorage.removeItem(TC_KEY); }catch(e){} }
 
+
+  /* ---- UNA TRACCIATA PER LINEA, NON MILLE ----
+     Se ci sono due linee da fare, devono uscire due righe di resoconto. Rifare
+     la stessa linea non aggiunge una riga nuova: chiede se sostituire quella
+     di prima, e la vecchia (con le sue segnalazioni) se ne va. */
+  function tracciataMiaPer(traccia, areaId){
+    return tracciate.find(function(x){
+      if(x.membro_id !== me.membro_id) return false;
+      if(traccia) return x.traccia_id === traccia.id;
+      return !x.traccia_id && x.area_id === areaId;   // giro libero sulla stessa mappa
+    }) || null;
+  }
+  async function togliTracciataVecchia(id){
+    try{
+      var rs = await sb.from("hn_segnalazioni").delete().eq("tracciata_id", id);
+      if(rs && rs.error) throw rs.error;
+    }catch(e){}
+    try{
+      var r = await sb.from("hn_tracciate").delete().eq("id", id);
+      if(r && r.error) throw r.error;
+    }catch(e){ toast("Non riesco a cancellare quella vecchia"); return false; }
+    tracciate = tracciate.filter(function(x){ return x.id !== id; });
+    segnalazioni = segnalazioni.filter(function(x){ return x.tracciata_id !== id; });
+    return true;
+  }
+  /* chiede e, se dice di si', toglie di mezzo la vecchia. Torna true se si puo' procedere */
+  async function viaLaVecchia(traccia, areaId){
+    var g = tracciataMiaPer(traccia, areaId);
+    if(!g) return true;
+    var nSeg = segnalazioni.filter(function(x){ return x.tracciata_id === g.id; }).length;
+    var quando = g.chiusa_il ? (" delle " + String(g.chiusa_il).slice(11,16)) : "";
+    var testo = "Questa traccia risulta gi\u00e0 fatta da te" + quando + ".\n\n"
+      + "Rifacendola cancello quella di prima"
+      + (nSeg ? (" e le sue " + nSeg + " segnalazioni") : "")
+      + ", cos\u00ec resta una riga sola.\n\nVuoi rifarla?";
+    if(!confirm(testo)) return false;
+    return await togliTracciataVecchia(g.id);
+  }
+
   /* --- APERTURA --- */
   async function apriTracciata(traccia, areaId){
     if(tracciataAperta){ toast("Hai gia' una tracciata aperta"); return; }
     if(!giornataAperta){ toast("Serve una giornata di battuta"); return; }
     if(!navigator.onLine){ toast("Serve la rete per aprire la tracciata"); return; }
+    if(!(await viaLaVecchia(traccia, areaId || (traccia ? traccia.area_id : null)))) return;
     try{
       var r = await sb.from("hn_tracciate").insert({
         squadra_id:me.squadra_id, battuta_id:giornataAperta.id, membro_id:me.membro_id,
@@ -10233,6 +10273,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(!navigator.onLine){ toast("Serve la rete"); return; }
     var note = document.getElementById("m-dic-note").value.trim();
     var c = dicContesto;
+    if(!(await viaLaVecchia(c.traccia, c.areaId))) return;
     try{
       var r = await sb.from("hn_tracciate").insert({
         squadra_id:me.squadra_id, battuta_id:giornataAperta.id, membro_id:me.membro_id,
