@@ -1317,6 +1317,40 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 #m-carne .frase{font-size:12px; color:var(--cream); line-height:1.5; margin-bottom:11px;
   background:#00000030; border:1px solid var(--dark3); border-radius:10px; padding:9px 11px;}
 
+
+/* ---- osservazione notturna ---- */
+.ossbox{background:linear-gradient(135deg,#3A2038,#1E1424); border:1px solid #A86BD0;
+  border-radius:14px; padding:14px;}
+.ossbox .tt{font-size:11px; letter-spacing:2px; color:#D3AEF0;}
+.ossbox .grande{display:flex; align-items:flex-end; gap:13px; margin-top:8px;}
+.ossbox .grande .em{font-size:26px;}
+.ossbox .grande .n{font-family:'Arial Narrow',Impact,sans-serif; font-size:42px; line-height:.9; color:var(--cream);}
+.ossbox .grande .d{font-size:12px; color:var(--muted); padding-bottom:5px;}
+.ossriga{display:flex; align-items:center; gap:10px; width:100%; text-align:left; margin-top:7px;
+  background:#5a1e1422; border:1px solid #a8402f66; border-radius:11px; padding:10px 11px; color:var(--cream);}
+.ossriga .em{font-size:17px;}
+.ossriga .mid{flex:1; min-width:0;}
+.ossriga .nm{font-size:14px;}
+.ossriga .ds{font-size:10.5px; color:var(--muted); margin-top:2px;}
+.avvriga{display:flex; align-items:center; gap:11px; background:#5a1e1433; border:1px solid #C0392B66;
+  border-left:5px solid #E04A34; border-radius:12px; padding:11px 12px; margin-bottom:8px;}
+.avvriga .n{font-family:'Arial Narrow',Impact,sans-serif; font-size:26px; color:#FFC9BE;}
+.avvriga .tx{flex:1; min-width:0;}
+.avvriga .t1{font-size:13.5px; color:var(--cream);}
+.avvriga .t2{font-size:10.5px; color:var(--muted); margin-top:3px;}
+.avvriga .nota{font-size:12px; color:#F0E6D2; margin-top:4px; line-height:1.45;}
+.solebox{background:#1b1710; border:1px solid var(--dark3); border-radius:14px; padding:13px 12px 8px;}
+.solebox .tt{font-size:12.5px; color:var(--cream); margin-bottom:2px;}
+.solebox .tt b{color:var(--gold);}
+.lunabox{display:flex; align-items:center; gap:11px;}
+.lunabox .em{font-size:23px;}
+.lunabox .tx{font-size:12.5px; color:var(--cream); line-height:1.4;}
+.lunabox .tx small{display:block; color:var(--muted); font-size:11px; margin-top:2px;}
+.contacapi{display:flex; align-items:center; gap:12px; justify-content:center; margin:12px 0 2px;}
+.contacapi button{width:50px; height:50px; border-radius:50%; border:1px solid var(--dark3);
+  background:#00000030; color:var(--cream); font-size:23px;}
+.contacapi .n{font-family:'Arial Narrow',Impact,sans-serif; font-size:42px; width:70px; text-align:center; color:var(--cream);}
+
 </style>
 </head>
 <body>
@@ -1950,6 +1984,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       <div class="scroll" id="giomappa-scroll"></div>
     </section>
 
+
+    <!-- OSSERVAZIONI NOTTURNE -->
+    <section class="view" id="v-ossnott">
+      <div class="backbar">
+        <button data-home>&lsaquo; Indietro</button>
+        <div class="ttl">Osservazioni notturne</div>
+      </div>
+      <div class="scroll" id="oss-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
     <section class="view" id="v-info">
       <div class="backbar">
         <button data-home>‹ Home</button>
@@ -2202,6 +2246,61 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       <div class="riass" id="cn-riass"></div>
       <div class="frase" id="cn-frase"></div>
       <button class="btn primary" id="cn-salva">SALVA</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- IL PUNTO DI OSSERVAZIONE -->
+<div class="modal" id="m-osspunto">
+  <div class="sheet">
+    <div style="display:flex; align-items:center; gap:11px; margin-bottom:12px">
+      <span style="font-size:26px">&#128301;</span>
+      <span style="flex:1; min-width:0">
+        <div style="font-family:'Arial Narrow',Impact,sans-serif; font-size:24px; letter-spacing:1px" id="op-nome">PUNTO</div>
+        <div class="hint" id="op-sotto"></div>
+      </span>
+      <button class="inf" id="op-chiudi" style="width:36px; height:36px">&#10005;</button>
+    </div>
+    <div class="hint" id="op-note" style="margin-bottom:10px; display:none"></div>
+    <div class="solebox">
+      <div class="tt" id="op-ore">Sole</div>
+      <canvas id="op-arco" style="width:100%; display:block"></canvas>
+    </div>
+    <div class="card lunabox" id="op-luna" style="margin:10px 0 12px"></div>
+    <button class="btn line" id="op-mappa">&#128506;&#65039; Vedi sulla mappa</button>
+    <button class="btn line" id="op-vai">&#129517; Portami qui</button>
+    <button class="btn" id="op-registra" style="background:#8a2f22; border-color:#a8402f; color:#fff; font-weight:600">&#128023; Registra avvistamento</button>
+  </div>
+</div>
+
+<!-- REGISTRAZIONE DELL'AVVISTAMENTO -->
+<div class="modal" id="m-avvista">
+  <div class="sheet">
+    <div style="display:flex; align-items:center; gap:11px; margin-bottom:12px">
+      <span style="font-size:26px">&#128023;</span>
+      <span style="flex:1; min-width:0">
+        <div style="font-family:'Arial Narrow',Impact,sans-serif; font-size:24px; letter-spacing:1px">DOVE LI HAI VISTI</div>
+        <div class="hint" id="av-sotto">tocca la mappa nel punto dove dormivano</div>
+      </span>
+      <button class="inf" id="av-chiudi" style="width:36px; height:36px">&#10005;</button>
+    </div>
+    <canvas id="av-tela" style="width:100%; display:block; border-radius:12px; border:1px solid var(--dark3); background:#34401f"></canvas>
+    <div id="av-dopo" style="display:none">
+      <div class="contacapi">
+        <button id="av-meno">&minus;</button>
+        <span class="n" id="av-quanti">2</span>
+        <button id="av-piu">+</button>
+      </div>
+      <div class="hint" style="text-align:center; margin-bottom:12px">capi visti col visore</div>
+      <div style="display:flex; align-items:center; gap:10px; margin-bottom:8px">
+        <span style="flex:1; font-size:13px">Ora dell'avvistamento</span>
+        <input type="time" id="av-ora" style="background:#00000030; border:1px solid var(--dark3); border-radius:10px; padding:10px 12px; color:var(--cream); font-size:16px">
+      </div>
+      <div class="hint" style="margin:-2px 0 10px">Se lo segni tornato a casa, correggila: conta l'ora in cui li hai visti.</div>
+      <textarea id="av-note" placeholder="Cosa hai visto — «tre piccoli e una femmina, verso il fosso»" style="width:100%; background:#00000030; border:1px solid var(--dark3); border-radius:11px; padding:11px; color:var(--cream); font-size:14px; min-height:76px; font-family:inherit; line-height:1.45"></textarea>
+      <button class="btn primary" id="av-salva" style="margin-top:10px">CHIUDI AVVISTAMENTO</button>
+      <button class="btn line" id="av-cancella" style="display:none; margin-top:6px; border-color:#8a3b2e; color:#e0a89e">Cancella questo avvistamento</button>
     </div>
   </div>
 </div>
@@ -2895,7 +2994,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.42";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.50";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3134,6 +3233,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     caricaOrdineHome();               // l'ordine delle caselle scelto dal capo
     controllaBattutaGiochi();         // con la battuta aperta i giochi si chiudono
     controllaUrgenti();               // la nuvoletta del capocaccia
+    caricaOsservazioni();             // punti e avvistamenti col visore
     setInterval(controllaUrgenti, 60000);
     document.addEventListener("visibilitychange", function(){
       if(!document.hidden) controllaUrgenti();
@@ -4152,7 +4252,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       return;
     }
 
-    var h='<div class="sechead">Mappe di '+esc(me?me.squadra_nome:"")+'</div>';
+    var h = "";
+    if(eVisore()){
+      h += '<button class="btn line" id="aree-oss" style="margin-bottom:12px; border-color:#a8402f; '
+        +  'background:#5a1e1422; color:var(--cream)">\ud83d\udd2d Osservazioni notturne</button>';
+    }
+    h+='<div class="sechead">Mappe di '+esc(me?me.squadra_nome:"")+'</div>';
 
     // avviso a chi può solo guardare
     if(!puoScrivere){
@@ -5218,7 +5323,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     acc_canaio:     { nome:"Accompagnatore canaio",    icona:"#ic-cane",     col:"#3d7a48" },
     acc_battitore:  { nome:"Accompagnatore battitore", icona:"#ic-voce",     col:"#a86f22" },
     tracciatore:    { nome:"Tracciatore",              icona:"#ic-orma",     col:"#7B5EA7" },
-    sergente:       { nome:"Sergente (giudice)",       icona:"#ic-scudo",    col:"#C9A227" }
+    sergente:       { nome:"Sergente (giudice)",       icona:"#ic-scudo",    col:"#C9A227" },
+    visore:         { nome:"Visore notturno",           icona:"#ic-orma",     col:"#A86BD0" }
   };
 
   function puoGestireSquadra(){
@@ -6602,6 +6708,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
           h+='<button class="cubo'+(fatte?' spento':'')+'" data-giomap="'+idA+'" style="min-width:150px">';
           h+='<div class="et">'+esc(arC.nome)+'</div>';
           h+='<div class="rg"><span class="n">'+((arC.poste||[]).length)+'</span><span class="t">poste</span></div>';
+          var av7 = (typeof avvistamentiRecenti==="function") ? avvistamentiRecenti(idA, 7) : [];
+          if(av7.length) h+='<div class="rg"><span class="n" style="color:#FF8A75">'+capiAvvistati(av7)
+                   + '</span><span class="t">capi visti col visore</span></div>';
           if(nTc) h+='<div class="rg"><span class="n" style="color:#c9b3e0">'+nTc+'</span><span class="t">tracciate'
                    + (nNl?(' \u00b7 '+nNl+' da leggere'):'')+'</span></div>';
           if(nSeg) h+='<div class="rg"><span class="n" style="color:#7be0a8">'+nSeg+'</span><span class="t">segnalazioni</span></div>';
@@ -6844,6 +6953,21 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       }
       h+='</div>';
       h+='</div>';
+      /* I TUOI AVVISTAMENTI: e' roba tua, la devi vedere e poter correggere */
+      var mieiAvv = avvistamenti.filter(function(x){
+        return x.membro_id===me.membro_id && b.id && x.battuta_id===b.id; });
+      if(mieiAvv.length){
+        hTrac += '<div style="font-size:10px; color:#FF8A75; letter-spacing:.5px; margin:14px 0 6px">I TUOI AVVISTAMENTI DI STANOTTE</div>';
+        mieiAvv.forEach(function(av){
+          var ar3 = aree.find(function(x){ return x.id===av.area_id; });
+          var pt3 = ossPunti.find(function(x){ return x.id===av.punto_id; });
+          hTrac += '<div class="avvriga"><span class="n">'+(av.capi||0)+'</span>'
+            + '<span class="tx"><div class="t1">'+esc(ar3?ar3.nome:"mappa")+(pt3?(' \u00b7 '+esc(pt3.nome)):'')+'</div>'
+            + (av.note ? ('<div class="nota">'+esc(av.note)+'</div>') : '')
+            + '<div class="t2">'+fmtNotte(av)+'</div></span>'
+            + '<button class="inf" data-avvmod2="'+av.id+'" style="width:auto; padding:0 9px; height:26px; font-size:12px">\u270e</button></div>';
+        });
+      }
       if(!capo){
         /* La tua traccia e' UNA SOLA sezione: il giro da fare e, sotto, quello gia' fatto.
            Niente seconda sezione "la tua tracciata": e' la stessa cosa in due momenti. */
@@ -6932,6 +7056,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       b.onclick = function(){ apriStriscia(b.dataset.str); };
     });
     if(strApri) disegnaStriscia();
+    root.querySelectorAll("[data-avvmod2]").forEach(function(b){
+      b.onclick=function(){ modificaAvvistamento(b.dataset.avvmod2); };
+    });
     var cvb=document.getElementById("cv-bar");
     if(cvb) cvb.onclick=function(){
       var l=document.getElementById("cv-lista");
@@ -9160,6 +9287,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     root.querySelectorAll("[data-sezapri]").forEach(function(b){
       b.onclick = function(){ mostraPosteSezione(b.dataset.sezapri); };
     });
+    var bo = root.querySelector("#aree-oss");
+    if(bo) bo.onclick = apriOsservazioni;
     root.querySelectorAll("[data-sezmod]").forEach(function(b){
       b.onclick = function(ev){
         if(ev && ev.stopPropagation) ev.stopPropagation();
@@ -14616,6 +14745,33 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       carnePres.forEach(function(p){ carneSel[p.tipo==="ospite"?"ospiti":"membri"][p.id] = !tutti; });
       righeCarne();
     };
+    var ao=document.getElementById("aree-oss");
+    document.getElementById("op-chiudi").onclick=function(){ document.getElementById("m-osspunto").classList.remove("show"); };
+    document.getElementById("op-registra").onclick=registraAvvistamento;
+    document.getElementById("op-mappa").onclick=function(){
+      document.getElementById("m-osspunto").classList.remove("show");
+      if(ossPunto) apriAreaDaBattuta(ossPunto.area_id);
+    };
+    document.getElementById("op-vai").onclick=function(){
+      if(!ossPunto) return;
+      document.getElementById("m-osspunto").classList.remove("show");
+      postaAperta = {id:"oss", nome:ossPunto.nome, numero:"\ud83d\udd2d",
+                     lat:ossPunto.lat, lng:ossPunto.lng, note:ossPunto.note||""};
+      areaAttivaId = ossPunto.area_id;
+      apriVistaPostaiolo();
+    };
+    document.getElementById("av-chiudi").onclick=function(){
+      document.getElementById("m-avvista").classList.remove("show"); avvInCorso=null;
+    };
+    document.getElementById("av-salva").onclick=salvaAvvistamento;
+    document.getElementById("av-cancella").onclick=cancellaAvvistamento;
+    document.getElementById("av-piu").onclick=function(){
+      avvInCorso.capi++; document.getElementById("av-quanti").textContent=avvInCorso.capi; disegnaTelaAvv();
+    };
+    document.getElementById("av-meno").onclick=function(){
+      if(avvInCorso.capi>1) avvInCorso.capi--;
+      document.getElementById("av-quanti").textContent=avvInCorso.capi; disegnaTelaAvv();
+    };
     document.getElementById("sg-ok").onclick=function(){ document.getElementById("sergente").classList.remove("show"); };
     document.getElementById("sergente").onclick=function(e){
       if(e.target.id==="sergente") this.classList.remove("show");
@@ -16598,7 +16754,7 @@ function fineA(){
 
   /* l'anteprima: a schema, non satellite. A questa dimensione il satellite
      è una macchia verde, lo schema fa leggere numeri, linee e crocette. */
-  function disegnaAnteprimaArea(cv, a){
+  function disegnaAnteprimaArea(cv, a, tornaRiquadro){
     if(!cv) return;
     var W = cv.clientWidth || 340, H = Math.round(W*0.66);
     var dpr = Math.min(window.devicePixelRatio||1, 2);
@@ -16719,6 +16875,17 @@ function fineA(){
       g.fillStyle="#241d13"; g.font="700 10px system-ui"; g.textAlign="center"; g.textBaseline="middle";
       g.fillText(String(p.numero||""), X(p.lng), Y(p.lat));
     });
+    /* con tornaRiquadro do indietro le due conversioni: servono a chi deve
+       trasformare un tocco sullo schermo in coordinate vere (avvistamenti) */
+    var __riq = { W:W, H:H,
+      X:X, Y:Y,
+      perCoord: function(px, py){
+        var lng = ln1 + (px - mrg - ((W-mrg*2)-dln*k)/2)/k;
+        var lat = la2 - (py - mrg - ((H-mrg*2)-dla*k)/2)/k;
+        return {lat:lat, lng:lng};
+      },
+      perPixel: function(lat, lng){ return {x:X(lng), y:Y(lat)}; }
+    };
     // le segnalazioni: FRECCE, non crocette. Verde che punta dentro = entrata,
     // rossa che punta fuori = uscita. La direzione la ricavo dal centro dell'area.
     var cLat=0, cLng=0, nP=0;
@@ -16750,6 +16917,13 @@ function fineA(){
         g.fillText(String(x.capi), bx+dx*13*verso, by+dy*13*verso);
       }
     });
+    /* i capi visti col visore: stanno DENTRO la mappa, quindi si disegnano.
+       I punti di osservazione no: sono lontani e allargherebbero il riquadro. */
+    (typeof avvistamentiDiArea === "function" ? avvistamentiDiArea(a.id) : []).forEach(function(av){
+      if(!buono(av)) return;
+      disegnaCinghialeRosso(g, X(av.lng), Y(av.lat), av.capi);
+    });
+    return __riq;
   }
 
 
@@ -16960,6 +17134,380 @@ function fineA(){
     }catch(e){ toast("Non riesco a salvare: serve la rete"); return; }
     document.getElementById("m-carne").classList.remove("show");
     renderSettimana();
+  }
+
+
+  /* ================= OSSERVAZIONE NOTTURNA =================
+     I punti sono fissi della mappa (come le poste) ma NON si disegnano
+     nell'anteprima: stanno spesso lontani e allargherebbero il riquadro.
+     Gli avvistamenti invece stanno dentro la mappa e si vedono.
+     L'avvistamento nasce per la battuta del giorno dopo, ma il legame con la
+     giornata puo' restare vuoto: cosi' la sorveglianza fuori dai giorni di
+     caccia entrera' domani senza rifare niente. */
+  var ossPunti = [], avvistamenti = [], ossArea = null, ossPunto = null;
+  var imgCinghiale = null;
+
+  function preparaCinghiale(){
+    if(imgCinghiale) return imgCinghiale;
+    imgCinghiale = new Image();
+    imgCinghiale.src = "cinghiale-rosso.png";
+    return imgCinghiale;
+  }
+  function eVisore(){
+    if(!me) return false;
+    return me.is_admin===true || (me.compiti||[]).indexOf("visore")>=0
+        || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia";
+  }
+  async function caricaOsservazioni(){
+    if(!me || !me.squadra_id) return;
+    try{
+      var r = await sb.from("hn_oss_punti").select("*").eq("squadra_id", me.squadra_id).order("nome");
+      if(!r.error) ossPunti = r.data || [];
+      var da = new Date(Date.now() - 21*24*3600*1000).toISOString().slice(0,10);
+      var r2 = await sb.from("hn_avvistamenti").select("*")
+                 .eq("squadra_id", me.squadra_id).gte("notte", da).order("quando", {ascending:false});
+      if(!r2.error) avvistamenti = r2.data || [];
+    }catch(e){}
+  }
+  function puntiDiArea(idA){ return ossPunti.filter(function(p){ return p.area_id===idA; }); }
+  function avvistamentiDiArea(idA){ return avvistamenti.filter(function(a){ return a.area_id===idA; }); }
+  function avvistamentiRecenti(idA, giorni){
+    var lim = Date.now() - (giorni||7)*24*3600*1000;
+    return avvistamentiDiArea(idA).filter(function(a){
+      return new Date(a.quando || a.notte).getTime() >= lim; });
+  }
+  function capiAvvistati(lista){
+    return lista.reduce(function(t,a){ return t + (Number(a.capi)||0); }, 0);
+  }
+  /* la notte "utile": prima delle 12 conta la notte appena passata */
+  function notteDiRiferimento(){
+    var d = new Date();
+    if(d.getHours() < 12) d.setDate(d.getDate()-1);
+    return iso(d);
+  }
+
+  /* ---- SOLE E LUNA sul punto: due conti, nessun servizio esterno ---- */
+  function soleDi(lat, lng, d){
+    var g = Math.floor((d - new Date(d.getFullYear(),0,0)) / 86400000);
+    var lw = -lng*Math.PI/180, phi = lat*Math.PI/180;
+    var n = Math.round(g - 0.0009 - lw/(2*Math.PI));
+    var J = 2451545.0009 + 0.0009 + lw/(2*Math.PI) + n
+          + (d.getFullYear()-2000)*365.25 + 0;   // approssimazione buona al minuto
+    var M = (357.5291 + 0.98560028*(g + (d.getFullYear()-2000)*365.25))*Math.PI/180;
+    var C = (1.9148*Math.sin(M) + 0.0200*Math.sin(2*M) + 0.0003*Math.sin(3*M))*Math.PI/180;
+    var L = M + C + Math.PI + 102.9372*Math.PI/180;
+    var dec = Math.asin(Math.sin(L)*Math.sin(23.44*Math.PI/180));
+    var cosH = (Math.sin(-0.83*Math.PI/180) - Math.sin(phi)*Math.sin(dec)) / (Math.cos(phi)*Math.cos(dec));
+    if(cosH > 1) return {alba:null, tramonto:null, ore:0};
+    if(cosH < -1) return {alba:null, tramonto:null, ore:24};
+    var H = Math.acos(cosH)*180/Math.PI;          // mezzo arco in gradi
+    var mezzo = 12 - lng/15 + (-7.659*Math.sin(M) + 9.863*Math.sin(2*M + 3.5932))/60;
+    var fuso = -d.getTimezoneOffset()/60;
+    var alba = mezzo - H/15 + fuso, tram = mezzo + H/15 + fuso;
+    return {alba:alba, tramonto:tram, ore:(tram-alba)};
+  }
+  function oraTesto(h){
+    if(h==null) return "\u2014";
+    h = ((h % 24) + 24) % 24;
+    var m = Math.round((h - Math.floor(h))*60), hh = Math.floor(h);
+    if(m===60){ m=0; hh=(hh+1)%24; }
+    return String(hh).padStart(2,"0")+":"+String(m).padStart(2,"0");
+  }
+  function lunaDi(d){
+    /* fase: 0 = luna nuova, .5 = piena. Conto classico dal novilunio del 2000 */
+    var giorni = (d - new Date(Date.UTC(2000,0,6,18,14))) / 86400000;
+    var f = (giorni % 29.530588853) / 29.530588853;
+    if(f < 0) f += 1;
+    var perc = Math.round((1 - Math.cos(2*Math.PI*f))/2 * 100);
+    var nomi = [
+      [0.03,"Luna nuova","\ud83c\udf11","notte nera, col visore si vede poco"],
+      [0.22,"Luna crescente","\ud83c\udf12","poca luce, buona per il visore"],
+      [0.28,"Primo quarto","\ud83c\udf13","mezza luce"],
+      [0.47,"Gibbosa crescente","\ud83c\udf14","notte chiara"],
+      [0.53,"Luna piena","\ud83c\udf15","notte chiarissima: i capi si vedono ma vedono anche te"],
+      [0.72,"Gibbosa calante","\ud83c\udf16","notte chiara fino a tardi"],
+      [0.78,"Ultimo quarto","\ud83c\udf17","mezza luce, sorge a notte fonda"],
+      [0.97,"Luna calante","\ud83c\udf18","poca luce, buona per il visore"],
+      [1.01,"Luna nuova","\ud83c\udf11","notte nera, col visore si vede poco"]
+    ];
+    var v = nomi[nomi.length-1];
+    for(var i=0;i<nomi.length;i++){ if(f <= nomi[i][0]){ v = nomi[i]; break; } }
+    return {fase:f, perc:perc, nome:v[1], emoji:v[2], dice:v[3]};
+  }
+
+  /* ---- LA SEZIONE OSSERVAZIONI NOTTURNE ---- */
+  function apriOsservazioni(){
+    showView("ossnott");
+    renderOsservazioni();
+  }
+  async function renderOsservazioni(){
+    var root = document.getElementById("oss-scroll");
+    if(!root) return;
+    root.innerHTML = '<div class="loading">Carico…</div>';
+    await caricaOsservazioni();
+    var h = "";
+    var recenti = avvistamenti.slice(0, 12);
+    var capi7 = capiAvvistati(avvistamenti.filter(function(a){
+      return new Date(a.quando||a.notte).getTime() >= Date.now()-7*24*3600*1000; }));
+    h += '<div class="ossbox"><div class="tt">ULTIMI SETTE GIORNI</div>'
+       + '<div class="grande"><span class="em">\ud83d\udd2d</span><span class="n">'+capi7+'</span>'
+       + '<span class="d">cap'+(capi7===1?"o":"i")+' visti col visore<br>in '
+       + avvistamenti.filter(function(a){ return new Date(a.quando||a.notte).getTime() >= Date.now()-7*24*3600*1000; }).length
+       + ' uscite</span></div></div>';
+
+    h += '<div class="sechead">Le mappe e i loro punti</div>';
+    if(!aree.length) h += '<div class="card hint">Nessuna mappa.</div>';
+    aree.forEach(function(a){
+      var pp = puntiDiArea(a.id), rec = avvistamentiRecenti(a.id, 7);
+      h += '<div class="card" style="margin-bottom:8px">';
+      h += '<div style="display:flex; align-items:center; gap:9px">';
+      h += '<span style="font-size:18px">\ud83d\uddfa\ufe0f</span>';
+      h += '<span style="flex:1; min-width:0"><div style="font-size:14.5px; color:var(--cream)">'+esc(a.nome)+'</div>'
+         + '<div class="hint">'+pp.length+' punt'+(pp.length===1?"o":"i")+' di osservazione'
+         + (rec.length ? (' \u00b7 <b style="color:#FF8A75">'+capiAvvistati(rec)+' capi questa settimana</b>') : ' \u00b7 niente questa settimana')
+         + '</div></span>';
+      if(puoMappare()) h += '<button class="inf" data-ossnuovo="'+a.id+'" style="width:auto; padding:0 10px; height:28px; font-size:12px">+</button>';
+      h += '</div>';
+      pp.forEach(function(p){
+        h += '<button class="ossriga" data-osspunto="'+p.id+'">'
+           + '<span class="em">\ud83d\udd2d</span>'
+           + '<span class="mid"><div class="nm">'+esc(p.nome)+'</div>'
+           + '<div class="ds">'+(p.note ? esc(p.note) : "punto di osservazione")
+           + (pos && p.lat ? (' \u00b7 '+fmtDist(distM(pos, p))) : '')+'</div></span>'
+           + '<span style="color:var(--muted)">\u203a</span></button>';
+      });
+      h += '</div>';
+    });
+
+    h += '<div class="sechead">Registro degli avvistamenti</div>';
+    if(!recenti.length){
+      h += '<div class="card hint">Ancora nessun avvistamento nelle ultime tre settimane.</div>';
+    }
+    recenti.forEach(function(a){
+      var ar = aree.find(function(x){ return x.id===a.area_id; });
+      var pt = ossPunti.find(function(x){ return x.id===a.punto_id; });
+      var mio = (a.membro_id===me.membro_id);
+      h += '<div class="avvriga">'
+         + '<span class="n">'+(a.capi||0)+'</span>'
+         + '<span class="tx"><div class="t1">'+esc(ar?ar.nome:"mappa")+(pt?(' \u00b7 '+esc(pt.nome)):'')+'</div>'
+         + (a.note ? ('<div class="nota">'+esc(a.note)+'</div>') : '')
+         + '<div class="t2">'+fmtNotte(a)+' \u00b7 '+esc(nomeDi(a.membro_id))+'</div></span>'
+         + (mio ? '<button class="inf" data-avvmod="'+a.id+'" style="width:auto; padding:0 9px; height:26px; font-size:12px">\u270e</button>' : '')
+         + '</div>';
+    });
+    root.innerHTML = h;
+    root.querySelectorAll("[data-osspunto]").forEach(function(b){
+      b.onclick = function(){ apriPuntoOss(b.dataset.osspunto); };
+    });
+    root.querySelectorAll("[data-ossnuovo]").forEach(function(b){
+      b.onclick = function(){ nuovoPuntoOss(b.dataset.ossnuovo); };
+    });
+    root.querySelectorAll("[data-avvmod]").forEach(function(b){
+      b.onclick = function(){ modificaAvvistamento(b.dataset.avvmod); };
+    });
+  }
+  function fmtNotte(a){
+    var d = new Date(a.quando || a.notte);
+    var gg = ["dom","lun","mar","mer","gio","ven","sab"];
+    return gg[d.getDay()]+" "+d.getDate()+" "+MESI[d.getMonth()].slice(0,3)
+         + " alle "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  }
+  async function nuovoPuntoOss(areaId){
+    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+    if(!pos){ toast("Aspetto il segnale GPS: il punto si segna dove sei"); serveGPS("oss"); return; }
+    chiediInSerie([
+      {titolo:"Punto di osservazione", aiuto:"Come lo chiami: «Costone alto», «Curva del fosso».", tipo:"text"},
+      {titolo:"Cosa si vede da qui", aiuto:"Facoltativo: aiuta chi ci va la prima volta.", tipo:"text"}
+    ], async function(v){
+      if(!v[0]) return;
+      try{
+        var r = await sb.from("hn_oss_punti").insert({
+          squadra_id: me.squadra_id, area_id: areaId, nome: v[0], note: v[1] || null,
+          lat: pos.lat, lng: pos.lng, creato_da: me.membro_id
+        }).select().single();
+        if(r.error) throw r.error;
+        ossPunti.push(r.data);
+        toast("Punto segnato: "+v[0]);
+        renderOsservazioni();
+      }catch(e){ toast("Non riesco a salvarlo"); }
+    });
+  }
+
+  /* ---- IL PANNELLO DEL PUNTO: sole, luna e i tre tasti ---- */
+  function apriPuntoOss(id){
+    var p = ossPunti.find(function(x){ return x.id===id; });
+    if(!p) return;
+    ossPunto = p;
+    var a = aree.find(function(x){ return x.id===p.area_id; });
+    var s = soleDi(p.lat, p.lng, new Date());
+    var l = lunaDi(new Date());
+    document.getElementById("op-nome").textContent = String(p.nome||"").toUpperCase();
+    document.getElementById("op-sotto").innerHTML =
+      esc(a?a.nome:"mappa") + (pos ? (" \u00b7 " + fmtDist(distM(pos, p))) : "") + " da te";
+    document.getElementById("op-ore").innerHTML =
+      "Sole \u2014 <b>" + (s.ore ? (Math.floor(s.ore)+" ore di luce") : "\u2014") + "</b>";
+    document.getElementById("op-note").textContent = p.note || "";
+    document.getElementById("op-note").style.display = p.note ? "block" : "none";
+    document.getElementById("op-luna").innerHTML =
+      '<span class="em">'+l.emoji+'</span><span class="tx">'+esc(l.nome)+" all'"+l.perc+"%"
+      + '<small>'+esc(l.dice)+'</small></span>';
+    document.getElementById("m-osspunto").classList.add("show");
+    setTimeout(function(){ arcoSole(s); }, 40);
+  }
+  function arcoSole(s){
+    var cv = document.getElementById("op-arco");
+    if(!cv) return;
+    var W = cv.clientWidth || 300, H = 118, dpr = Math.min(window.devicePixelRatio||1, 2);
+    cv.width = W*dpr; cv.height = H*dpr; cv.style.height = H+"px";
+    var g = cv.getContext("2d"); g.setTransform(dpr,0,0,dpr,0,0);
+    var m = 34, y0 = H-34, rx = (W-m*2)/2, ry = 54;
+    var gr = g.createLinearGradient(m,0,W-m,0);
+    gr.addColorStop(0,"#F5A623"); gr.addColorStop(.5,"#FFC46B"); gr.addColorStop(1,"#F5811F");
+    g.strokeStyle = gr; g.lineWidth = 7; g.lineCap = "round";
+    g.beginPath(); g.ellipse(W/2, y0, rx, ry, 0, Math.PI, 0); g.stroke();
+    if(s.alba!=null && s.tramonto!=null){
+      var ora = new Date().getHours() + new Date().getMinutes()/60;
+      var q = (ora - s.alba) / Math.max(0.5, (s.tramonto - s.alba));
+      if(q>=0 && q<=1){
+        var ang = Math.PI + Math.PI*q;
+        var sx = W/2 + rx*Math.cos(ang), sy = y0 + ry*Math.sin(ang);
+        g.fillStyle = "#FFB020";
+        g.beginPath(); g.arc(sx, sy, 9, 0, 7); g.fill();
+        for(var i=0;i<8;i++){
+          var a2 = i*Math.PI/4;
+          g.strokeStyle = "#FFB020"; g.lineWidth = 2;
+          g.beginPath();
+          g.moveTo(sx+Math.cos(a2)*12, sy+Math.sin(a2)*12);
+          g.lineTo(sx+Math.cos(a2)*16, sy+Math.sin(a2)*16); g.stroke();
+        }
+      }
+    }
+    g.fillStyle = "#F0E6D2"; g.font = "700 17px system-ui"; g.textAlign = "left";
+    g.fillText(oraTesto(s.alba), 4, H-10);
+    g.textAlign = "right"; g.fillText(oraTesto(s.tramonto), W-4, H-10);
+    g.fillStyle = "#B89968"; g.font = "10.5px system-ui";
+    g.textAlign = "left"; g.fillText("alba", 4, H-26+22);
+    g.textAlign = "right"; g.fillText("tramonto", W-4, H-26+22);
+  }
+
+  /* ---- REGISTRARE UN AVVISTAMENTO: si tocca la mappa, non si "timbra" ---- */
+  var avvInCorso = null;   // {puntoId, areaId, lat, lng, capi, ora, note, id?}
+  function registraAvvistamento(){
+    if(!ossPunto) return;
+    document.getElementById("m-osspunto").classList.remove("show");
+    avvInCorso = { puntoId: ossPunto.id, areaId: ossPunto.area_id,
+                   lat:null, lng:null, capi:2, note:"",
+                   ora: String(new Date().getHours()).padStart(2,"0")+":"+String(new Date().getMinutes()).padStart(2,"0") };
+    apriTelaAvvistamento();
+  }
+  function modificaAvvistamento(id){
+    var a = avvistamenti.find(function(x){ return x.id===id; });
+    if(!a) return;
+    if(a.membro_id !== me.membro_id && !puoGestireBattute()){ toast("Non \u00e8 tuo"); return; }
+    var d = new Date(a.quando || a.notte);
+    avvInCorso = { id:a.id, puntoId:a.punto_id, areaId:a.area_id, lat:a.lat, lng:a.lng,
+                   capi:Number(a.capi)||1, note:a.note||"",
+                   ora: String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0") };
+    apriTelaAvvistamento();
+  }
+  function apriTelaAvvistamento(){
+    document.getElementById("av-quanti").textContent = avvInCorso.capi;
+    document.getElementById("av-ora").value = avvInCorso.ora;
+    document.getElementById("av-note").value = avvInCorso.note || "";
+    document.getElementById("av-cancella").style.display = avvInCorso.id ? "block" : "none";
+    document.getElementById("m-avvista").classList.add("show");
+    setTimeout(disegnaTelaAvv, 60);
+  }
+  function disegnaTelaAvv(){
+    var a = aree.find(function(x){ return x.id===avvInCorso.areaId; });
+    var cv = document.getElementById("av-tela");
+    if(!cv || !a) return;
+    var q = disegnaAnteprimaArea(cv, a, true);   // true = torna il riquadro per convertire i tocchi
+    cv.onclick = function(ev){
+      if(!q || !q.X) return;
+      var r = cv.getBoundingClientRect();
+      var px = (ev.clientX - r.left) * (q.W / r.width);
+      var py = (ev.clientY - r.top) * (q.H / r.height);
+      var g = q.perCoord(px, py);
+      avvInCorso.lat = g.lat; avvInCorso.lng = g.lng;
+      document.getElementById("av-sotto").textContent = "quanti ne hai visti?";
+      document.getElementById("av-dopo").style.display = "block";
+      disegnaTelaAvv();
+    };
+    if(avvInCorso.lat && q && q.perPixel){
+      var p = q.perPixel(avvInCorso.lat, avvInCorso.lng);
+      disegnaCinghialeRosso(cv.getContext("2d"), p.x, p.y, avvInCorso.capi);
+    }
+  }
+  function disegnaCinghialeRosso(g, x, y, n){
+    var im = preparaCinghiale();
+    var w = 44, h = 25;
+    if(im && im.complete && im.naturalWidth){
+      g.drawImage(im, x-w/2, y-h/2, w, h);
+    }else{
+      g.fillStyle = "#CD261C";
+      g.beginPath(); g.ellipse(x, y, 15, 9, 0, 0, 7); g.fill();
+      if(im) im.onload = function(){ /* al caricamento si ridisegna da solo alla prossima */ };
+    }
+    if(n){
+      g.fillStyle = "#fff"; g.strokeStyle = "rgba(0,0,0,.75)"; g.lineWidth = 3.5;
+      g.font = "700 14px system-ui"; g.textAlign = "center"; g.textBaseline = "middle";
+      g.strokeText(String(n), x, y-h/2-8);
+      g.fillText(String(n), x, y-h/2-8);
+    }
+  }
+  async function salvaAvvistamento(){
+    if(!avvInCorso || !avvInCorso.lat){ toast("Tocca la mappa dove li hai visti"); return; }
+    var ora = document.getElementById("av-ora").value || avvInCorso.ora;
+    var note = (document.getElementById("av-note").value || "").trim();
+    var notte = notteDiRiferimento();
+    var pezzi = String(ora).split(":");
+    var quando = new Date(); 
+    var dn = daIso(notte);
+    quando = new Date(dn.getFullYear(), dn.getMonth(), dn.getDate(), +pezzi[0]||0, +pezzi[1]||0);
+    /* se l'ora e' del mattino presto, la notte e' quella appena passata: il giorno avanza */
+    if((+pezzi[0]||0) < 12) quando.setDate(quando.getDate()+1);
+    var domani = new Date(dn.getFullYear(), dn.getMonth(), dn.getDate()+1);
+    var gio = battute.find(function(b){ return b.data === iso(domani); });
+    var riga = {
+      squadra_id: me.squadra_id, area_id: avvInCorso.areaId, punto_id: avvInCorso.puntoId,
+      battuta_id: gio ? gio.id : null, notte: notte, quando: quando.toISOString(),
+      membro_id: me.membro_id, lat: avvInCorso.lat, lng: avvInCorso.lng,
+      capi: avvInCorso.capi, note: note || null
+    };
+    try{
+      var r;
+      if(avvInCorso.id){
+        r = await sb.from("hn_avvistamenti").update(riga).eq("id", avvInCorso.id).select().single();
+        if(r.error) throw r.error;
+        var k = avvistamenti.findIndex(function(x){ return x.id===avvInCorso.id; });
+        if(k>=0) avvistamenti[k] = r.data;
+      }else{
+        r = await sb.from("hn_avvistamenti").insert(riga).select().single();
+        if(r.error) throw r.error;
+        avvistamenti.unshift(r.data);
+      }
+      toast(avvInCorso.capi + " cap" + (avvInCorso.capi===1?"o":"i") + " segnati");
+    }catch(e){ toast("Non riesco a salvare: serve la rete"); return; }
+    document.getElementById("m-avvista").classList.remove("show");
+    avvInCorso = null;
+    if(document.getElementById("v-ossnott").classList.contains("active")) renderOsservazioni();
+    if(document.getElementById("v-giornata").classList.contains("active")) renderGiornata();
+    if(document.getElementById("v-giomappa").classList.contains("active")) renderMappaGiornata();
+  }
+  async function cancellaAvvistamento(){
+    if(!avvInCorso || !avvInCorso.id) return;
+    if(!confirm("Cancellare questo avvistamento?\n\nSe l'hai segnato per sbaglio \u00e8 giusto toglierlo: il capo ci conta sopra.")) return;
+    try{
+      var r = await sb.from("hn_avvistamenti").delete().eq("id", avvInCorso.id);
+      if(r && r.error) throw r.error;
+      avvistamenti = avvistamenti.filter(function(x){ return x.id !== avvInCorso.id; });
+      toast("Avvistamento cancellato");
+    }catch(e){ toast("Non riesco a cancellarlo"); return; }
+    document.getElementById("m-avvista").classList.remove("show");
+    avvInCorso = null;
+    if(document.getElementById("v-ossnott").classList.contains("active")) renderOsservazioni();
+    if(document.getElementById("v-giornata").classList.contains("active")) renderGiornata();
   }
 
   if(document.readyState!=="loading") init();
