@@ -1228,6 +1228,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .m-raf{background:linear-gradient(160deg,#8A7327,#4A3D12); border-color:#E0B878;}
 #meteobox .luogo{font-size:11px; color:var(--gold); margin-top:3px;}
 
+.posriga.osp{background:#1F4E7922; border-color:#4A90C255;}
 </style>
 </head>
 <body>
@@ -2783,7 +2784,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.10";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.20";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7775,7 +7776,30 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   /* TUTTI i presenti sono assegnabili, tracciatori compresi: che uno sia in
      giro a tracciare non toglie che debba sapere dove andra' dopo. */
   function daMettereInPosta(){
-    return adesioni.filter(function(a){ return a.presente; });
+    /* Gli OSPITI presenti si mettono in posta come gli altri: senza di loro
+       la mappa non si chiude, ed e' il motivo per cui li registriamo. */
+    var v = adesioni.filter(function(a){ return a.presente; })
+              .map(function(a){ return {tipo:"membro", id:a.membro_id}; });
+    (ospiti||[]).forEach(function(o){
+      if(o.presente) v.push({tipo:"ospite", id:o.id});
+    });
+    return v;
+  }
+  /* il nome di chi sta su una posta, componente oppure ospite */
+  function nomeIncarico(as){
+    if(!as) return "\u2014";
+    return as.ospite_id ? (nomeOspite(as.ospite_id) + " \u00b7 ospite") : nomeDi(as.membro_id);
+  }
+  function postaDiOspite(ospiteId, bsId){
+    var b = bsId || bsAperta;
+    return assegnazioni.find(function(x){
+      return x.ospite_id === ospiteId && x.battuta_svolta_id === b; }) || null;
+  }
+  function incaricoDi(c, bsId){
+    return c.tipo === "ospite" ? postaDiOspite(c.id, bsId) : postaDi(c.id, bsId);
+  }
+  function nomeCandidato(c){
+    return c.tipo === "ospite" ? nomeOspite(c.id) : nomeDi(c.id);
   }
 
   /* LA DELEGA AL VICECAPOBATTUTA.
@@ -7968,7 +7992,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       senzaPosta.forEach(function(x){
         h += '<div class="posriga presa" data-ruolo="'+x.id+'">';
         h += '<span class="pallino" style="background:#4a3560; border-color:#7B5EA7">'+(x.ruolo==="canaio"?"\ud83d\udc15":"\ud83e\udd4a")+'</span>';
-        h += '<div class="chi"><div class="n">'+esc(nomeDi(x.membro_id))+'</div>';
+        h += '<div class="chi"><div class="n">'+esc(nomeIncarico(x))+'</div>';
         h += '<div class="s">'+esc(x.ruolo || "senza posta")+'</div></div>';
         h += '<span style="font-size:15px; color:var(--muted)">\u203a</span></div>';
       });
@@ -8040,7 +8064,11 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   /* una posta assegnata a chi non risulta piu' presente e' un BUCO:
      nessuno ci sta, ma sulla carta risulta coperta. Quella deve gridare. */
-  function presenteOra(membroId){
+  function presenteOra(membroId, ospiteId){
+    if(ospiteId){
+      var o = (ospiti||[]).find(function(x){ return x.id === ospiteId; });
+      return !!(o && o.presente);
+    }
     var a = adesioni.find(function(x){ return x.membro_id === membroId; });
     return !!(a && a.presente === true);
   }
@@ -8049,21 +8077,21 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(!a) return [];
     return (a.poste||[]).filter(function(p){
       var as = assegnazioneDi(p.id, bsAperta);
-      return as && !presenteOra(as.membro_id);
+      return as && !presenteOra(as.membro_id, as.ospite_id);
     });
   }
   function rigaPosta(p){
     var as = assegnazioneDi(p.id, bsAperta);
     var sc = (scambioDa === p.id);
-    var buco = !!(as && !presenteOra(as.membro_id));
+    var buco = !!(as && !presenteOra(as.membro_id, as.ospite_id));
     var h = '<div class="posriga '+(as?"presa":"")+(sc?" scelta":"")+(buco?" buco":"")+'" data-posta="'+p.id+'">';
     h += '<span class="pallino">'+(p.numero||"?")+'</span>';
     h += '<div class="chi">';
     if(as && buco){
       h += '<div class="n" style="color:#FF8A75">SCOPERTA</div>';
-      h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+' \u00b7 era di '+esc(nomeDi(as.membro_id))+', non risulta presente</div>';
+      h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+' \u00b7 era di '+esc(nomeIncarico(as))+', non risulta presente</div>';
     }else if(as){
-      h += '<div class="n">'+esc(nomeDi(as.membro_id))+'</div>';
+      h += '<div class="n">'+(as.ospite_id?"\ud83d\udc64 ":"")+esc(nomeIncarico(as))+'</div>';
       h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</div>';
     }else{
       var u = ultimoQui(p.id);
@@ -8124,7 +8152,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   function apriSceltaCacciatore(p, as){
     document.getElementById("m-cp-tit").textContent = p.nome || ("Posta " + (p.numero||""));
     document.getElementById("m-cp-hint").textContent = as
-      ? ("Adesso c'\u00e8 " + nomeDi(as.membro_id) + ". Scegli un altro, oppure liberala.")
+      ? ("Adesso c'\u00e8 " + nomeIncarico(as) + ". Scegli un altro, oppure liberala.")
       : "Scegli chi ci va.";
     var u = ultimoQui(p.id);
     var cand = daMettereInPosta();
@@ -8136,18 +8164,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       h += '<div class="hint">Nessun presente disponibile. Segna prima chi c\'\u00e8.</div>';
     }
     cand.forEach(function(c){
-      var suo = postaDi(c.membro_id, bsAperta);
-      var qui = as && as.membro_id === c.membro_id;
-      var m = membri.find(function(x){ return x.id === c.membro_id; });
-      h += '<div class="posriga" data-scegli="'+c.membro_id+'" style="cursor:pointer'+(qui?'; border-color:var(--gold)':'')+'">';
+      var suo = incaricoDi(c, bsAperta);
+      var qui = as && ((c.tipo==="ospite") ? (as.ospite_id === c.id) : (as.membro_id === c.id));
+      var m = (c.tipo==="membro") ? membri.find(function(x){ return x.id === c.id; }) : null;
+      h += '<div class="posriga'+(c.tipo==="ospite"?" osp":"")+'" data-scegli="'+c.id+'" data-tipo="'+c.tipo+'" style="cursor:pointer'+(qui?'; border-color:var(--gold)':'')+'">';
       h += '<span class="pallino" style="background:'+(suo?"#4a3320":"transparent")+'; border-style:'+(suo?"solid":"dashed")+'">'
          + (suo && suo.posta_id !== p.id ? (postaNumero(suo.posta_id) || "\u00b7") : "\u00b7") + '</span>';
-      h += '<div class="chi"><div class="n">'+esc(nomeDi(c.membro_id))+'</div>';
+      h += '<div class="chi"><div class="n">'+(c.tipo==="ospite"?"\ud83d\udc64 ":"")+esc(nomeCandidato(c))+'</div>';
       h += '<div class="s">'
          + (qui ? "\u00e8 gi\u00e0 qui"
                 : (suo ? ("ora \u00e8 in " + esc(nomePosta(suo.posta_id)) + " \u00b7 lo sposto qui")
-                       : (m && (m.compiti||[]).length ? esc((m.compiti||[]).join(", ")) : "libero")))
-         + (u === c.membro_id ? ' \u00b7 <span style="color:#7be0a8">ultimo qui</span>' : '')
+                       : (c.tipo==="ospite" ? "ospite, nessun incarico"
+                          : (m && (m.compiti||[]).length ? esc((m.compiti||[]).join(", ")) : "libero"))))
+         + (c.tipo==="membro" && u === c.id ? ' \u00b7 <span style="color:#7be0a8">ultimo qui</span>' : '')
          + '</div></div></div>';
     });
     document.getElementById("m-cp-lista").innerHTML = h;
@@ -8155,7 +8184,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
     var box = document.getElementById("m-cp-lista");
     box.querySelectorAll("[data-scegli]").forEach(function(b){
-      b.onclick = function(){ assegnaPosta(p.id, b.dataset.scegli); };
+      b.onclick = function(){ assegnaPosta(p.id, b.dataset.scegli, b.dataset.tipo); };
     });
     var bs = document.getElementById("cp-scambia");
     if(bs) bs.onclick = function(){
@@ -8178,13 +8207,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     return p ? (p.nome || ("posta " + (p.numero||""))) : "un'altra posta";
   }
 
-  async function assegnaPosta(postaId, membroId){
+  async function assegnaPosta(postaId, chiId, tipo){
     if(!giornataAperta || !bsAperta) return;
     if(!navigator.onLine){ toast("Serve la rete"); return; }
-    var vecchia = postaDi(membroId, bsAperta);          // era gia' da un'altra parte?
+    var ospite = (tipo === "ospite");
+    var vecchia = ospite ? postaDiOspite(chiId, bsAperta) : postaDi(chiId, bsAperta);
     var occupata = assegnazioneDi(postaId, bsAperta);   // qui c'era qualcun altro?
     try{
-      if(occupata && occupata.membro_id !== membroId){
+      var stessoTizio = ospite ? (occupata && occupata.ospite_id === chiId)
+                               : (occupata && occupata.membro_id === chiId);
+      if(occupata && !stessoTizio){
         var rd = await sb.from("hn_assegnazioni").delete().eq("id", occupata.id);
         if(rd.error) throw rd.error;
         assegnazioni = assegnazioni.filter(function(x){ return x.id !== occupata.id; });
@@ -8196,18 +8228,21 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         var k = assegnazioni.findIndex(function(x){ return x.id === vecchia.id; });
         if(k>=0) assegnazioni[k] = ru.data;
       }else{
-        var ri = await sb.from("hn_assegnazioni").insert({
+        var riga = {
           squadra_id:me.squadra_id, battuta_id:giornataAperta.id,
           battuta_svolta_id:bsAperta, ruolo:"posta",
-          area_id:apAreaId, posta_id:postaId, membro_id:membroId,
+          area_id:apAreaId, posta_id:postaId,
+          membro_id: ospite ? null : chiId,
+          ospite_id: ospite ? chiId : null,
           assegnata_da:me.membro_id
-        }).select().single();
+        };
+        var ri = await sb.from("hn_assegnazioni").insert(riga).select().single();
         if(ri.error) throw ri.error;
         assegnazioni.push(ri.data);
       }
       document.getElementById("m-chiposta").classList.remove("show");
       renderAssegnazioni();
-      toast(nomeDi(membroId) + " in " + nomePosta(postaId));
+      toast((ospite ? nomeOspite(chiId) : nomeDi(chiId)) + " in " + nomePosta(postaId));
     }catch(e){ avvisaErroreAssegnazione(e); }
   }
 
@@ -8328,7 +8363,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   async function togliIncarico(id){
     var x = assegnazioni.find(function(y){ return y.id === id; });
     if(!x || !puoGestireBattute()) return;
-    if(!confirm("Togliere l'incarico a " + nomeDi(x.membro_id) + "?")) return;
+    if(!confirm("Togliere l'incarico a " + nomeIncarico(x) + "?")) return;
     if(!navigator.onLine){ toast("Serve la rete"); return; }
     try{
       var r = await sb.from("hn_assegnazioni").delete().eq("id", id);
@@ -16000,6 +16035,7 @@ function fineA(){
     h += '<div class="gm-legenda">'
        + '<span><i style="background:#E8C86A"></i>poste</span>'
        + '<span><i style="background:#B98CE0"></i>da verificare</span>'
+       + '<span style="opacity:.85">il colore della posta \u00e8 la sua sezione</span>'
        + '<span><i style="background:#7B5EA7"></i>linee da tracciare</span>'
        + '<span><i style="background:#4FC3F7"></i>giro fatto</span>'
        + '<span><i style="background:#E04A34"></i>uscita</span>'
@@ -16137,11 +16173,36 @@ function fineA(){
       var pp=puntiDi(tc.percorso).filter(buono); if(pp.length<2) return;
       g.beginPath(); pp.forEach(function(p,i){ i?g.lineTo(X(p.lng),Y(p.lat)):g.moveTo(X(p.lng),Y(p.lat)); }); g.stroke();
     });
-    // le poste, col numero
+    /* LE SEZIONI: ogni posta prende il colore del suo settore, e dietro l'alone.
+       Serve al capo per vedere se una sezione e' sguarnita senza aprire la
+       distribuzione. Linee e frecce restano: sono il colpo d'occhio che conta. */
+    var setts = settoriDi(a.id);
+    var colDi = {};
+    setts.forEach(function(st, i){
+      var dentro = (a.poste||[]).filter(function(p){ return buono(p) && postaNelSettore(p, st); });
+      if(!dentro.length) return;
+      dentro.forEach(function(p){ colDi[p.id] = coloreSettore(i); });
+      var xs = dentro.map(function(p){ return X(p.lng); }), ys = dentro.map(function(p){ return Y(p.lat); });
+      var cx0 = (Math.min.apply(null,xs)+Math.max.apply(null,xs))/2;
+      var cy0 = (Math.min.apply(null,ys)+Math.max.apply(null,ys))/2;
+      var rx = (Math.max.apply(null,xs)-Math.min.apply(null,xs))/2 + 24;
+      var ry = (Math.max.apply(null,ys)-Math.min.apply(null,ys))/2 + 24;
+      var c = coloreSettore(i);
+      g.save();
+      g.globalAlpha = .16; g.fillStyle = c;
+      g.beginPath(); g.ellipse(cx0, cy0, rx, ry, 0, 0, 7); g.fill();
+      g.globalAlpha = .55; g.strokeStyle = c; g.lineWidth = 1.5; g.setLineDash([5,5]);
+      g.stroke(); g.setLineDash([]);
+      g.globalAlpha = 1;
+      g.fillStyle = c; g.font = "700 9px system-ui"; g.textAlign = "center"; g.textBaseline = "bottom";
+      g.fillText(String(st.nome||"sezione").toUpperCase(), cx0, cy0-ry-4);
+      g.restore();
+    });
+    // le poste, col numero e il colore della loro sezione
     (a.poste||[]).forEach(function(p){
       if(!buono(p)) return;
       /* messa da mappa e non certificata sul terreno: si vede che e' da verificare */
-      g.fillStyle = p.da_verificare ? "#B98CE0" : "#E8C86A"; g.strokeStyle="#241d13"; g.lineWidth=1.5;
+      g.fillStyle = p.da_verificare ? "#B98CE0" : (colDi[p.id] || "#E8C86A"); g.strokeStyle="#241d13"; g.lineWidth=1.5;
       g.beginPath(); g.arc(X(p.lng),Y(p.lat),9,0,7); g.fill(); g.stroke();
       g.fillStyle="#241d13"; g.font="700 10px system-ui"; g.textAlign="center"; g.textBaseline="middle";
       g.fillText(String(p.numero||""), X(p.lng), Y(p.lat));
