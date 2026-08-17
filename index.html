@@ -1447,6 +1447,15 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 #sergente-scroll .campo{width:100%; background:#00000030; border:1px solid var(--dark3); border-radius:11px;
   padding:11px 12px; color:var(--cream); font-size:15px; font-family:inherit; line-height:1.45;}
 
+
+#m-riapribatt .rg{display:flex; align-items:center; gap:9px; background:#ffffff08;
+  border:1px solid var(--dark3); border-radius:10px; padding:9px 11px; margin-bottom:6px;
+  font-size:13.5px; color:var(--cream);}
+#m-riapribatt .rg .e{font-size:16px;}
+.smbatt .chi{font-size:11px; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.smbatt .chi.u{color:#7be0a8;}
+.smbatt .chi.p{color:#e0a87b;}
+
 </style>
 </head>
 <body>
@@ -2410,6 +2419,21 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   </div>
 </div>
 
+
+<!-- RIAPRIRE UNA BATTUTA GIA' FATTA -->
+<div class="modal" id="m-riapribatt">
+  <div class="sheet">
+    <h3>Battuta gi&agrave; fatta</h3>
+    <div style="font-size:17px; color:var(--gold); margin:2px 0 4px" id="rb-nome">&mdash;</div>
+    <p class="hint">Qui sotto quello che hai gi&agrave; assegnato. Se apri, la battuta torna da chiudere.</p>
+    <div id="rb-righe" style="margin:10px 0"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="rb-no">Annulla</button>
+      <button class="btn primary" id="rb-si">Apri e modifica</button>
+    </div>
+  </div>
+</div>
+
 <!-- MENU GENERALE -->
 <div id="menu">
   <div class="panel">
@@ -3099,7 +3123,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.69";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.70";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -11735,6 +11759,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     return Object.keys(per).map(function(k){ return per[k]; });
   }
 
+  function nomeBreveDi(mid){
+    var n = nomeDi(mid);
+    return String(n||"").split(" ")[0];
+  }
   function nomeDi(mid){
     var m = membri.find(function(x){ return x.id === mid; });
     return m ? m.nome : "\u2014";
@@ -12247,11 +12275,20 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         var pd = smFatti.filter(function(f){ return f.tipo==="padella" && f.battuta_svolta_id===bs.id; })
                         .reduce(function(t,f){ return t + (Number(f.quanti)||0); }, 0);
         var fatta = !!bs.giudicata_il;
+        /* sulla riga si legge CHI ha preso cosa: cosi' si sa se ci si ricorda
+           bene prima ancora di aprirla */
+        var chiU = smFatti.filter(function(f){ return f.tipo==="uccisione" && f.battuta_svolta_id===bs.id; })
+                          .map(function(f){ return f.membro_id ? nomeBreveDi(f.membro_id) + (f.quanti>1?(" \u00d7"+f.quanti):"") : "contesa"; });
+        var chiP = smFatti.filter(function(f){ return f.tipo==="padella" && f.battuta_svolta_id===bs.id; })
+                          .map(function(f){ return nomeBreveDi(f.membro_id); });
         h += '<button class="smbatt'+(bs.id===smBsId?" scelta":"")+(fatta?" fatta":"")+'" data-smbs="'+bs.id+'">'
           +  '<span class="num">'+(bs.numero||"?")+'</span>'
           +  '<span class="mid"><div class="nm">'+esc(arS?arS.nome:"mappa")+'</div>'
           +  '<div class="ds">'+ab+' abbattut'+(ab===1?"o":"i")+' \u00b7 '+asg+' assegnat'+(asg===1?"o":"i")
-          +  (pd?(' \u00b7 '+pd+' padell'+(pd===1?"a":"e")):'')+'</div></span>'
+          +  (pd?(' \u00b7 '+pd+' padell'+(pd===1?"a":"e")):'')+'</div>'
+          +  (chiU.length ? ('<div class="chi u">\ud83d\udc17 '+esc(chiU.join(", "))+'</div>') : '')
+          +  (chiP.length ? ('<div class="chi p">\ud83d\udca8 '+esc(chiP.join(", "))+'</div>') : '')
+          +  '</span>'
           +  '<span class="st">'+(fatta ? "\u2713 fatta" : (ab>asg ? (ab-asg)+" da dare" : "da chiudere"))+'</span>'
           +  '</button>';
       });
@@ -12465,7 +12502,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       b.onclick = function(){ smBattutaId = b.dataset.smb; smBsId = null; caricaSergente(); };
     });
     root.querySelectorAll("[data-smbs]").forEach(function(b){
-      b.onclick = function(){ smBsId = b.dataset.smbs; renderSergente(); };
+      b.onclick = function(){
+        var bs = smBattute.find(function(x){ return x.id === b.dataset.smbs; });
+        /* una battuta gia' chiusa non si riapre per sbaglio: prima si chiede.
+           Prima bastava sfiorarla e l'elenco si spalancava. */
+        if(bs && bs.giudicata_il){ chiediRiapriBattuta(bs); return; }
+        smBsId = b.dataset.smbs;
+        renderSergente();
+      };
     });
     root.querySelectorAll("[data-medsc]").forEach(function(b){
       b.onclick = function(){
@@ -12481,6 +12525,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     var bmd = root.querySelector("#med-dai");
     if(bmd) bmd.onclick = assegnaMedagliaCerimonia;
+    document.getElementById("rb-no").onclick=function(){
+      document.getElementById("m-riapribatt").classList.remove("show"); bsDaRiaprire=null;
+    };
+    document.getElementById("rb-si").onclick=confermaRiapriBattuta;
     var bch = root.querySelector("#sm-chiudi");
     if(bch) bch.onclick = chiudiGiudizioBattuta;
     var bri = root.querySelector("#sm-riapri");
@@ -12532,6 +12580,38 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   /* CHIUDERE L'ASSEGNAZIONE DI UNA BATTUTA
      Cosi' Mario sa sempre cosa ha gia' fatto e cosa gli resta. Si puo' riaprire:
      se ci si accorge dopo di un capo attribuito male, non si ricomincia da zero. */
+
+  /* il popup che chiede se riaprire una battuta gia' fatta */
+  var bsDaRiaprire = null;
+  function chiediRiapriBattuta(bs){
+    bsDaRiaprire = bs;
+    var ar = aree.find(function(x){ return x.id === bs.area_id; });
+    var u = smFatti.filter(function(f){ return f.tipo==="uccisione" && f.battuta_svolta_id===bs.id; });
+    var p = smFatti.filter(function(f){ return f.tipo==="padella" && f.battuta_svolta_id===bs.id; });
+    document.getElementById("rb-nome").textContent =
+      (bs.numero ? bs.numero+"\u00aa \u00b7 " : "") + (ar ? ar.nome : "battuta");
+    var righe = "";
+    u.forEach(function(f){
+      righe += '<div class="rg"><span class="e">\ud83d\udc17</span><span>'
+            + (f.membro_id ? esc(nomeDi(f.membro_id)) : "contesa")
+            + (f.quanti>1 ? (" \u00d7"+f.quanti) : "") + '</span></div>';
+    });
+    p.forEach(function(f){
+      righe += '<div class="rg"><span class="e">\ud83d\udca8</span><span>'+esc(nomeDi(f.membro_id))+' \u00b7 padella</span></div>';
+    });
+    document.getElementById("rb-righe").innerHTML = righe
+      || '<div class="hint">Nessuna assegnazione su questa battuta.</div>';
+    document.getElementById("m-riapribatt").classList.add("show");
+  }
+  async function confermaRiapriBattuta(){
+    var bs = bsDaRiaprire;
+    document.getElementById("m-riapribatt").classList.remove("show");
+    if(!bs) return;
+    smBsId = bs.id;
+    bsDaRiaprire = null;
+    await scriviGiudizio(bs.id, null);   // torna aperta, e l'elenco si apre
+  }
+
   async function chiudiGiudizioBattuta(){
     var bs = smBattute.find(function(x){ return x.id === smBsId; });
     if(!bs || !puoGiudicare()) return;
