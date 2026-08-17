@@ -3029,7 +3029,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.63";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.64";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4497,6 +4497,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     vistaAttiva = v;
     document.querySelectorAll(".view").forEach(function(s){ s.classList.toggle("active", s.id==="v-"+v); });
     if(v==="giochi" && typeof GIOCHI!=="undefined") GIOCHI.sezione();
+    /* la casella in Home apre la vista ma non la riempiva: restava su "Carico..." */
+    if(v==="ossnott" && typeof renderOsservazioni==="function") renderOsservazioni();
     document.querySelectorAll("nav.tabs button").forEach(function(b){
       b.classList.toggle("on", !!b.dataset.view && b.dataset.view===v); });
     // il GPS si accende solo dove serve. In home serve se ho segnato il mezzo:
