@@ -1377,6 +1377,22 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   color:var(--muted); font-size:12.5px;}
 .avvsw button.on{background:var(--dark3); color:var(--cream); font-weight:700;}
 
+
+/* le battute della giornata nella schermata del sergente */
+.smbatt{display:flex; align-items:center; gap:11px; width:100%; text-align:left; margin-bottom:7px;
+  background:#ffffff08; border:1px solid var(--dark3); border-radius:12px; padding:11px 12px; color:var(--cream);}
+.smbatt.scelta{border-color:var(--gold); background:#e0b8780f;}
+.smbatt.fatta{opacity:.55;}
+.smbatt .num{width:28px; height:28px; border-radius:50%; background:var(--dark3); color:var(--cream);
+  display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; flex-shrink:0;}
+.smbatt.fatta .num{background:#2d5a3f; color:#fff;}
+.smbatt.scelta .num{background:var(--gold); color:#241d13;}
+.smbatt .mid{flex:1; min-width:0;}
+.smbatt .nm{font-size:14px;}
+.smbatt .ds{font-size:10.5px; color:var(--muted); margin-top:2px;}
+.smbatt .st{font-size:11px; color:var(--gold); white-space:nowrap;}
+.smbatt.fatta .st{color:#7be0a8;}
+
 </style>
 </head>
 <body>
@@ -3029,7 +3045,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.66";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.67";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12161,19 +12177,34 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     h += '</div>';
 
-    // se la giornata ha piu' battute, si sceglie a quale attribuire
-    if(smBattute.length > 1){
-      h += '<div class="sechead">Battuta</div>';
-      h += '<div style="display:flex; gap:6px; overflow-x:auto; margin-bottom:10px">';
+    /* UNA BATTUTA PER VOLTA. Prima l'assegnazione restava aperta su tutta la
+       giornata e Mario non sapeva piu' cosa aveva gia' fatto: adesso ogni battuta
+       si apre, si assegna e si CHIUDE, e se serve si riapre. */
+    if(smBattute.length){
+      var quante = smBattute.length;
+      var fatteN = smBattute.filter(function(x){ return x.giudicata_il; }).length;
+      h += '<div class="sechead">Battute della giornata \u00b7 '+fatteN+' di '+quante+' fatte</div>';
       smBattute.forEach(function(bs){
         var arS = aree.find(function(x){ return x.id === bs.area_id; });
-        h += '<button class="chip '+(bs.id===smBsId?'on':'')+'" data-smbs="'+bs.id+'" style="flex-shrink:0">'
-           + (bs.numero?bs.numero+'ª · ':'')+esc(arS?arS.nome:'mappa')+'</button>';
+        var ab = Number(bs.capi_abbattuti)||0;
+        var asg = smFatti.filter(function(f){ return f.tipo==="uccisione" && f.battuta_svolta_id===bs.id; })
+                         .reduce(function(t,f){ return t + (Number(f.quanti)||0); }, 0);
+        var pd = smFatti.filter(function(f){ return f.tipo==="padella" && f.battuta_svolta_id===bs.id; })
+                        .reduce(function(t,f){ return t + (Number(f.quanti)||0); }, 0);
+        var fatta = !!bs.giudicata_il;
+        h += '<button class="smbatt'+(bs.id===smBsId?" scelta":"")+(fatta?" fatta":"")+'" data-smbs="'+bs.id+'">'
+          +  '<span class="num">'+(bs.numero||"?")+'</span>'
+          +  '<span class="mid"><div class="nm">'+esc(arS?arS.nome:"mappa")+'</div>'
+          +  '<div class="ds">'+ab+' abbattut'+(ab===1?"o":"i")+' \u00b7 '+asg+' assegnat'+(asg===1?"o":"i")
+          +  (pd?(' \u00b7 '+pd+' padell'+(pd===1?"a":"e")):'')+'</div></span>'
+          +  '<span class="st">'+(fatta ? "\u2713 fatta" : (ab>asg ? (ab-asg)+" da dare" : "da chiudere"))+'</span>'
+          +  '</button>';
       });
-      h += '</div>';
       if(!smBsId){
-        h += '<div class="card" style="background:#4a3320; border:1px solid #6b4a28; font-size:11.5px; color:var(--cream); line-height:1.5; margin-bottom:12px">'
-           + 'Scegli la battuta: cos\u00ec si sa in quale mappa \u00e8 stato abbattuto.</div>';
+        h += '<div class="card" style="background:#4a3320; border:1px solid #6b4a28; font-size:11.5px; color:var(--cream); line-height:1.5; margin:10px 0 12px">'
+           + 'Scegli la battuta su cui lavorare: gli abbattimenti si assegnano <b>una battuta per volta</b>, '
+           + 'cos\u00ec si sa in quale mappa \u00e8 stato preso ogni capo.</div>';
+        root.innerHTML = h; bindSergente(); return;
       }
     }
 
@@ -12186,10 +12217,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
     /* Quanti capi sono stati presi davvero, contati dai capi durante le battute:
        il sergente li deve assegnare TUTTI, e qui vede quanti gliene restano. */
-    var daBattute = smBattute.reduce(function(t,x){ return t + (Number(x.capi_abbattuti)||0); }, 0);
-    var assegnati = smFatti.filter(function(f){ return f.tipo==="uccisione"; })
+    var bsOra = smBattute.find(function(x){ return x.id === smBsId; });
+    var daBattute = bsOra ? (Number(bsOra.capi_abbattuti)||0)
+                          : smBattute.reduce(function(t,x){ return t + (Number(x.capi_abbattuti)||0); }, 0);
+    var assegnati = smFatti.filter(function(f){
+                             return f.tipo==="uccisione" && (!bsOra || f.battuta_svolta_id===bsOra.id); })
                            .reduce(function(t,f){ return t + (Number(f.quanti)||0); }, 0);
-    var scappati = smBattute.reduce(function(t,x){ return t + (Number(x.capi_scappati)||0); }, 0);
+    var scappati = bsOra ? (Number(bsOra.capi_scappati)||0)
+                         : smBattute.reduce(function(t,x){ return t + (Number(x.capi_scappati)||0); }, 0);
     if(giudice && (daBattute || assegnati)){
       var restano = daBattute - assegnati;
       h += '<div class="bilancio'+(restano===0?" ok":(restano<0?" troppi":""))+'">'
@@ -12202,6 +12237,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         +  '</span></div>';
     }
     var gConclusa = !!(b && b.stato === "conclusa");
+    if(giudice && bsOra){
+      var arO = aree.find(function(x){ return x.id === bsOra.area_id; });
+      h += bsOra.giudicata_il
+        ? ('<button class="btn line" id="sm-riapri" style="margin-bottom:10px; border-color:#8a3b2e; color:#e0a89e">'
+           + '\u21ba Riapri l\'assegnazione di ' + esc(arO?arO.nome:"questa battuta") + '</button>')
+        : ('<button class="btn primary" id="sm-chiudi" style="margin-bottom:10px">'
+           + '\u2713 Ho finito con ' + esc(arO?arO.nome:"questa battuta") + '</button>');
+    }
     if(giudice && !gConclusa){
       h += '<div class="hint" style="margin:-4px 2px 10px">Giornata ancora aperta: qui segni '
         +  '<b>uccisioni e padelle</b>. Medaglie e verbale quando il capocaccia la conclude.</div>';
@@ -12320,6 +12363,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     root.querySelectorAll("[data-smbs]").forEach(function(b){
       b.onclick = function(){ smBsId = b.dataset.smbs; renderSergente(); };
     });
+    var bch = root.querySelector("#sm-chiudi");
+    if(bch) bch.onclick = chiudiGiudizioBattuta;
+    var bri = root.querySelector("#sm-riapri");
+    if(bri) bri.onclick = riapriGiudizioBattuta;
     root.querySelectorAll("[data-smf]").forEach(function(b){
       b.onclick = function(){
         var p = b.dataset.smf.split("|");
@@ -12338,6 +12385,48 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(c) c.onclick = function(){ clStagione = null; showView("classifica"); };
     var vm = root.querySelector("#sm-vaimed");
     if(vm) vm.onclick = function(){ apriMedagliere(null); };
+  }
+
+
+  /* CHIUDERE L'ASSEGNAZIONE DI UNA BATTUTA
+     Cosi' Mario sa sempre cosa ha gia' fatto e cosa gli resta. Si puo' riaprire:
+     se ci si accorge dopo di un capo attribuito male, non si ricomincia da zero. */
+  async function chiudiGiudizioBattuta(){
+    var bs = smBattute.find(function(x){ return x.id === smBsId; });
+    if(!bs || !puoGiudicare()) return;
+    var ab = Number(bs.capi_abbattuti)||0;
+    var asg = smFatti.filter(function(f){ return f.tipo==="uccisione" && f.battuta_svolta_id===bs.id; })
+                     .reduce(function(t,f){ return t + (Number(f.quanti)||0); }, 0);
+    if(ab > asg){
+      if(!confirm("Ti restano " + (ab-asg) + " abbattiment" + ((ab-asg)===1?"o":"i")
+        + " da assegnare su questa battuta.\n\nChiudo comunque? Potrai riaprirla quando vuoi.")) return;
+    }
+    await scriviGiudizio(bs.id, new Date().toISOString());
+  }
+  async function riapriGiudizioBattuta(){
+    var bs = smBattute.find(function(x){ return x.id === smBsId; });
+    if(!bs || !puoGiudicare()) return;
+    await scriviGiudizio(bs.id, null);
+  }
+  async function scriviGiudizio(id, quando){
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      var r = await sb.from("hn_battute_svolte")
+                .update({giudicata_il: quando, giudicata_da: quando ? me.membro_id : null})
+                .eq("id", id).select().single();
+      if(r.error) throw r.error;
+      var k = smBattute.findIndex(function(x){ return x.id===id; });
+      if(k>=0) smBattute[k] = r.data;
+      var k2 = battuteSvolte.findIndex(function(x){ return x.id===id; });
+      if(k2>=0) battuteSvolte[k2] = r.data;
+      toast(quando ? "Battuta chiusa" : "Battuta riaperta");
+    }catch(e){ toast("Non riesco a salvare: " + (e && e.message ? e.message : "errore")); return; }
+    /* dopo la chiusura si passa alla prossima da fare, senza cercarla a mano */
+    if(quando){
+      var prossima = smBattute.find(function(x){ return !x.giudicata_il; });
+      smBsId = prossima ? prossima.id : null;
+    }
+    renderSergente();
   }
 
   async function cambiaFatto(mid, tipo, delta){
