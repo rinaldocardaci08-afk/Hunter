@@ -1393,6 +1393,60 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .smbatt .st{font-size:11px; color:var(--gold); white-space:nowrap;}
 .smbatt.fatta .st{color:#7be0a8;}
 
+
+/* il sergente: una riga per cacciatore, stretta */
+.smtesta{display:flex; align-items:baseline; gap:10px; background:#00000030; border:1px solid var(--dark3);
+  border-radius:10px; padding:9px 11px; margin-bottom:9px;}
+.smtesta .d{font-size:12.5px; color:var(--cream);}
+.smtesta .m{font-size:12.5px; color:var(--gold); margin-left:auto; font-weight:600;}
+.smrigat{display:flex; align-items:center; gap:8px; padding:0 11px 5px;}
+.smrigat .nm{flex:1;}
+.smrigat .cl{width:104px; text-align:center; font-size:10px; letter-spacing:.5px; text-transform:uppercase;}
+.smriga{display:flex; align-items:center; gap:8px; background:#ffffff08; border:1px solid var(--dark3);
+  border-radius:10px; padding:7px 11px; margin-bottom:5px;}
+.smriga.pieno{border-color:#3d7a55; background:#2d5a3f22;}
+.smriga .nm{flex:1; min-width:0; font-size:13.5px; color:var(--cream); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap;}
+.smriga .cnt{display:flex; align-items:center; gap:4px; width:104px; justify-content:center; flex-shrink:0;}
+.smriga .cnt button{width:30px; height:30px; border-radius:8px; border:1px solid var(--dark3);
+  background:#00000035; color:var(--cream); font-size:16px; line-height:1; padding:0;}
+.smriga .cnt b{font-family:'Arial Narrow',Impact,sans-serif; font-size:19px; width:20px; text-align:center;}
+.smriga .solo{font-size:13px; color:var(--muted); width:70px; text-align:center;}
+.smriga .medbtn{width:32px; height:30px; border-radius:8px; border:1px solid var(--dark3);
+  background:#00000035; font-size:14px; padding:0; flex-shrink:0;}
+.smextra{display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:0 11px 6px; margin-top:-2px;}
+.smextra .vc{font-size:11px; color:#c9b3e0;}
+.smextra .cnt{display:flex; align-items:center; gap:4px;}
+.smextra .cnt button{width:26px; height:26px; border-radius:7px; border:1px solid var(--dark3);
+  background:#00000035; color:var(--cream); font-size:14px; padding:0;}
+.smextra .cnt b{font-size:14px; width:16px; text-align:center;}
+.smextra .piuvoci{background:none; border:none; color:var(--muted); font-size:11px; text-decoration:underline;}
+.smmed{display:flex; flex-wrap:wrap; gap:5px; padding:0 11px 8px;}
+@media (max-width:360px){
+  .smriga .cnt{width:92px;}
+  .smrigat .cl{width:92px;}
+}
+
+
+.smriga .recq{width:30px; height:30px; border-radius:8px; border:1px solid var(--dark3);
+  background:#00000035; color:#fff; font-size:14px; padding:0; flex-shrink:0;}
+.smriga .recq.on{background:#6B4A9E; border-color:#A86BD0;}
+.smrigat .clr{width:30px; text-align:center; font-size:9.5px; letter-spacing:.5px; text-transform:uppercase;}
+
+
+/* la cerimonia delle medaglie */
+.medscelte{display:flex; gap:8px; overflow-x:auto; padding:2px 0 4px;}
+.medpic{min-width:96px; max-width:96px; border-radius:12px; border:1px solid var(--dark3);
+  background:#00000030; padding:9px 7px; text-align:center; color:var(--cream); flex-shrink:0;}
+.medpic.on{border-color:var(--gold); background:#e0b8781a;}
+.medpic img{width:46px; height:46px; object-fit:contain; display:block; margin:0 auto 5px;}
+.medpic .mi{font-size:30px; display:block; margin-bottom:4px;}
+.medpic .nm{display:block; font-size:11px; line-height:1.25;}
+.medpic .pt{display:block; font-size:10.5px; color:var(--gold); margin-top:3px;}
+#sergente-scroll .et{font-size:11px; letter-spacing:1px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;}
+#sergente-scroll .campo{width:100%; background:#00000030; border:1px solid var(--dark3); border-radius:11px;
+  padding:11px 12px; color:var(--cream); font-size:15px; font-family:inherit; line-height:1.45;}
+
 </style>
 </head>
 <body>
@@ -3045,7 +3099,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.67";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.69";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -11563,6 +11617,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   var clAdesioni = [];        // le adesioni delle giornate concluse della stagione
   var smBattutaId = null;     // la giornata su cui sta lavorando Mario
   var smConSvolte = {};       // giornate con almeno una battuta chiusa
+  var smCerca = "", smExtraAperto = {};
   var smBsId = null;          // e quale battuta di quella giornata
   var smBattute = [];         // le battute della giornata scelta
   var smAdesioni = [];        // le adesioni della SOLA giornata di Mario
@@ -12254,47 +12309,95 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       h += '<div class="card" style="font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:8px">'
          + 'Uccisioni, padelle e verbale li tiene il sergente. Tu puoi assegnare le medaglie.</div>';
     }
-    presenti.forEach(function(a){
-      var u = fattoDi(a.membro_id, "uccisione");
-      var p = fattoDi(a.membro_id, "padella");
-      var med = smFatti.filter(function(f){ return f.membro_id===a.membro_id && f.tipo==="medaglia"; });
-      h += '<div class="card" style="margin-bottom:7px">';
-      h += '<div style="display:flex; align-items:center; gap:8px">';
-      h += '<div style="flex:1; min-width:0; font-size:14px; color:var(--cream); font-weight:600">'+esc(nomeDi(a.membro_id))+'</div>';
-      if(gConclusa) h += '<button class="btn line" data-smmed="'+a.membro_id+'" style="width:auto; padding:6px 10px; font-size:12px">🎖️</button>';
+    /* RIGHE STRETTE, UNA PER CACCIATORE.
+       Con trenta presenti la scheda alta per ognuno diventava un rotolo: adesso
+       una riga sola col nome e i contatori a destra, e in testa la battuta su
+       cui si sta lavorando, che con dieci battute in stagione serve. */
+    if(giudice && bsOra){
+      var arH = aree.find(function(x){ return x.id === bsOra.area_id; });
+      h += '<div class="smtesta"><span class="d">battuta del ' + esc(fmtGiorno(daIso(b.data))) + '</span>'
+        +  '<span class="m">' + (bsOra.numero ? (bsOra.numero+'\u00aa \u00b7 ') : '')
+        +  esc(arH ? arH.nome : "mappa") + '</span></div>';
+    }
+    if(giudice && presenti.length > 12){
+      h += '<input id="sm-cerca" placeholder="Cerca un nome\u2026" value="'+esc(smCerca||"")+'" '
+        +  'style="width:100%; background:#00000030; border:1px solid var(--dark3); border-radius:11px; '
+        +  'padding:11px 12px; color:var(--cream); font-size:15px; margin-bottom:8px">';
+    }
+    var vociMan = baremaRighe.filter(function(x){
+      return x.tipo !== "presenza" && x.tipo !== "tracciata";
+    });
+    if(!vociMan.some(function(x){ return x.tipo==="uccisione"; })) vociMan.unshift({tipo:"uccisione", nome:"Uccisione"});
+    if(!vociMan.some(function(x){ return x.tipo==="padella"; }))   vociMan.push({tipo:"padella", nome:"Padella"});
+    /* le colonne: uccisione e padella sempre, le altre voci del barema sotto */
+    var principali = vociMan.filter(function(x){ return x.tipo==="uccisione" || x.tipo==="padella"; });
+    var extra = vociMan.filter(function(x){
+      return x.tipo!=="uccisione" && x.tipo!=="padella" && x.tipo!=="recupero"; });
+
+    if(giudice){
+      h += '<div class="smrigat"><span class="nm"></span>';
+      h += '<span class="clr" style="color:#c9b3e0">rec.</span>';
+      principali.forEach(function(vc){
+        h += '<span class="cl" style="color:'+(vc.tipo==="uccisione"?"#7be0a8":"#e0a87b")+'">'+esc(nomeVoce(vc))+'</span>';
+      });
       h += '</div>';
+    }
+    var filtrati = presenti.filter(function(a){
+      if(!smCerca) return true;
+      return String(nomeDi(a.membro_id)||"").toLowerCase().indexOf(smCerca.toLowerCase()) >= 0;
+    });
+    if(!filtrati.length){
+      h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessun nome con \u00ab'+esc(smCerca)+'\u00bb.</div>';
+    }
+    filtrati.forEach(function(a){
+      var med = smFatti.filter(function(f){ return f.membro_id===a.membro_id && f.tipo==="medaglia"; });
+      var qualcosa = principali.some(function(vc){ var f=fattoDi(a.membro_id, vc.tipo); return f && f.quanti; });
+      h += '<div class="smriga'+(qualcosa?" pieno":"")+'">';
+      h += '<span class="nm">'+esc(nomeDi(a.membro_id))+'</span>';
       if(giudice){
-        // le voci le decide il barema: uccisioni, padelle e tutte quelle
-        // aggiunte in Amministrazione. Niente elenco cablato nel codice.
-        var vociMan = baremaRighe.filter(function(x){
-          return x.tipo !== "presenza" && x.tipo !== "tracciata";
-        });
-        if(!vociMan.some(function(x){ return x.tipo==="uccisione"; })) vociMan.unshift({tipo:"uccisione", nome:"Uccisione"});
-        if(!vociMan.some(function(x){ return x.tipo==="padella"; }))   vociMan.push({tipo:"padella", nome:"Padella"});
-        vociMan.forEach(function(vc){
+        /* il RECUPERO e' una casella da spuntare, non un contatore: o l'ha fatto
+           o no. I punti li prende dal barema come tutto il resto. */
+        var fr = fattoDi(a.membro_id, "recupero");
+        h += '<button class="recq'+((fr&&fr.quanti)?" on":"")+'" data-smrec="'+a.membro_id+'" '
+          +  'title="Recupero">'+((fr&&fr.quanti)?"\u2713":"")+'</button>';
+        principali.forEach(function(vc){
           var f = fattoDi(a.membro_id, vc.tipo);
-          var col = vc.tipo==="uccisione" ? "#7be0a8" : (vc.tipo==="padella" ? "#e0a87b" : "#c9b3e0");
-          h += '<div style="display:flex; align-items:center; gap:12px; margin-top:7px">';
-          h += '<div style="flex:1; font-size:12px; color:'+col+'">'+esc(nomeVoce(vc))+'</div>';
-          h += '<div class="cont"><button data-smf="'+a.membro_id+'|'+vc.tipo+'|-1">−</button>';
-          h += '<div class="v">'+(f?f.quanti:0)+'</div>';
-          h += '<button data-smf="'+a.membro_id+'|'+vc.tipo+'|1">+</button></div></div>';
+          h += '<span class="cnt"><button data-smf="'+a.membro_id+'|'+vc.tipo+'|-1">\u2212</button>'
+            +  '<b>'+(f?f.quanti:0)+'</b>'
+            +  '<button data-smf="'+a.membro_id+'|'+vc.tipo+'|1">+</button></span>';
         });
       }else{
-        h += '<div style="display:flex; gap:14px; margin-top:7px; font-size:11px; color:var(--muted)">';
-        h += '<div>Uccisioni: <b style="color:#7be0a8">'+(u?u.quanti:0)+'</b></div>';
-        h += '<div>Padelle: <b style="color:#e0a87b">'+(p?p.quanti:0)+'</b></div></div>';
+        var u2 = fattoDi(a.membro_id, "uccisione"), p2 = fattoDi(a.membro_id, "padella");
+        h += '<span class="solo">'+(u2?u2.quanti:0)+' / '+(p2?p2.quanti:0)+'</span>';
+      }
+      if(gConclusa){
+        h += '<button class="medbtn" data-smmed="'+a.membro_id+'">\ud83c\udf96\ufe0f</button>';
+      }
+      h += '</div>';
+      /* le voci in piu' del barema e le medaglie assegnate, solo se ci sono */
+      if(giudice && extra.length){
+        h += '<div class="smextra">';
+        extra.forEach(function(vc){
+          var f = fattoDi(a.membro_id, vc.tipo);
+          if(!f && !smExtraAperto[a.membro_id]) return;
+          h += '<span class="vc">'+esc(nomeVoce(vc))+'</span>'
+            +  '<span class="cnt"><button data-smf="'+a.membro_id+'|'+vc.tipo+'|-1">\u2212</button>'
+            +  '<b>'+(f?f.quanti:0)+'</b>'
+            +  '<button data-smf="'+a.membro_id+'|'+vc.tipo+'|1">+</button></span>';
+        });
+        h += '<button class="piuvoci" data-smextra="'+a.membro_id+'">'
+          +  (smExtraAperto[a.membro_id] ? "meno voci" : "altre voci") + '</button>';
+        h += '</div>';
       }
       if(med.length){
-        h += '<div style="margin-top:8px; display:flex; flex-wrap:wrap; gap:5px">';
+        h += '<div class="smmed">';
         med.forEach(function(f){
           var m = medaglie.find(function(x){ return x.id === f.medaglia_id; });
-          h += '<button class="chip" data-smdel="'+f.id+'" style="font-size:11px; padding:5px 9px">🎖️ '
-             + esc(m ? m.nome : "medaglia")+' ✕</button>';
+          h += '<button class="chip" data-smdel="'+f.id+'" style="font-size:11px; padding:4px 8px">\ud83c\udf96\ufe0f '
+             + esc(m ? m.nome : "medaglia")+' \u2715</button>';
         });
         h += '</div>';
       }
-      h += '</div>';
     });
     /* CONTESA: capita che non si sappia di chi sia il capo abbattuto.
        Va segnato lo stesso, altrimenti i conti della giornata non tornano. */
@@ -12317,6 +12420,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
          + 'uccisioni e padelle invece si segnano subito, battuta per battuta.</div>';
       root.innerHTML = h; bindSergente(); return;
     }
+    h += htmlMedaglieSergente();
     if(b && b.verbale){
       h += '<div class="card" style="font-size:13px; color:var(--cream); line-height:1.6; white-space:pre-wrap">'+esc(b.verbale)+'</div>';
       if(giudice) h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">✏️ Modifica il verbale</button>';
@@ -12363,10 +12467,47 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     root.querySelectorAll("[data-smbs]").forEach(function(b){
       b.onclick = function(){ smBsId = b.dataset.smbs; renderSergente(); };
     });
+    root.querySelectorAll("[data-medsc]").forEach(function(b){
+      b.onclick = function(){
+        medScelta = (medScelta === b.dataset.medsc) ? null : b.dataset.medsc;
+        var sel = document.getElementById("med-chi");
+        var nota = document.getElementById("med-nota");
+        medChi = sel ? sel.value : null;
+        var testo = nota ? nota.value : "";
+        renderSergente();
+        var n2 = document.getElementById("med-nota");
+        if(n2) n2.value = testo;
+      };
+    });
+    var bmd = root.querySelector("#med-dai");
+    if(bmd) bmd.onclick = assegnaMedagliaCerimonia;
     var bch = root.querySelector("#sm-chiudi");
     if(bch) bch.onclick = chiudiGiudizioBattuta;
     var bri = root.querySelector("#sm-riapri");
     if(bri) bri.onclick = riapriGiudizioBattuta;
+    var sc = root.querySelector("#sm-cerca");
+    if(sc){
+      sc.oninput = function(){
+        smCerca = sc.value || "";
+        var pos = sc.selectionStart;
+        renderSergente();
+        var s2 = document.getElementById("sm-cerca");
+        if(s2){ s2.focus(); try{ s2.setSelectionRange(pos,pos); }catch(e){} }
+      };
+    }
+    root.querySelectorAll("[data-smrec]").forEach(function(b){
+      b.onclick = function(){
+        var f = fattoDi(b.dataset.smrec, "recupero");
+        cambiaFatto(b.dataset.smrec, "recupero", (f && f.quanti) ? -1 : 1);
+      };
+    });
+    root.querySelectorAll("[data-smextra]").forEach(function(b){
+      b.onclick = function(){
+        var id = b.dataset.smextra;
+        smExtraAperto[id] = !smExtraAperto[id];
+        renderSergente();
+      };
+    });
     root.querySelectorAll("[data-smf]").forEach(function(b){
       b.onclick = function(){
         var p = b.dataset.smf.split("|");
@@ -12461,6 +12602,89 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       }
       renderSergente();
     }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+
+  /* ---- LA CERIMONIA DELLE MEDAGLIE ----
+     Si sceglie la medaglia, poi il cacciatore, poi si scrive il perche'.
+     L'assegnazione finisce in bacheca: una medaglia che non si racconta
+     non vale niente. */
+  var medScelta = null, medChi = null;
+  function htmlMedaglieSergente(){
+    if(!puoDareMedaglie()) return "";
+    var attive = medaglie.filter(function(m){ return m.attiva !== false; });
+    var h = '<div class="sechead">Medaglie della giornata</div>';
+    if(!attive.length){
+      return h + '<div class="card hint">Nessuna medaglia nel medagliere. Si aggiungono da Amministrazione.</div>';
+    }
+    h += '<div class="card">';
+    h += '<div class="et">1 \u00b7 quale medaglia</div><div class="medscelte">';
+    attive.forEach(function(m){
+      h += '<button class="medpic'+(medScelta===m.id?" on":"")+'" data-medsc="'+m.id+'">'
+        +  (m.immagine ? ('<img src="'+esc(m.immagine)+'" onerror="this.style.display=\'none\'">') : '<span class="mi">\ud83c\udf96\ufe0f</span>')
+        +  '<span class="nm">'+esc(m.nome)+'</span>'
+        +  (Number(m.punti) ? ('<span class="pt">+'+numPulito(m.punti)+'</span>') : '')
+        +  '</button>';
+    });
+    h += '</div>';
+    var pres = smAdesioni.filter(function(a){ return a.presente; });
+    h += '<div class="et" style="margin-top:12px">2 \u00b7 a chi</div>';
+    h += '<select id="med-chi" class="campo"><option value="">Scegli il cacciatore\u2026</option>';
+    pres.forEach(function(a){
+      h += '<option value="'+a.membro_id+'"'+(medChi===a.membro_id?" selected":"")+'>'+esc(nomeDi(a.membro_id))+'</option>';
+    });
+    (ospiti||[]).filter(function(o){ return o.presente; }).forEach(function(o){
+      h += '<option value="osp:'+o.id+'"'+(medChi===("osp:"+o.id)?" selected":"")+'>'+esc(o.nome)+' (ospite)</option>';
+    });
+    h += '</select>';
+    h += '<div class="et" style="margin-top:12px">3 \u00b7 perch\u00e9</div>';
+    h += '<textarea id="med-nota" class="campo" style="min-height:74px" '
+      +  'placeholder="La motivazione: \u00abper il colpo sul cinghiale in fuga alla Torre\u00bb"></textarea>';
+    h += '<button class="btn primary" id="med-dai" style="margin-top:11px">\ud83c\udf96\ufe0f Assegna e pubblica in bacheca</button>';
+    h += '<div class="hint" style="margin-top:7px">Finisce in bacheca con la motivazione, cos\u00ec la leggono tutti.</div>';
+    h += '</div>';
+    return h;
+  }
+  async function assegnaMedagliaCerimonia(){
+    if(!puoDareMedaglie() || !smBattutaId) return;
+    var chi = document.getElementById("med-chi").value;
+    var nota = (document.getElementById("med-nota").value || "").trim();
+    if(!medScelta){ toast("Scegli prima la medaglia"); return; }
+    if(!chi){ toast("Scegli a chi la dai"); return; }
+    var m = medaglie.find(function(x){ return x.id === medScelta; });
+    var ospite = chi.indexOf("osp:") === 0;
+    var mid = ospite ? null : chi;
+    if(!ospite){
+      var gia = smFatti.find(function(f){
+        return f.membro_id===mid && f.tipo==="medaglia" && f.medaglia_id===medScelta; });
+      if(gia){ toast("Ce l'ha gi\u00e0 per questa giornata"); return; }
+    }
+    var nome = ospite ? nomeOspite(chi.slice(4)) : nomeDi(mid);
+    try{
+      if(!ospite){
+        var r = await sb.from("hn_fatti").insert({
+          squadra_id:me.squadra_id, battuta_id:smBattutaId, membro_id:mid,
+          tipo:"medaglia", quanti:1, medaglia_id:medScelta,
+          nota: nota || null, assegnato_da:me.membro_id
+        }).select().single();
+        if(r.error) throw r.error;
+        smFatti.push(r.data);
+      }
+      /* la cerimonia: in bacheca, col nome e la motivazione */
+      var b = battute.find(function(x){ return x.id===smBattutaId; });
+      var ra = await sb.from("hn_annunci").insert({
+        squadra_id: me.squadra_id,
+        titolo: "\ud83c\udf96\ufe0f " + (m ? m.nome : "Medaglia") + " a " + nome,
+        testo: (nota ? nota + "\n\n" : "")
+             + "Assegnata da " + me.nome + (b ? (" per la giornata del " + fmtGiorno(daIso(b.data))) : "") + ".",
+        autore_id: me.user_id, autore_nome: me.nome, urgente: false
+      }).select().single();
+      if(!ra.error && ra.data) annunci.unshift(ra.data);
+      toast("Medaglia a " + nome + " \u00b7 pubblicata in bacheca");
+    }catch(e){ toast("Non riesco a salvare: serve la rete"); return; }
+    medScelta = null; medChi = null;
+    renderSergente();
+    aggiornaBadgeMedaglie();
   }
 
   function apriMedaglia(mid){
