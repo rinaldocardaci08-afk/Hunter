@@ -1371,6 +1371,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .bilancio .tx{flex:1;}
 .bilancio small{display:block; opacity:.85; margin-top:3px;}
 
+
+.avvsw{display:flex; gap:6px; background:#00000035; padding:4px; border-radius:11px; margin-bottom:8px;}
+.avvsw button{flex:1; padding:8px 4px; border:none; border-radius:8px; background:transparent;
+  color:var(--muted); font-size:12.5px;}
+.avvsw button.on{background:var(--dark3); color:var(--cream); font-weight:700;}
+
 </style>
 </head>
 <body>
@@ -2305,7 +2311,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       </span>
       <button class="inf" id="av-chiudi" style="width:36px; height:36px">&#10005;</button>
     </div>
+    <div class="avvsw">
+      <button id="av-schema" class="on">Schema</button>
+      <button id="av-satell">Satellite</button>
+    </div>
     <canvas id="av-tela" style="width:100%; display:block; border-radius:12px; border:1px solid var(--dark3); background:#34401f"></canvas>
+    <div id="av-mappa" style="display:none; height:230px; border-radius:12px; overflow:hidden; border:1px solid var(--dark3)"></div>
     <div id="av-dopo" style="display:none">
       <div class="contacapi">
         <button id="av-meno">&minus;</button>
@@ -3018,7 +3029,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.62";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.63";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9302,8 +9313,11 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       ppOss.forEach(function(p){
         h += '<div class="card" style="margin-bottom:6px"><div style="display:flex; align-items:center; gap:9px">'
           +  '<span style="font-size:17px">\ud83d\udd2d</span>'
-          +  '<span style="flex:1; min-width:0"><div style="font-size:13.5px; color:var(--cream)">'+esc(p.nome)+'</div>'
-          +  '<div class="hint">'+(p.note?esc(p.note):"punto di osservazione")+'</div></span>'
+          +  '<span style="flex:1; min-width:0; cursor:pointer" data-ossapri="'+p.id+'">'
+          +  '<div style="font-size:13.5px; color:var(--cream)">'+esc(p.nome)+'</div>'
+          +  '<div class="hint">'+(p.note?esc(p.note):"punto di osservazione")
+          +  (isFinite(p.lat) ? (' \u00b7 '+Number(p.lat).toFixed(5)+', '+Number(p.lng).toFixed(5)) : '')
+          +  '</div></span>'
           +  (puoMappare()?'<button class="inf" data-ossdel="'+p.id+'" style="width:auto; padding:0 9px; height:28px; font-size:12px">🗑</button>':'')
           +  '</div></div>';
       });
@@ -9402,6 +9416,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     var bon = root.querySelector("#ad-ossnuovo");
     if(bon) bon.onclick = function(){ nuovoPuntoOss(areaDett); };
+    root.querySelectorAll("[data-ossapri]").forEach(function(b){
+      b.onclick = function(){ apriSchedaPunto(b.dataset.ossapri); };
+    });
     root.querySelectorAll("[data-ossdel]").forEach(function(b){
       b.onclick = function(){ cancellaPuntoOss(b.dataset.ossdel); };
     });
@@ -14899,8 +14916,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     document.getElementById("op-chiudi").onclick=function(){ document.getElementById("m-osspunto").classList.remove("show"); };
     document.getElementById("op-registra").onclick=registraAvvistamento;
     document.getElementById("op-mappa").onclick=function(){
-      document.getElementById("m-osspunto").classList.remove("show");
-      if(ossPunto) apriAreaDaBattuta(ossPunto.area_id);
+      if(ossPunto) vediOssInMappa(ossPunto.lat, ossPunto.lng, ossPunto.nome, "punto");
     };
     document.getElementById("op-vai").onclick=function(){
       if(!ossPunto) return;
@@ -14915,12 +14931,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     };
     document.getElementById("av-salva").onclick=salvaAvvistamento;
     document.getElementById("av-cancella").onclick=cancellaAvvistamento;
+    document.getElementById("av-schema").onclick=function(){ cambiaVistaAvv("schema"); };
+    document.getElementById("av-satell").onclick=function(){ cambiaVistaAvv("satellite"); };
     document.getElementById("av-piu").onclick=function(){
-      avvInCorso.capi++; document.getElementById("av-quanti").textContent=avvInCorso.capi; disegnaTelaAvv();
+      avvInCorso.capi++; document.getElementById("av-quanti").textContent=avvInCorso.capi;
+      if(avvVista==="schema") disegnaTelaAvv(); else segnaMarkerAvv();
     };
     document.getElementById("av-meno").onclick=function(){
       if(avvInCorso.capi>1) avvInCorso.capi--;
-      document.getElementById("av-quanti").textContent=avvInCorso.capi; disegnaTelaAvv();
+      document.getElementById("av-quanti").textContent=avvInCorso.capi;
+      if(avvVista==="schema") disegnaTelaAvv(); else segnaMarkerAvv();
     };
     document.getElementById("sg-ok").onclick=function(){ document.getElementById("sergente").classList.remove("show"); };
     document.getElementById("sergente").onclick=function(e){
@@ -17457,7 +17477,7 @@ function fineA(){
       var mio = (a.membro_id===me.membro_id);
       h += '<div class="avvriga">'
          + '<span class="n">'+(a.capi||0)+'</span>'
-         + '<span class="tx"><div class="t1">'+esc(ar?ar.nome:"mappa")+(pt?(' \u00b7 '+esc(pt.nome)):'')+'</div>'
+         + '<span class="tx" style="cursor:pointer" data-avvapri="'+a.id+'"><div class="t1">'+esc(ar?ar.nome:"mappa")+(pt?(' \u00b7 '+esc(pt.nome)):'')+'</div>'
          + (a.note ? ('<div class="nota">'+esc(a.note)+'</div>') : '')
          + '<div class="t2">'+fmtNotte(a)+' \u00b7 '+esc(nomeDi(a.membro_id))+'</div></span>'
          + (mio ? '<button class="inf" data-avvmod="'+a.id+'" style="width:auto; padding:0 9px; height:26px; font-size:12px">\u270e</button>' : '')
@@ -17468,6 +17488,9 @@ function fineA(){
     if(dn) dn.onchange = function(){ ossNotte = dn.value || notteDiRiferimento(); renderOsservazioni(); };
     root.querySelectorAll("[data-osspunto]").forEach(function(b){
       b.onclick = function(){ apriPuntoOss(b.dataset.osspunto); };
+    });
+    root.querySelectorAll("[data-avvapri]").forEach(function(b){
+      b.onclick = function(){ apriAvvistamento(b.dataset.avvapri); };
     });
     root.querySelectorAll("[data-avvmod]").forEach(function(b){
       b.onclick = function(){ modificaAvvistamento(b.dataset.avvmod); };
@@ -17518,6 +17541,52 @@ function fineA(){
   }
 
   /* ---- IL PANNELLO DEL PUNTO: sole, luna e i tre tasti ---- */
+
+  /* ---- VEDERE UN PUNTO SULLA MAPPA, come si fa coi ritrovi ----
+     Non basta "aprire la mappa": bisogna andarci sopra, con l'icona e il nome. */
+  var ossMarker = null;
+  function vediOssInMappa(lat, lng, nome, tipo, capi){
+    if(!isFinite(lat) || !isFinite(lng)){ toast("Questo punto non ha coordinate"); return; }
+    document.getElementById("m-osspunto").classList.remove("show");
+    document.getElementById("m-avvista").classList.remove("show");
+    showView("mappa");
+    setTimeout(function(){
+      if(!map) return;
+      map.setView([lat, lng], 17);
+      if(ossMarker) map.removeLayer(ossMarker);
+      var dentro = (tipo === "avvistamento")
+        ? '<div style="width:40px;height:26px;display:flex;align-items:center;justify-content:center">'
+          + '<img src="cinghiale-rosso.png" style="width:40px" alt=""></div>'
+          + (capi ? ('<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);'
+                   + 'background:#CD261C;color:#fff;font:700 12px sans-serif;padding:1px 7px;border-radius:10px">'+capi+'</div>') : '')
+        : '<div style="width:34px;height:34px;border-radius:50%;background:#8a2f22;border:3px solid #fff;'
+          + 'display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.5)">\ud83d\udd2d</div>';
+      ossMarker = L.marker([lat,lng],{icon:L.divIcon({className:"", iconSize:[40,34], iconAnchor:[20,17],
+        html:'<div style="position:relative">'+dentro
+          + '<div style="position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;'
+          + 'background:#2C2418;color:#F0E6D2;font:11px sans-serif;padding:2px 7px;border-radius:5px">'+esc(nome||"")+'</div></div>'}),
+        zIndexOffset:1200}).addTo(map);
+      toast((tipo==="avvistamento" ? "Avvistamento" : "Punto") + ": " + (nome||"") + " \u00b7 "
+        + lat.toFixed(5) + ", " + lng.toFixed(5));
+    }, 250);
+  }
+  /* la scheda del punto, come quella del ritrovo: coordinate, distanza, i tasti */
+  function apriSchedaPunto(id){
+    var p = ossPunti.find(function(x){ return x.id===id; });
+    if(!p) return;
+    ossPunto = p;
+    apriPuntoOss(id);
+  }
+  function apriAvvistamento(id){
+    var a = avvistamenti.find(function(x){ return x.id===id; });
+    if(!a) return;
+    var ar = aree.find(function(x){ return x.id===a.area_id; });
+    var pt = ossPunti.find(function(x){ return x.id===a.punto_id; });
+    vediOssInMappa(a.lat, a.lng,
+      (a.capi||0) + " cap" + ((a.capi||0)===1?"o":"i") + (ar ? (" \u00b7 "+ar.nome) : ""),
+      "avvistamento", a.capi);
+  }
+
   function apriPuntoOss(id){
     var p = ossPunti.find(function(x){ return x.id===id; });
     if(!p) return;
@@ -17602,8 +17671,61 @@ function fineA(){
     document.getElementById("av-note").value = avvInCorso.note || "";
     document.getElementById("av-cancella").style.display = avvInCorso.id ? "block" : "none";
     document.getElementById("m-avvista").classList.add("show");
-    setTimeout(disegnaTelaAvv, 60);
+    cambiaVistaAvv(avvVista);
   }
+
+  /* Il punto dell'avvistamento si mette sullo SCHEMA o sul SATELLITE:
+     di notte, chi conosce il terreno lo riconosce meglio dalla foto vera. */
+  var avvVista = "schema", avvMap = null, avvMarker = null;
+  function cambiaVistaAvv(quale){
+    avvVista = quale;
+    document.getElementById("av-schema").classList.toggle("on", quale==="schema");
+    document.getElementById("av-satell").classList.toggle("on", quale==="satellite");
+    document.getElementById("av-tela").style.display  = (quale==="schema") ? "block" : "none";
+    document.getElementById("av-mappa").style.display = (quale==="schema") ? "none" : "block";
+    if(quale==="schema") disegnaTelaAvv(); else apriMappaAvv();
+  }
+  function apriMappaAvv(){
+    var a = aree.find(function(x){ return x.id===avvInCorso.areaId; });
+    var pt = ossPunti.find(function(x){ return x.id===avvInCorso.puntoId; });
+    var c0 = centroArea(a);
+    var centro = avvInCorso.lat ? [avvInCorso.lat, avvInCorso.lng]
+               : (pt && pt.lat ? [pt.lat, pt.lng] : (c0 ? [c0.lat, c0.lng] : null));
+    if(!centro){ toast("Questa mappa non ha coordinate"); cambiaVistaAvv("schema"); return; }
+    setTimeout(function(){
+      if(!avvMap){
+        avvMap = L.map("av-mappa", {zoomControl:true, attributionControl:false}).setView(centro, 16);
+        L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {maxZoom:19}).addTo(avvMap);
+        avvMap.on("click", function(ev){
+          avvInCorso.lat = ev.latlng.lat; avvInCorso.lng = ev.latlng.lng;
+          document.getElementById("av-sotto").textContent = "quanti ne hai visti?";
+          document.getElementById("av-dopo").style.display = "block";
+          segnaMarkerAvv();
+        });
+      }else{
+        avvMap.setView(centro, 16);
+      }
+      avvMap.invalidateSize();
+      /* le poste della mappa, per orientarsi */
+      (a && a.poste ? a.poste : []).forEach(function(p){
+        if(!p.lat) return;
+        L.marker([p.lat,p.lng],{icon:iconPosta(p.numero||"?", p.tipo, p.in_coda, p.da_verificare)}).addTo(avvMap);
+      });
+      segnaMarkerAvv();
+    }, 80);
+  }
+  function segnaMarkerAvv(){
+    if(!avvMap || !avvInCorso || !avvInCorso.lat) return;
+    if(avvMarker) avvMap.removeLayer(avvMarker);
+    avvMarker = L.marker([avvInCorso.lat, avvInCorso.lng], {icon:L.divIcon({className:"",
+      iconSize:[44,28], iconAnchor:[22,14],
+      html:'<div style="position:relative"><img src="cinghiale-rosso.png" style="width:44px" alt="">'
+        + '<div style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:#CD261C;'
+        + 'color:#fff;font:700 12px sans-serif;padding:1px 7px;border-radius:10px">'+(avvInCorso.capi||1)+'</div></div>'}),
+      zIndexOffset:1300}).addTo(avvMap);
+  }
+
   function disegnaTelaAvv(){
     var a = aree.find(function(x){ return x.id===avvInCorso.areaId; });
     var cv = document.getElementById("av-tela");
