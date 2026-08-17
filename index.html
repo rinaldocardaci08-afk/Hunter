@@ -2281,7 +2281,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 <div class="modal" id="m-osspunto">
   <div class="sheet">
     <div style="display:flex; align-items:center; gap:11px; margin-bottom:12px">
-      <span style="font-size:26px">&#128301;</span>
+      <span><img src="visore.png" style="width:38px" alt=""></span>
       <span style="flex:1; min-width:0">
         <div style="font-family:'Arial Narrow',Impact,sans-serif; font-size:24px; letter-spacing:1px" id="op-nome">PUNTO</div>
         <div class="hint" id="op-sotto"></div>
@@ -3029,7 +3029,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.64";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.65";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9314,7 +9314,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       h += '<div class="sechead">Punti di osservazione</div>';
       ppOss.forEach(function(p){
         h += '<div class="card" style="margin-bottom:6px"><div style="display:flex; align-items:center; gap:9px">'
-          +  '<span style="font-size:17px">\ud83d\udd2d</span>'
+          +  '<span><img src="'+IMG_VISORE+'" style="width:26px; vertical-align:-6px" alt=""></span>'
           +  '<span style="flex:1; min-width:0; cursor:pointer" data-ossapri="'+p.id+'">'
           +  '<div style="font-size:13.5px; color:var(--cream)">'+esc(p.nome)+'</div>'
           +  '<div class="hint">'+(p.note?esc(p.note):"punto di osservazione")
@@ -12077,10 +12077,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     var root = document.getElementById("sergente-scroll");
     root.innerHTML = '<div class="loading">Carico…</div>';
     try{
-      if(!battute.length){
-        var rb = await sb.from("hn_battute").select("*").eq("squadra_id", me.squadra_id).order("data");
-        if(!rb.error) battute = rb.data || [];
-      }
+      /* si ricarica SEMPRE: se il capo ha appena concluso una giornata da un
+         altro telefono, con l'elenco vecchio il sergente direbbe "non ce n'e' nessuna" */
+      var rb = await sb.from("hn_battute").select("*").eq("squadra_id", me.squadra_id).order("data");
+      if(!rb.error && rb.data) battute = rb.data;
       if(!membri.length) await caricaMembriSilenzioso();
       if(!medaglie.length){
         var rM = await sb.from("hn_medaglie").select("*").eq("squadra_id", me.squadra_id);
@@ -16879,6 +16879,7 @@ function fineA(){
     h += '<div class="gm-legenda">'
        + '<span><i style="background:#E8C86A"></i>poste</span>'
        + '<span><i style="background:#B98CE0"></i>da verificare</span>'
+       + '<span><img src="cinghiale-rosso.png" style="width:20px; vertical-align:-3px"> visti stanotte col visore</span>'
        + '<span style="opacity:.85">il colore della posta \u00e8 la sua sezione</span>'
        + '<span><i style="background:#7B5EA7"></i>linee da tracciare</span>'
        + '<span><i style="background:#4FC3F7"></i>giro fatto</span>'
@@ -16890,6 +16891,28 @@ function fineA(){
        + '<div class="sotto" id="gm-meteo-ds">tocca per il tempo su questa mappa</div></span>'
        + '<span style="color:var(--muted)">\u203a</span></button>';
 
+    /* l'informazione scritta, non solo il disegno: il capo deve poterla leggere */
+    var avvB = avvistamentiPerLaBattuta(a.id);
+    var avvAltri = avvistamentiRecenti(a.id, 10).filter(function(x){
+      return avvB.indexOf(x) < 0; });
+    if(avvB.length || avvAltri.length){
+      h += '<div class="sechead">Visto col visore</div>';
+      avvB.forEach(function(av){
+        h += '<div class="avvriga"><span class="n">'+(av.capi||0)+'</span>'
+          +  '<span class="tx" style="cursor:pointer" data-avvapri="'+av.id+'">'
+          +  '<div class="t1">stanotte \u00b7 ' + esc(nomeDi(av.membro_id)) + '</div>'
+          +  (av.note ? ('<div class="nota">'+esc(av.note)+'</div>') : '')
+          +  '<div class="t2">'+fmtNotte(av)+' \u00b7 sulla mappa qui sopra</div></span></div>';
+      });
+      avvAltri.forEach(function(av){
+        h += '<div class="avvriga" style="opacity:.55; border-left-color:var(--dark3)">'
+          +  '<span class="n" style="color:var(--muted)">'+(av.capi||0)+'</span>'
+          +  '<span class="tx" style="cursor:pointer" data-avvapri="'+av.id+'">'
+          +  '<div class="t1">'+fmtNotte(av)+'</div>'
+          +  (av.note ? ('<div class="nota" style="color:var(--muted)">'+esc(av.note)+'</div>') : '')
+          +  '<div class="t2">di un\'altra notte: non \u00e8 disegnato sulla mappa</div></span></div>';
+      });
+    }
     h += '<div class="sechead">Le tracciate di questa mappa</div>';
     if(!lista.length){
       h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuno \u00e8 ancora andato su questa mappa.</div>';
@@ -16902,6 +16925,9 @@ function fineA(){
     root.innerHTML = h;
     disegnaAnteprimaArea(document.getElementById("gm-ante"), a);
     agganciaTracciate(root);
+    root.querySelectorAll("[data-avvapri]").forEach(function(b){
+      b.onclick = function(){ apriAvvistamento(b.dataset.avvapri); };
+    });
     var ap = document.getElementById("gm-apri");
     if(ap) ap.onclick = function(){ mappaVenutoDa = "giomappa"; apriAreaDaBattuta(a.id); };
     var gmm = document.getElementById("gm-meteo");
@@ -17095,7 +17121,10 @@ function fineA(){
     });
     /* i capi visti col visore: stanno DENTRO la mappa, quindi si disegnano.
        I punti di osservazione no: sono lontani e allargherebbero il riquadro. */
-    (typeof avvistamentiDiArea === "function" ? avvistamentiDiArea(a.id) : []).forEach(function(av){
+    /* REGOLA DEL TEMPO: sulla mappa della battuta si vedono solo gli avvistamenti
+       della NOTTE PRIMA. Uno di tre notti fa e' troppo vecchio per spostare le
+       poste: resta nel registro delle osservazioni, non qui. */
+    (typeof avvistamentiPerLaBattuta === "function" ? avvistamentiPerLaBattuta(a.id) : []).forEach(function(av){
       if(!buono(av)) return;
       disegnaCinghialeRosso(g, X(av.lng), Y(av.lat), av.capi);
     });
@@ -17321,11 +17350,20 @@ function fineA(){
      giornata puo' restare vuoto: cosi' la sorveglianza fuori dai giorni di
      caccia entrera' domani senza rifare niente. */
   var ossPunti = [], avvistamenti = [], ossArea = null, ossPunto = null, ossNotte = null;
+  var IMG_VISORE = "visore.png";
   var imgCinghiale = null;
 
   function preparaCinghiale(){
     if(imgCinghiale) return imgCinghiale;
     imgCinghiale = new Image();
+    /* al primo disegno l'immagine non e' ancora arrivata e usciva una macchia
+       rossa: quando arriva si ridisegna quello che si sta guardando */
+    imgCinghiale.onload = function(){
+      try{
+        if(document.getElementById("v-giomappa").classList.contains("active")) renderMappaGiornata();
+        if(document.getElementById("m-avvista").classList.contains("show") && avvVista==="schema") disegnaTelaAvv();
+      }catch(e){}
+    };
     imgCinghiale.src = "cinghiale-rosso.png";
     return imgCinghiale;
   }
@@ -17347,6 +17385,18 @@ function fineA(){
   }
   function puntiDiArea(idA){ return ossPunti.filter(function(p){ return p.area_id===idA; }); }
   function avvistamentiDiArea(idA){ return avvistamenti.filter(function(a){ return a.area_id===idA; }); }
+
+  /* Gli avvistamenti che valgono per la battuta di oggi: solo quelli della
+     NOTTE PRIMA della giornata. Gli altri restano nel registro. */
+  function avvistamentiPerLaBattuta(idA){
+    if(!giornataAperta || !giornataAperta.data) return [];
+    var g = daIso(String(giornataAperta.data).slice(0,10));
+    var notteBuona = iso(new Date(g.getFullYear(), g.getMonth(), g.getDate()-1));
+    return avvistamentiDiArea(idA).filter(function(a){
+      return String(a.notte||"").slice(0,10) === notteBuona;
+    });
+  }
+
   function avvistamentiRecenti(idA, giorni){
     var lim = Date.now() - (giorni||7)*24*3600*1000;
     return avvistamentiDiArea(idA).filter(function(a){
@@ -17460,7 +17510,7 @@ function fineA(){
       h += '</div>';
       pp.forEach(function(p){
         h += '<button class="ossriga" data-osspunto="'+p.id+'">'
-           + '<span class="em">\ud83d\udd2d</span>'
+           + '<span class="em"><img src="'+IMG_VISORE+'" style="width:26px; vertical-align:-6px" alt=""></span>'
            + '<span class="mid"><div class="nm">'+esc(p.nome)+'</div>'
            + '<div class="ds">'+(p.note ? esc(p.note) : "punto di osservazione")
            + (pos && p.lat ? (' \u00b7 '+fmtDist(distM(pos, p))) : '')+'</div></span>'
@@ -17561,8 +17611,9 @@ function fineA(){
           + '<img src="cinghiale-rosso.png" style="width:40px" alt=""></div>'
           + (capi ? ('<div style="position:absolute;top:-14px;left:50%;transform:translateX(-50%);'
                    + 'background:#CD261C;color:#fff;font:700 12px sans-serif;padding:1px 7px;border-radius:10px">'+capi+'</div>') : '')
-        : '<div style="width:34px;height:34px;border-radius:50%;background:#8a2f22;border:3px solid #fff;'
-          + 'display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 2px 6px rgba(0,0,0,.5)">\ud83d\udd2d</div>';
+        : '<div style="width:44px;height:30px;display:flex;align-items:center;justify-content:center;'
+          + 'background:#00000066;border:2px solid #A86BD0;border-radius:9px">'
+          + '<img src="'+IMG_VISORE+'" style="width:36px" alt=""></div>';
       ossMarker = L.marker([lat,lng],{icon:L.divIcon({className:"", iconSize:[40,34], iconAnchor:[20,17],
         html:'<div style="position:relative">'+dentro
           + '<div style="position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;'
