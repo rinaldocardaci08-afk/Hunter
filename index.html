@@ -3123,7 +3123,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.71";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.72";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -15945,8 +15945,25 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     var MIN_PARTITE=3;
     var DATI=null, periodo="settimana";
     var NOMEGIOCO={cinghiale:"Cinghiali", anatra:"Anatre"};
+    /* Le date che arrivano dal database possono avere la forma
+       "2026-08-18 06:38:47+00": con lo spazio al posto della T, Safari
+       dell'iPhone non le legge e restituisce "data non valida". Da li' la
+       partita finiva in una settimana inesistente e spariva dalla classifica
+       della settimana in corso (nel "di sempre" invece si vedeva).
+       Qui la data si normalizza prima di leggerla. */
+    function dataGioco(d){
+      if(d instanceof Date) return d;
+      var t = String(d||"").trim();
+      if(!t) return new Date(NaN);
+      t = t.replace(" ", "T");
+      if(/[+-]\d{2}$/.test(t)) t += ":00";      // "+00" -> "+00:00"
+      var x = new Date(t);
+      if(isNaN(x.getTime())) x = new Date(String(d).replace(" ", "T") + "Z");
+      return x;
+    }
     function lunediGiochi(d){
-      var x=new Date(d), g=(x.getDay()+6)%7;
+      var x=dataGioco(d), g=(x.getDay()+6)%7;
+      if(isNaN(x.getTime())) return new Date(0);
       x.setHours(0,0,0,0); x.setDate(x.getDate()-g);
       return x;
     }
