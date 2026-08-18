@@ -3123,7 +3123,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.70";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.71";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -15975,12 +15975,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       if(d.punti>rec){ try{ localStorage.setItem(k, String(d.punti)); }catch(e2){} }
       if(!me || !me.membro_id) return;
       try{
-        await sb.from("hn_giochi_punteggi").insert({
+        /* creato_il lo scrive l'app: se sul database la colonna non ha il valore
+           di partenza resta vuota, e la classifica della settimana - che filtra
+           proprio su quella data - non trova piu' la partita. */
+        var rG = await sb.from("hn_giochi_punteggi").insert({
           squadra_id: me.squadra_id, membro_id: me.membro_id, gioco: gioco,
           punti: d.punti, capi: d.capi, colpi: d.colpi, livello: d.livello,
-          durata_ms: d.durata
+          durata_ms: d.durata, creato_il: new Date().toISOString()
         });
-      }catch(e3){}
+        if(rG && rG.error) throw rG.error;
+      }catch(e3){
+        /* niente silenzio: se il punteggio non si salva bisogna saperlo */
+        toast("Punteggio non salvato: " + ((e3 && e3.message) ? e3.message : "errore"));
+      }
     }
     function tabellaDa(best, ordine, da){
       da=da||0;
