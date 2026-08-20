@@ -1456,6 +1456,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .smbatt .chi.u{color:#7be0a8;}
 .smbatt .chi.p{color:#e0a87b;}
 
+
+.gc-dal{font-size:11px; color:var(--muted); text-align:center; margin:-4px 0 10px; line-height:1.5;}
+
 </style>
 </head>
 <body>
@@ -3123,7 +3126,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.72";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.73";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -16046,6 +16049,17 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       return tabellaDa(m.best, m.ordine);
     }
 
+    function dalQuando(){
+      var l = lunediGiochi(new Date());
+      var gg = ["domenica","luned\u00ec","marted\u00ec","mercoled\u00ec","gioved\u00ec","venerd\u00ec","sabato"];
+      var mm = ["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio",
+                "agosto","settembre","ottobre","novembre","dicembre"];
+      return periodo === "settimana"
+        ? ("la settimana comincia " + gg[l.getDay()] + " " + l.getDate() + " " + mm[l.getMonth()]
+           + ": le partite di prima stanno nel \u00abdi sempre\u00bb")
+        : "tutte le partite, dalla prima a oggi";
+    }
+
     function riquadro(titolo, dentro){
       return '<div class="gc-riq"><div class="gc-et">'+titolo+'</div>'+dentro+'</div>';
     }
@@ -16119,11 +16133,18 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         '<div class="gc-periodi">'+
           '<button class="'+(periodo==="settimana"?"on":"")+'" data-periodo="settimana">QUESTA SETTIMANA</button>'+
           '<button class="'+(periodo==="sempre"?"on":"")+'" data-periodo="sempre">DI SEMPRE</button>'+
-        '</div><div id="gc-classifiche"></div>';
+        '</div>'+
+        /* si scrive DA QUANDO parte la settimana: senza, una partita di domenica
+           sembra sparita mentre sta solo nella settimana prima */
+        '<div class="gc-dal" id="gc-dal">'+dalQuando()+'</div>'+
+        '<div id="gc-classifiche"></div>';
       box.querySelectorAll(".gc-periodi button").forEach(function(b){
         b.onclick=function(){
           box.querySelectorAll(".gc-periodi button").forEach(function(x){ x.classList.remove("on"); });
-          b.classList.add("on"); periodo=b.dataset.periodo; disegnaClassifiche();
+          b.classList.add("on"); periodo=b.dataset.periodo;
+          var dq=document.getElementById("gc-dal");
+          if(dq) dq.textContent=dalQuando();
+          disegnaClassifiche();
         };
       });
       disegnaClassifiche();
