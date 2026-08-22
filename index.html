@@ -3139,7 +3139,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.74";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.75";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4618,6 +4618,29 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     else if(v === "aree" && typeof renderAree === "function") renderAree();
   }
 
+
+  /* ---- LE MODALITA' DI INSERIMENTO NON DEVONO RESTARE ACCESE ----
+     In montagna e' successo: il modo "scegli il punto di ritrovo" era rimasto
+     attivo e a ogni tocco sulla mappa cercava di mettere il punto, con la
+     fascia che chiedeva Conferma o Annulla. Uscendo dalla mappa si spengono. */
+  function spegniInserimenti(silenzioso){
+    var acceso = false;
+    try{
+      if(typeof pickRitrovo !== "undefined" && pickRitrovo){ annullaPickRitrovo(); acceso = true; }
+    }catch(e){}
+    try{
+      if(typeof disegnoSettore !== "undefined" && disegnoSettore){ chiudiDisegnoSettore(); acceso = true; }
+    }catch(e2){}
+    try{
+      if(typeof disegnoTraccia !== "undefined" && disegnoTraccia){ chiudiDisegnoTraccia(); acceso = true; }
+    }catch(e3){}
+    try{
+      if(typeof mappatura !== "undefined" && mappatura){ mappatura = false; aggiornaComandiMappa(); acceso = true; }
+    }catch(e4){}
+    if(acceso && !silenzioso) toast("Inserimento chiuso");
+    return acceso;
+  }
+
   function showView(v){
     // se stavo scegliendo un ritrovo e me ne vado dalla mappa, la scelta decade
     if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
@@ -4631,6 +4654,10 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     if(typeof disegnoSettore!=="undefined" && disegnoSettore && v!=="mappa") chiudiDisegnoSettore();
     if(typeof perTracciataLayer!=="undefined" && perTracciataLayer && v!=="mappa"){
       try{ perTracciataLayer.clearLayers(); }catch(e){}
+    }
+    /* lasciando la mappa si chiude qualunque inserimento in corso */
+    if(vistaAttiva === "mappa" && v !== "mappa" && typeof spegniInserimenti === "function"){
+      spegniInserimenti(true);
     }
     impilaVista(v);
     vistaAttiva = v;
