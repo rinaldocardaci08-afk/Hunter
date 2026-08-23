@@ -1482,8 +1482,17 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .zonaok{display:flex; align-items:center; gap:10px; background:#2d5a3f33; border:1px solid #3d7a55;
   border-radius:11px; padding:10px 12px; margin-top:8px;}
 .zonaok .em{font-size:17px; color:#7be0a8;}
+.zonaok.vecchia{background:#6B5A2033; border-color:#E0B878;}
+.zonaok.vecchia .em{color:#E0B878;}
 .zonaok .tx{flex:1; min-width:0; font-size:13px; color:var(--cream);}
 .zonaok .tx small{display:block; font-size:10.5px; color:var(--muted); margin-top:2px;}
+
+
+#m-scaricazona .zriga{display:flex; align-items:center; gap:10px; background:#ffffff08;
+  border:1px solid var(--dark3); border-radius:11px; padding:10px 11px; margin-bottom:7px;}
+#m-scaricazona .zriga .em{font-size:18px;}
+#m-scaricazona .zriga .tx{flex:1; min-width:0; font-size:14px; color:var(--cream);}
+#m-scaricazona .zriga .tx small{display:block; font-size:10.5px; color:var(--muted); margin-top:2px;}
 
 </style>
 </head>
@@ -2473,6 +2482,19 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   <div class="nb">tieni l&rsquo;app aperta finch&eacute; finisce</div>
 </div>
 
+
+<!-- SCARICA LA MAPPA PRIMA DI PARTIRE -->
+<div class="modal" id="m-scaricazona">
+  <div class="sheet">
+    <h3>&#128246; Scarica la mappa prima di partire</h3>
+    <p class="hint">Il capocaccia ha scelto le mappe di questa giornata. Sul posto spesso non c&rsquo;&egrave;
+    campo: senza la mappa salsata sul telefono resti cieco. Bastano pochi megabyte, meglio col wifi.</p>
+    <div id="sz-elenco" style="margin:12px 0"></div>
+    <button class="btn primary" id="sz-tutto">Scarica</button>
+    <button class="btn line" id="sz-dopo" style="margin-top:7px">Pi&ugrave; tardi</button>
+  </div>
+</div>
+
 <!-- MENU GENERALE -->
 <div id="menu">
   <div class="panel">
@@ -3162,7 +3184,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.77";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.79";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6826,6 +6848,67 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     };
   }
 
+
+  /* ---- L'AVVISO: SCARICA LA MAPPA PRIMA DI PARTIRE ----
+     Il capo sceglie le mappe della giornata; chi apre l'app e non le ha sul
+     telefono, in montagna resta cieco. Si dice una volta sola per giornata,
+     e si puo' scaricare da li'. */
+  var AVVISO_ZONA_KEY = "hunter_avviso_zona";
+  function avvisoGiaDato(idGiornata){
+    try{
+      var v = JSON.parse(localStorage.getItem(AVVISO_ZONA_KEY)) || [];
+      return v.indexOf(idGiornata) >= 0;
+    }catch(e){ return false; }
+  }
+  function segnaAvvisoDato(idGiornata){
+    try{
+      var v = JSON.parse(localStorage.getItem(AVVISO_ZONA_KEY)) || [];
+      v.push(idGiornata);
+      if(v.length > 20) v = v.slice(-20);
+      localStorage.setItem(AVVISO_ZONA_KEY, JSON.stringify(v));
+    }catch(e){}
+  }
+  function mappeDaScaricare(){
+    if(!giornataAperta) return [];
+    var ids = (giornataAperta.aree_segnalate || []).slice();
+    /* anche le mappe gia' battute o in corso: e' li' che si va */
+    battuteSvolte.forEach(function(bs){ if(ids.indexOf(bs.area_id)<0) ids.push(bs.area_id); });
+    var z = zoneSalvate();
+    return ids.map(function(id){ return aree.find(function(a){ return a.id===id; }); })
+              .filter(function(a){ return a && !z[a.id] && elencoTessere(a).length; });
+  }
+  function avvisaZoneDaScaricare(){
+    if(!giornataAperta || !giornataAperta.id) return;
+    if(!navigator.onLine) return;              // senza rete l'avviso non serve a niente
+    if(avvisoGiaDato(giornataAperta.id)) return;
+    if(document.getElementById("m-scaricazona").classList.contains("show")) return;
+    var mancano = mappeDaScaricare();
+    if(!mancano.length) return;
+    var tot = mancano.reduce(function(t,a){ return t + elencoTessere(a).length; }, 0);
+    var h = "";
+    mancano.forEach(function(a){
+      var n = elencoTessere(a).length;
+      h += '<div class="zriga"><span class="em">\ud83d\uddfa\ufe0f</span>'
+        +  '<span class="tx">'+esc(a.nome)+'<small>'+pesoStimato(n)+' \u00b7 '+dettaglioAParole(zoomMassimoPer(a))+'</small></span>'
+        +  '<button class="btn line" data-zora="'+a.id+'" style="width:auto; padding:7px 11px; font-size:12px">Scarica</button></div>';
+    });
+    document.getElementById("sz-elenco").innerHTML = h;
+    document.getElementById("sz-tutto").textContent =
+      mancano.length > 1 ? ("Scarica tutte \u00b7 " + pesoStimato(tot)) : ("Scarica \u00b7 " + pesoStimato(tot));
+    document.getElementById("m-scaricazona").classList.add("show");
+    segnaAvvisoDato(giornataAperta.id);
+    document.getElementById("sz-tutto").onclick = async function(){
+      document.getElementById("m-scaricazona").classList.remove("show");
+      for(var i=0;i<mancano.length;i++){ await salvaZona(mancano[i].id); }
+    };
+    document.getElementById("sz-elenco").querySelectorAll("[data-zora]").forEach(function(b){
+      b.onclick = function(){
+        document.getElementById("m-scaricazona").classList.remove("show");
+        salvaZona(b.dataset.zora);
+      };
+    });
+  }
+
   function renderGiornata(){
     var root=document.getElementById("giornata-scroll");
     var b=giornataAperta;
@@ -7299,6 +7382,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       b.onclick = function(){ apriStriscia(b.dataset.str); };
     });
     if(strApri) disegnaStriscia();
+    /* l'avviso di scaricare la mappa: dopo che la giornata si e' disegnata */
+    setTimeout(function(){ try{ avvisaZoneDaScaricare(); }catch(e){} }, 500);
     root.querySelectorAll("[data-avvmod2]").forEach(function(b){
       b.onclick=function(){ modificaAvvistamento(b.dataset.avvmod2); };
     });
@@ -9707,6 +9792,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     root.querySelectorAll("[data-zonatogli]").forEach(function(b){
       b.onclick = function(){ togliZona(b.dataset.zonatogli); };
+    });
+    root.querySelectorAll("[data-zonarifai]").forEach(function(b){
+      b.onclick = function(){ salvaZona(b.dataset.zonarifai, true); };
     });
     var bon = root.querySelector("#ad-ossnuovo");
     if(bon) bon.onclick = function(){ nuovoPuntoOss(areaDett); };
@@ -15525,6 +15613,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       guasti=[]; document.getElementById("m-guasti").classList.remove("show");
       document.getElementById("sentinella").classList.remove("show");
     };
+    document.getElementById("sz-dopo").onclick=function(){
+      document.getElementById("m-scaricazona").classList.remove("show");
+    };
     document.getElementById("cn-chiudi").onclick=function(){ document.getElementById("m-carne").classList.remove("show"); };
     document.getElementById("cn-salva").onclick=salvaCarne;
     document.getElementById("cn-tutti").onclick=function(){
@@ -18632,8 +18723,40 @@ function fineA(){
     return kb > 1024 ? (Math.round(kb/102.4)/10 + " MB") : (Math.round(kb) + " KB");
   }
 
+
+  /* le tessere di quando l'avevi salvata: servono per buttarle davvero,
+     anche se nel frattempo hai spostato o aggiunto poste */
+  function tessereSalvatePrima(areaId, a){
+    var z = zoneSalvate()[areaId];
+    var elenco = [];
+    if(z && z.riquadro){
+      var r = z.riquadro, ZM = z.zmax || ZMAX;
+      for(var zz=ZMIN; zz<=ZM; zz++){
+        var x1=xDaLng(r.ln1,zz), x2=xDaLng(r.ln2,zz);
+        var y1=yDaLat(r.la2,zz), y2=yDaLat(r.la1,zz);
+        for(var x=x1; x<=x2; x++)
+          for(var y=y1; y<=y2; y++) elenco.push(URL_TESSERA + zz + "/" + y + "/" + x);
+      }
+    }
+    /* piu' quelle di adesso, per non lasciarne in giro */
+    elencoTessere(a).forEach(function(u){ if(elenco.indexOf(u)<0) elenco.push(u); });
+    return elenco;
+  }
+  /* la mappa e' cambiata da quando l'hai scaricata? */
+  function zonaCambiata(a, z){
+    if(!z || !z.riquadro) return false;
+    var r = riquadroArea(a);
+    if(!r) return false;
+    var d = Math.abs(r.la1-z.riquadro.la1) + Math.abs(r.la2-z.riquadro.la2)
+          + Math.abs(r.ln1-z.riquadro.ln1) + Math.abs(r.ln2-z.riquadro.ln2);
+    return d > 0.0009;      // un centinaio di metri di differenza
+  }
+
   var scaricando = false;
-  async function salvaZona(areaId){
+  /* sostituisci = true: le tessere vecchie si buttano e si riscaricano.
+     Serve quando la mappa e' cambiata (poste nuove, riquadro diverso) o quando
+     il satellite ha foto piu' recenti. */
+  async function salvaZona(areaId, sostituisci){
     var a = aree.find(function(x){ return x.id === areaId; });
     if(!a) return;
     if(scaricando){ toast("Sto gi\u00e0 scaricando una zona"); return; }
@@ -18641,10 +18764,11 @@ function fineA(){
     if(!lista.length){ toast("Questa mappa non ha coordinate: non so cosa scaricare"); return; }
     if(!navigator.onLine){ toast("Per salvare la zona serve la rete: fallo a casa"); return; }
     var zm = zoomMassimoPer(a);
-    if(!confirm("Salvare la zona di \u00ab"+a.nome+"\u00bb sul telefono?\n\n"
+    if(!confirm((sostituisci ? "Riscaricare la zona di \u00ab" : "Salvare la zona di \u00ab")+a.nome+"\u00bb?\n\n"
       + lista.length + " tessere, circa " + pesoStimato(lista.length) + "\n"
       + "Dettaglio: " + dettaglioAParole(zm) + ".\n\n"
-      + "Falla col wifi: dopo la mappa si vede anche senza campo.")) return;
+      + (sostituisci ? "Le vecchie si buttano: fallo col wifi."
+                     : "Falla col wifi: dopo la mappa si vede anche senza campo."))) return;
 
     scaricando = true;
     var box = document.getElementById("zonabar");
@@ -18654,9 +18778,15 @@ function fineA(){
     var fatte = 0, saltate = 0;
     try{
       var c = await caches.open(TESSERE_CACHE);
+      if(sostituisci){
+        /* prima si buttano quelle vecchie, anche quelle di un riquadro diverso */
+        if(testo) testo.textContent = "Butto le vecchie di " + a.nome + "\u2026";
+        var vecchie = tessereSalvatePrima(areaId, a);
+        for(var k=0; k<vecchie.length; k++){ try{ await c.delete(vecchie[k]); }catch(e0){} }
+      }
       for(var i=0; i<lista.length; i++){
         try{
-          var gia = await c.match(lista[i]);
+          var gia = sostituisci ? null : await c.match(lista[i]);
           if(!gia){
             var risp = await fetch(lista[i], {cache:"no-store"});
             if(risp && risp.ok) await c.put(lista[i], risp.clone());
@@ -18669,7 +18799,8 @@ function fineA(){
         if(fatte % 20 === 0) await new Promise(function(r){ setTimeout(r, 0); });   // lascio respirare lo schermo
       }
       var z = zoneSalvate();
-      z[areaId] = {nome:a.nome, tessere:lista.length - saltate, quando:Date.now()};
+      z[areaId] = {nome:a.nome, tessere:lista.length - saltate, quando:Date.now(),
+                   riquadro:riquadroArea(a), zmax:zm};
       scriviZone(z);
       toast("Zona salvata: " + a.nome + " \u00b7 " + (lista.length - saltate) + " tessere");
     }catch(e){
@@ -18686,7 +18817,7 @@ function fineA(){
       + "La mappa si vedr\u00e0 solo con la rete, finch\u00e9 non la riscarichi.")) return;
     try{
       var c = await caches.open(TESSERE_CACHE);
-      var lista = elencoTessere(a);
+      var lista = tessereSalvatePrima(areaId, a);
       for(var i=0;i<lista.length;i++){ try{ await c.delete(lista[i]); }catch(e){} }
       var z = zoneSalvate(); delete z[areaId]; scriviZone(z);
       toast("Zona tolta dal telefono");
@@ -18699,9 +18830,13 @@ function fineA(){
     if(!n) return "";
     if(z){
       var gg = Math.round((Date.now() - (z.quando||0))/86400000);
-      return '<div class="zonaok"><span class="em">\u2713</span>'
-        + '<span class="tx">Zona sul telefono<small>' + (z.tessere||n) + ' tessere \u00b7 salvata '
-        + (gg<=0 ? "oggi" : (gg===1 ? "ieri" : (gg+" giorni fa"))) + '</small></span>'
+      var cambiata = zonaCambiata(a, z);
+      return '<div class="zonaok'+(cambiata?" vecchia":"")+'"><span class="em">'+(cambiata?"\u26a0\ufe0f":"\u2713")+'</span>'
+        + '<span class="tx">'+(cambiata ? "Zona da riscaricare" : "Zona sul telefono")
+        + '<small>' + (z.tessere||n) + ' tessere \u00b7 salvata '
+        + (gg<=0 ? "oggi" : (gg===1 ? "ieri" : (gg+" giorni fa")))
+        + (cambiata ? " \u00b7 la mappa \u00e8 cambiata da allora" : "") + '</small></span>'
+        + '<button class="btn line" data-zonarifai="'+a.id+'" style="width:auto; padding:7px 10px; font-size:11.5px">\u21bb Aggiorna</button>'
         + '<button class="btn line" data-zonatogli="'+a.id+'" style="width:auto; padding:7px 10px; font-size:11.5px">Togli</button></div>';
     }
     return '<button class="btn line" data-zonasalva="'+a.id+'" style="margin-top:8px; border-color:#4A90C2; '
