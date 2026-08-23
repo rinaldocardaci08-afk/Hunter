@@ -1502,6 +1502,15 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 .gpsbric .tx{flex:1; min-width:0; font-size:13px; color:var(--cream);}
 .gpsbric .tx small{display:block; font-size:10.5px; color:var(--muted); margin-top:2px;}
 
+
+/* la versione dentro la riga del ruolo, e il GPS grande abbastanza da toccarlo */
+header .s .ver{display:inline-block; margin-left:6px; padding:1px 7px; border-radius:20px;
+  background:#00000040; border:1px solid var(--dark3); color:var(--muted); font-size:10.5px;
+  vertical-align:1px;}
+header .gps{min-height:44px; padding:0 14px; border-radius:22px; font-size:13px; gap:8px;}
+header .gps .d{width:11px; height:11px;}
+header .menubtn{min-width:48px; min-height:48px;}
+
 </style>
 </head>
 <body>
@@ -1654,10 +1663,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       </div>
       <div style="min-width:0">
         <div class="t" id="h-squadra">Zannalunga</div>
-        <div class="s" id="h-utente">—</div>
+        <div class="s"><span id="h-utente">&mdash;</span> <span class="ver" id="h-ver">v1</span></div>
       </div>
     </div>
-    <div class="ver" id="h-ver">v1</div>
     <div class="gps off" id="gpsdot"><span class="d"></span><span id="gpstxt">GPS</span></div>
     <button class="menubtn" id="btn-menu">☰</button>
   </header>
@@ -3192,7 +3200,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.83";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.84";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3838,8 +3846,6 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       p.style.cursor = "pointer";
       p.onclick = function(){
         if(watchId!==null){
-          var m = motivoGPS();
-          if(m) toast("GPS acceso: " + m);
           spegniGPSaMano();
         }else{
           accendiGPSaMano();
@@ -3880,30 +3886,33 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      Deve poter essere spento sempre. Se sta lavorando per qualcosa lo dice
      prima, invece di spegnersi in silenzio e bucare una tracciata. */
   var gpsForzatoOff = false;
+  /* Ogni motivo ha la sua frase: cosa sta facendo il GPS e cosa si perde
+     spegnendolo. Sono le parole che uno vuole leggere prima di decidere. */
   function motivoGPS(){
     if(typeof tracciataAperta !== "undefined" && tracciataAperta)
-      return "sto registrando la tua tracciata";
+      return {c:"Stai tracciando", p:"Il tuo giro si ferma qui e la linea resta a met\u00e0."};
     if(typeof percorsoAttivo !== "undefined" && percorsoAttivo)
-      return "sto registrando il percorso della mappa";
+      return {c:"Stai segnando il percorso della mappa", p:"Il percorso si interrompe dove sei adesso."};
     if(typeof seguoPercorso !== "undefined" && seguoPercorso)
-      return "ti sto guidando lungo il percorso";
+      return {c:"Ti sto guidando lungo il percorso", p:"Perdi la guida e devi andare a memoria."};
     if(typeof mappatura !== "undefined" && mappatura)
-      return "stai inserendo poste sulla mappa";
+      return {c:"Stai inserendo poste sulla mappa", p:"Le poste nuove non prenderebbero le coordinate giuste."};
     if(typeof pickRitrovo !== "undefined" && pickRitrovo)
-      return "stai segnando il punto di ritrovo";
+      return {c:"Stai segnando il punto di ritrovo", p:"Il punto non si pu\u00f2 salvare senza posizione."};
     if(document.getElementById("m-vista") && document.getElementById("m-vista").classList.contains("show"))
-      return "ti sto guidando alla tua posta";
+      return {c:"Ti sto portando alla tua posta", p:"Spariscono la freccia e i metri che mancano."};
     if(document.getElementById("v-mappa") && document.getElementById("v-mappa").classList.contains("active"))
-      return "hai la mappa aperta";
-    if(gpsPerAuto()) return "tengo la freccia del rientro all'auto";
-    if(gpsManuale) return "l'hai acceso tu";
+      return {c:"Hai la mappa aperta", p:"Non vedrai pi\u00f9 dove sei sulla mappa."};
+    if(gpsPerAuto())
+      return {c:"Tengo la strada per tornare al mezzo", p:"La freccia si aggiorner\u00e0 solo aprendo Il mio mezzo."};
+    if(gpsManuale)
+      return {c:"L'hai acceso tu poco fa", p:"Nessun lavoro in corso: puoi spegnerlo tranquillamente."};
     return null;
   }
   function spegniGPSaMano(){
     var m = motivoGPS();
     if(m){
-      if(!confirm("Vuoi spegnere il GPS?\n\n" + m.charAt(0).toUpperCase() + m.slice(1)
-        + ".\n\nSpegnendolo questa cosa si ferma.")) return false;
+      if(!confirm(m.c + ".\n\n" + m.p + "\n\nSpengo il GPS?")) return false;
     }
     gpsForzatoOff = true;
     gpsManuale = false;
