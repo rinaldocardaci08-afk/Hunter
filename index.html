@@ -1469,6 +1469,22 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 #senzarete.show{display:flex;}
 #senzarete .em{font-size:18px;}
 
+
+/* il salvataggio della zona */
+#zonabar{position:fixed; left:12px; right:12px; bottom:calc(env(safe-area-inset-bottom) + 76px);
+  z-index:2700; display:none; background:#1F4E79; border:1px solid #8FB6FF; border-radius:12px;
+  padding:11px 13px; color:#fff; box-shadow:0 6px 22px #00000080;}
+#zonabar.show{display:block;}
+#zonabar .tx{font-size:12.5px;}
+#zonabar .ba{height:8px; background:#00000055; border-radius:5px; overflow:hidden; margin:8px 0 5px;}
+#zonabar .ba i{display:block; height:100%; width:0; background:#8FB6FF; transition:width .2s;}
+#zonabar .nb{font-size:10.5px; opacity:.8;}
+.zonaok{display:flex; align-items:center; gap:10px; background:#2d5a3f33; border:1px solid #3d7a55;
+  border-radius:11px; padding:10px 12px; margin-top:8px;}
+.zonaok .em{font-size:17px; color:#7be0a8;}
+.zonaok .tx{flex:1; min-width:0; font-size:13px; color:var(--cream);}
+.zonaok .tx small{display:block; font-size:10.5px; color:var(--muted); margin-top:2px;}
+
 </style>
 </head>
 <body>
@@ -2450,6 +2466,13 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
 <div id="senzarete"><span class="em">&#128246;</span><span class="tx">Senza rete &middot; funzionano mappe, poste, GPS e parcheggio. Quello che segni si manda quando torna il campo.</span></div>
 
+
+<div id="zonabar">
+  <div class="tx" id="zonabar-tx">Salvo la zona&hellip;</div>
+  <div class="ba"><i id="zonabar-i"></i></div>
+  <div class="nb">tieni l&rsquo;app aperta finch&eacute; finisce</div>
+</div>
+
 <!-- MENU GENERALE -->
 <div id="menu">
   <div class="panel">
@@ -3139,7 +3162,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.76";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.77";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9565,6 +9588,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     h += '</div>';
 
     h += '<button class="btn primary" id="ad-mappa">🗺️ Apri sulla mappa</button>';
+    h += htmlZona(a);
     if(puoMappare()){
       /* il punto si segna SOLO stando sul posto: le coordinate devono essere
          quelle vere, non un tocco approssimativo sulla mappa */
@@ -9677,6 +9701,12 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     });
     root.querySelectorAll("[data-sezapri]").forEach(function(b){
       b.onclick = function(){ mostraPosteSezione(b.dataset.sezapri); };
+    });
+    root.querySelectorAll("[data-zonasalva]").forEach(function(b){
+      b.onclick = function(){ salvaZona(b.dataset.zonasalva); };
+    });
+    root.querySelectorAll("[data-zonatogli]").forEach(function(b){
+      b.onclick = function(){ togliZona(b.dataset.zonatogli); };
     });
     var bon = root.querySelector("#ad-ossnuovo");
     if(bon) bon.onclick = function(){ nuovoPuntoOss(areaDett); };
@@ -18502,6 +18532,180 @@ function fineA(){
     avvInCorso = null;
     if(document.getElementById("v-ossnott").classList.contains("active")) renderOsservazioni();
     if(document.getElementById("v-giornata").classList.contains("active")) renderGiornata();
+  }
+
+
+  /* ================= SALVARE LA ZONA PER IL BOSCO =================
+     Le tessere del satellite si scaricano a casa, col wifi, e restano sul
+     telefono. In montagna la mappa c'e' anche senza campo.
+     Si salvano solo i livelli utili: dal 14 (si vede la zona) al 18 (si vede
+     l'albero). Piu' in la' non serve e pesa il quadruplo a ogni scalino. */
+  var TESSERE_CACHE = "hunter-tessere";
+  var ZONE_KEY = "hunter_zone_salvate";
+  var URL_TESSERA = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
+  var ZMIN = 14, ZMAX = 18;
+
+  function zoneSalvate(){
+    try{ var d=JSON.parse(localStorage.getItem(ZONE_KEY)); return d && typeof d==="object" ? d : {}; }
+    catch(e){ return {}; }
+  }
+  function scriviZone(z){ try{ localStorage.setItem(ZONE_KEY, JSON.stringify(z)); }catch(e){} }
+
+  function xDaLng(lng, z){ return Math.floor((lng+180)/360*Math.pow(2,z)); }
+  function yDaLat(lat, z){
+    var r = lat*Math.PI/180;
+    return Math.floor((1 - Math.log(Math.tan(r) + 1/Math.cos(r))/Math.PI)/2 * Math.pow(2,z));
+  }
+  /* il riquadro della mappa, con un po' di margine attorno */
+  /* la stessa lettura del percorso che usa l'anteprima, qui a portata di tutti */
+  function puntiElenco(x){
+    if(!x) return [];
+    if(typeof x === "string"){ try{ x = JSON.parse(x); }catch(e){ return []; } }
+    if(Array.isArray(x)) return x;
+    if(Array.isArray(x.punti)) return x.punti;
+    return [];
+  }
+  function riquadroArea(a){
+    var pts = [];
+    (a.poste||[]).forEach(function(p){ if(isFinite(p.lat) && p.lat) pts.push(p); });
+    puntiElenco(a.percorso).forEach(function(p){ if(isFinite(p.lat) && p.lat) pts.push(p); });
+    (typeof tracceDi === "function" ? tracceDi(a.id) : []).forEach(function(t){
+      puntiElenco(t.punti).forEach(function(p){ if(isFinite(p.lat) && p.lat) pts.push(p); });
+    });
+    (typeof puntiDiArea === "function" ? puntiDiArea(a.id) : []).forEach(function(p){
+      if(isFinite(p.lat) && p.lat) pts.push(p);
+    });
+    if(!pts.length) return null;
+    var la1=90, la2=-90, ln1=180, ln2=-180;
+    pts.forEach(function(p){
+      la1=Math.min(la1,+p.lat); la2=Math.max(la2,+p.lat);
+      ln1=Math.min(ln1,+p.lng); ln2=Math.max(ln2,+p.lng);
+    });
+    /* almeno mezzo chilometro attorno: si arriva da fuori, non si nasce sulla posta */
+    var mLat = Math.max(0.0045, (la2-la1)*0.35);
+    var mLng = Math.max(0.0058, (ln2-ln1)*0.35);
+    return {la1:la1-mLat, la2:la2+mLat, ln1:ln1-mLng, ln2:ln2+mLng};
+  }
+  /* quanto dettaglio scaricare: su una mappa piccola si arriva all'albero,
+     su una da tre chilometri no, altrimenti sono sessanta megabyte e mezz'ora
+     di scarico. Si scende di un gradino finche' il conto sta in piedi. */
+  function zoomMassimoPer(a){
+    for(var zm=ZMAX; zm>ZMIN; zm--){
+      if(quanteTessere(a, zm) <= 900) return zm;
+    }
+    return ZMIN;
+  }
+  function quanteTessere(a, zMax){
+    var r = riquadroArea(a);
+    if(!r) return 0;
+    var n = 0;
+    for(var z=ZMIN; z<=zMax; z++){
+      var x1=xDaLng(r.ln1,z), x2=xDaLng(r.ln2,z);
+      var y1=yDaLat(r.la2,z), y2=yDaLat(r.la1,z);
+      n += (x2-x1+1)*(y2-y1+1);
+    }
+    return n;
+  }
+  function elencoTessere(a, zMax){
+    var r = riquadroArea(a);
+    if(!r) return [];
+    var ZM = zMax || zoomMassimoPer(a);
+    var v = [];
+    for(var z=ZMIN; z<=ZM; z++){
+      var x1=xDaLng(r.ln1,z), x2=xDaLng(r.ln2,z);
+      var y1=yDaLat(r.la2,z), y2=yDaLat(r.la1,z);   // la latitudine cresce all'incontrario
+      for(var x=x1; x<=x2; x++){
+        for(var y=y1; y<=y2; y++){
+          v.push(URL_TESSERA + z + "/" + y + "/" + x);
+        }
+      }
+    }
+    return v;
+  }
+  function dettaglioAParole(zm){
+    return zm>=18 ? "si vedono gli alberi"
+         : (zm===17 ? "si vedono le piante grandi e i sentieri"
+         : (zm===16 ? "si vedono i campi e le strade" : "si vede la zona"));
+  }
+  function pesoStimato(n){
+    var kb = n * 26;                       // una tessera satellitare sta sui 25-30 KB
+    return kb > 1024 ? (Math.round(kb/102.4)/10 + " MB") : (Math.round(kb) + " KB");
+  }
+
+  var scaricando = false;
+  async function salvaZona(areaId){
+    var a = aree.find(function(x){ return x.id === areaId; });
+    if(!a) return;
+    if(scaricando){ toast("Sto gi\u00e0 scaricando una zona"); return; }
+    var lista = elencoTessere(a);
+    if(!lista.length){ toast("Questa mappa non ha coordinate: non so cosa scaricare"); return; }
+    if(!navigator.onLine){ toast("Per salvare la zona serve la rete: fallo a casa"); return; }
+    var zm = zoomMassimoPer(a);
+    if(!confirm("Salvare la zona di \u00ab"+a.nome+"\u00bb sul telefono?\n\n"
+      + lista.length + " tessere, circa " + pesoStimato(lista.length) + "\n"
+      + "Dettaglio: " + dettaglioAParole(zm) + ".\n\n"
+      + "Falla col wifi: dopo la mappa si vede anche senza campo.")) return;
+
+    scaricando = true;
+    var box = document.getElementById("zonabar");
+    var barra = document.getElementById("zonabar-i");
+    var testo = document.getElementById("zonabar-tx");
+    if(box) box.classList.add("show");
+    var fatte = 0, saltate = 0;
+    try{
+      var c = await caches.open(TESSERE_CACHE);
+      for(var i=0; i<lista.length; i++){
+        try{
+          var gia = await c.match(lista[i]);
+          if(!gia){
+            var risp = await fetch(lista[i], {cache:"no-store"});
+            if(risp && risp.ok) await c.put(lista[i], risp.clone());
+            else saltate++;
+          }
+        }catch(e){ saltate++; }
+        fatte++;
+        if(barra) barra.style.width = Math.round(fatte/lista.length*100) + "%";
+        if(testo) testo.textContent = "Salvo " + a.nome + " \u00b7 " + fatte + " di " + lista.length;
+        if(fatte % 20 === 0) await new Promise(function(r){ setTimeout(r, 0); });   // lascio respirare lo schermo
+      }
+      var z = zoneSalvate();
+      z[areaId] = {nome:a.nome, tessere:lista.length - saltate, quando:Date.now()};
+      scriviZone(z);
+      toast("Zona salvata: " + a.nome + " \u00b7 " + (lista.length - saltate) + " tessere");
+    }catch(e){
+      toast("Non sono riuscito a salvare la zona");
+    }
+    scaricando = false;
+    if(box) box.classList.remove("show");
+    if(document.getElementById("v-areadett").classList.contains("active")) renderSchedaArea();
+  }
+  async function togliZona(areaId){
+    var a = aree.find(function(x){ return x.id === areaId; });
+    if(!a) return;
+    if(!confirm("Togliere dal telefono la zona di \u00ab"+a.nome+"\u00bb?\n\n"
+      + "La mappa si vedr\u00e0 solo con la rete, finch\u00e9 non la riscarichi.")) return;
+    try{
+      var c = await caches.open(TESSERE_CACHE);
+      var lista = elencoTessere(a);
+      for(var i=0;i<lista.length;i++){ try{ await c.delete(lista[i]); }catch(e){} }
+      var z = zoneSalvate(); delete z[areaId]; scriviZone(z);
+      toast("Zona tolta dal telefono");
+    }catch(e2){ toast("Non riesco a toglierla"); }
+    if(document.getElementById("v-areadett").classList.contains("active")) renderSchedaArea();
+  }
+  function htmlZona(a){
+    var z = zoneSalvate()[a.id];
+    var n = elencoTessere(a).length;
+    if(!n) return "";
+    if(z){
+      var gg = Math.round((Date.now() - (z.quando||0))/86400000);
+      return '<div class="zonaok"><span class="em">\u2713</span>'
+        + '<span class="tx">Zona sul telefono<small>' + (z.tessere||n) + ' tessere \u00b7 salvata '
+        + (gg<=0 ? "oggi" : (gg===1 ? "ieri" : (gg+" giorni fa"))) + '</small></span>'
+        + '<button class="btn line" data-zonatogli="'+a.id+'" style="width:auto; padding:7px 10px; font-size:11.5px">Togli</button></div>';
+    }
+    return '<button class="btn line" data-zonasalva="'+a.id+'" style="margin-top:8px; border-color:#4A90C2; '
+      + 'background:#1F4E7922; color:var(--cream)">\u2b07\ufe0f Salva la zona sul telefono \u00b7 ' + pesoStimato(n) + '</button>';
   }
 
   if(document.readyState!=="loading") init();
