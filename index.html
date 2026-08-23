@@ -3139,7 +3139,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.75";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.76";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3424,7 +3424,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       if(!rb.error) battute=rb.data||[];
     }catch(e){}
     aggiornaBadgeCoda();
-    if(navigator.onLine) sincronizzaCoda(true);   // se c'è rete, svuoto la coda in silenzio
+    if(navigator.onLine){ sincronizzaCoda(true); sincronizzaRitrovi(); }   // se c'è rete, svuoto le code in silenzio
     setTimeout(recuperaPercorsoInterrotto, 800);  // e recupero la traccia rimasta aperta
   }
 
@@ -7948,9 +7948,77 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     tornaDaPickRitrovo(o, false);
   }
 
+
+  /* ---- LA CODA DEI RITROVI ---- */
+  var CODA_RITROVI_KEY = "hunter_coda_ritrovi";
+  function leggiCodaRitrovi(){
+    try{ var d=JSON.parse(localStorage.getItem(CODA_RITROVI_KEY)); return Array.isArray(d)?d:[]; }
+    catch(e){ return []; }
+  }
+  function scriviCodaRitrovi(c){
+    try{ localStorage.setItem(CODA_RITROVI_KEY, JSON.stringify(c)); }catch(e){}
+  }
+  async function sincronizzaRitrovi(){
+    var c = leggiCodaRitrovi();
+    if(!c.length || !navigator.onLine || !me) return 0;
+    var restano = [], saliti = 0;
+    for(var i=0;i<c.length;i++){
+      try{
+        var r = await sb.from("hn_ritrovi").insert({
+          squadra_id: me.squadra_id, nome: c[i].nome,
+          lat: c[i].lat, lng: c[i].lng, accuratezza: 0, creato_da: me.user_id
+        }).select().single();
+        if(r.error) throw r.error;
+        ritrovi = ritrovi.filter(function(x){ return !x.inCoda || x.nome!==c[i].nome; });
+        ritrovi.push(r.data);
+        saliti++;
+      }catch(e){ restano.push(c[i]); }
+    }
+    scriviCodaRitrovi(restano);
+    try{ localStorage.setItem("hunter_cache_ritrovi", JSON.stringify(ritrovi)); }catch(e2){}
+    if(saliti) toast(saliti + " punto di ritrovo caricato");
+    return saliti;
+  }
+
+  /* ---- LA MIA POSTA RESTA SUL TELEFONO ----
+     Se il cacciatore riapre l'app nel bosco senza rete, l'app non sa piu' dove
+     deve andare. Quindi la sua posta - numero, coordinate, le due vicine e la
+     nota - si tiene da parte appena la si conosce. */
+  var MIA_POSTA_KEY = "hunter_mia_posta";
+  function salvaMiaPostaSulTelefono(){
+    try{
+      var mp = laMiaPosta();
+      if(!mp) return;
+      var a = aree.find(function(x){ return x.id === mp.area_id; });
+      var p = a ? (a.poste||[]).find(function(x){ return x.id === mp.posta_id; }) : null;
+      if(!p || !isFinite(p.lat)) return;
+      var vic = posteVicine(a, p, 2).map(function(q){
+        return {numero:q.numero, lat:q.lat, lng:q.lng, nome:q.nome||null};
+      });
+      var r = (giornataAperta && giornataAperta.ritrovo_id) ? ritrovoDi(giornataAperta.ritrovo_id) : null;
+      localStorage.setItem(MIA_POSTA_KEY, JSON.stringify({
+        quando: Date.now(),
+        giornata: giornataAperta ? giornataAperta.data : null,
+        area: a ? a.nome : "", areaId: mp.area_id,
+        posta: {id:p.id, numero:p.numero, nome:p.nome||null, lat:p.lat, lng:p.lng, note:p.note||""},
+        vicine: vic,
+        ritrovo: r ? {nome:r.nome, lat:r.lat, lng:r.lng} : null
+      }));
+    }catch(e){}
+  }
+  function miaPostaDalTelefono(){
+    try{
+      var d = JSON.parse(localStorage.getItem(MIA_POSTA_KEY));
+      if(!d || !d.posta) return null;
+      /* piu' vecchia di due giorni non serve a nessuno */
+      if(Date.now() - (d.quando||0) > 2*24*3600*1000) return null;
+      return d;
+    }catch(e){ return null; }
+  }
+
   async function confermaPuntoRitrovo(){
     if(!pickRitrovo || pickRitrovo.lat===null){ toast("Tocca prima il punto sulla mappa"); return; }
-    if(!navigator.onLine){ toast("Serve la rete per salvare il punto di ritrovo"); return; }
+    /* senza rete non si butta via: e' un punto GPS come una posta, va in coda */
     var lat=pickRitrovo.lat, lng=pickRitrovo.lng, origine=pickRitrovo.origine;
     chiediTesto("Nome del punto di ritrovo", "Es. Piazzale Fontana", "", "text",
       function(n){ scriviRitrovoDaMappa(n, lat, lng, origine); });
@@ -7960,6 +8028,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     nome = String(nome||"").trim();
     if(!nome){ toast("Serve un nome"); return; }
     try{
+      if(!navigator.onLine) throw new Error("offline");
       var r=await sb.from("hn_ritrovi").insert({
         squadra_id:me.squadra_id, nome:nome,
         lat:lat, lng:lng, accuratezza:0,
@@ -7972,6 +8041,17 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       toast("Ritrovo salvato: "+nome);
       tornaDaPickRitrovo(origine, true);
     }catch(e){
+      /* SENZA RETE: lo tengo sul telefono e sale da solo appena c'e' campo */
+      var c = leggiCodaRitrovi();
+      c.push({nome:nome, lat:lat, lng:lng, quando:Date.now()});
+      scriviCodaRitrovi(c);
+      ritrovi.push({id:"coda_ritrovo_"+Date.now(), nome:nome, lat:lat, lng:lng, squadra_id:me.squadra_id, inCoda:true});
+      try{ localStorage.setItem("hunter_cache_ritrovi", JSON.stringify(ritrovi)); }catch(e5){}
+      chiudiPickRitrovo();
+      toast("Ritrovo segnato sul telefono: sale appena c'\u00e8 rete");
+      tornaDaPickRitrovo(origine, true);
+      return;
+      /* il messaggio vecchio resta solo per gli errori veri del database */
       toast("Non sono riuscito a salvare il punto di ritrovo");
     }
   }
@@ -8488,6 +8568,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
                  .eq("squadra_id", me.squadra_id).order("creata_il", {ascending:false}).limit(400);
       if(!r2.error) storicoPoste = r2.data || [];
     }catch(e){ assegnazioni = []; }
+    salvaMiaPostaSulTelefono();   // se domani non c'e' rete, la guida funziona lo stesso
   }
 
   /* tutto filtrato sulla battuta in corso: la mattina uno sta sulla 3 di
@@ -9194,13 +9275,28 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   /* "Portami alla mia posta" apre la VISTA DEL POSTAIOLO - freccia, metri che
      mancano e nota di sicurezza - anche al capocaccia: li' sta andando in posta
      come chiunque altro. La mappa intera resta a un tocco di distanza. */
+
+  /* la guida alla posta con quello che il telefono si e' tenuto */
+  function guidaDaTelefono(d){
+    postaAperta = { id:d.posta.id, nome:d.posta.nome || ("Posta "+(d.posta.numero||"")),
+                    numero:d.posta.numero, lat:d.posta.lat, lng:d.posta.lng, note:d.posta.note||"" };
+    areaAttivaId = d.areaId;
+    apriVistaPostaiolo();
+    toast("Senza rete: uso la posta salvata sul telefono");
+  }
+
   function apriMiaPostaInMappa(){
     var mp = laMiaPosta();
-    if(!mp){ toast("Non hai ancora una posta"); return; }
-    var a = aree.find(function(x){ return x.id === mp.area_id; });
+    var a = mp ? aree.find(function(x){ return x.id === mp.area_id; }) : null;
+    var p = (mp && a) ? (a.poste||[]).find(function(x){ return x.id === mp.posta_id; }) : null;
+    if(!p){
+      /* SENZA RETE, riaprendo l'app nel bosco, le assegnazioni non ci sono piu':
+         uso quella che avevo messo da parte. La freccia e i metri bastano. */
+      var d = miaPostaDalTelefono();
+      if(d){ guidaDaTelefono(d); return; }
+      toast("Non hai ancora una posta"); return;
+    }
     if(!a){ toast("Mappa non trovata"); return; }
-    var p = (a.poste||[]).find(function(x){ return x.id === mp.posta_id; });
-    if(!p){ toast("Posta non trovata sulla mappa"); return; }
     areaAttivaId = mp.area_id;
     postaAperta = p;
     apriVistaPostaiolo();
