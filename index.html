@@ -3184,7 +3184,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.79";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.81";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3407,12 +3407,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         showView("home");
         initMapOnce();
         aggiornaBarraAzioni();
-        serveGPS("home");                 // la posizione funziona anche senza rete
+        /* il GPS NON si accende per abitudine: solo se la macchina e' parcheggiata
+           (serve la freccia del rientro). Altrove lo accende chi ne ha bisogno.
+           Tenerlo acceso in Home succhia batteria per niente. */
+        caricaParcheggio();
+        if(parcheggio) serveGPS("auto"); else nonServeGPS();
         caricaOrdineHome();               // LE CASELLE della Home
         renderCaselleHome();
         caricaRadio();                    // dalla memoria del telefono
         caricaMeteo();                    // dall'ultima previsione salvata
-        caricaParcheggio(); renderAuto();
+        renderAuto();
         mostraSenzaRete(true);
         await caricaAree();               // usa la cache delle mappe
         try{ await caricaBattute(); }catch(e9){}
@@ -18843,8 +18847,47 @@ function fineA(){
       + 'background:#1F4E7922; color:var(--cream)">\u2b07\ufe0f Salva la zona sul telefono \u00b7 ' + pesoStimato(n) + '</button>';
   }
 
-  if(document.readyState!=="loading") init();
-  else document.addEventListener("DOMContentLoaded", init);
+  /* ---- LE LIBRERIE: prima quelle in casa, e se mancano si va a prenderle ----
+     I file leaflet.js e supabase.js stanno accanto a index.html: cosi' l'app
+     funziona senza rete. Ma se qualcuno apre il solo index.html (l'anteprima,
+     una copia spostata) quei file non ci sono e il programma non partirebbe
+     nemmeno con la rete: allora si scaricano al volo. */
+  function caricaScript(url){
+    return new Promise(function(ok, no){
+      var t = document.createElement("script");
+      t.src = url; t.onload = ok; t.onerror = no;
+      document.head.appendChild(t);
+    });
+  }
+  async function assicuraLibrerie(){
+    if(typeof window.supabase === "undefined" || !window.supabase.createClient){
+      try{ await caricaScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"); }catch(e){}
+    }
+    if(typeof window.L === "undefined"){
+      try{
+        var c = document.createElement("link");
+        c.rel = "stylesheet";
+        c.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css";
+        document.head.appendChild(c);
+        await caricaScript("https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js");
+      }catch(e2){}
+    }
+    if(typeof window.supabase === "undefined" || !window.supabase.createClient){
+      document.body.innerHTML =
+        '<div style="padding:26px; font:15px system-ui; color:#F0E6D2; background:#2C2418; min-height:100vh; line-height:1.6">'
+      + '<div style="font-size:20px; margin-bottom:10px">Manca un pezzo del programma</div>'
+      + 'I file <b>supabase.js</b> e <b>leaflet.js</b> devono stare nella stessa cartella di '
+      + '<b>index.html</b>, e non ci sono. Con la rete l\'app se li prende da sola, ma adesso '
+      + 'la rete non c\'\u00e8.<br><br>Carica i due file accanto a index.html e riprova.</div>';
+      throw new Error("librerie mancanti");
+    }
+  }
+  async function avvia(){
+    try{ await assicuraLibrerie(); }catch(e){ return; }
+    init();
+  }
+  if(document.readyState!=="loading") avvia();
+  else document.addEventListener("DOMContentLoaded", avvia);
 })();
 </script>
 </body>
