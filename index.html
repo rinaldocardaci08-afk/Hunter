@@ -3192,7 +3192,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.82";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.83";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3830,6 +3830,22 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     var el=document.getElementById("gpsdot");
     el.className="gps "+cls;
     document.getElementById("gpstxt").textContent=txt;
+    /* la pastiglia si tocca: e' il posto dove uno guarda quando si chiede
+       perche' il telefono si sta scaldando */
+    var p = el.parentElement;
+    if(p && !p.__agganciata){
+      p.__agganciata = true;
+      p.style.cursor = "pointer";
+      p.onclick = function(){
+        if(watchId!==null){
+          var m = motivoGPS();
+          if(m) toast("GPS acceso: " + m);
+          spegniGPSaMano();
+        }else{
+          accendiGPSaMano();
+        }
+      };
+    }
   }
   /* --- IL GPS SI ACCENDE SOLO QUANDO SERVE ---
      Serve in: mappa, mappatura, e il giorno della battuta (presenza al ritrovo).
@@ -3859,11 +3875,59 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     return !!(parcheggio && parcheggioFresco() && bricioleAccese());
   }
 
+
+  /* ---- PERCHE' IL GPS E' ACCESO, E COME SPEGNERLO ----
+     Deve poter essere spento sempre. Se sta lavorando per qualcosa lo dice
+     prima, invece di spegnersi in silenzio e bucare una tracciata. */
+  var gpsForzatoOff = false;
+  function motivoGPS(){
+    if(typeof tracciataAperta !== "undefined" && tracciataAperta)
+      return "sto registrando la tua tracciata";
+    if(typeof percorsoAttivo !== "undefined" && percorsoAttivo)
+      return "sto registrando il percorso della mappa";
+    if(typeof seguoPercorso !== "undefined" && seguoPercorso)
+      return "ti sto guidando lungo il percorso";
+    if(typeof mappatura !== "undefined" && mappatura)
+      return "stai inserendo poste sulla mappa";
+    if(typeof pickRitrovo !== "undefined" && pickRitrovo)
+      return "stai segnando il punto di ritrovo";
+    if(document.getElementById("m-vista") && document.getElementById("m-vista").classList.contains("show"))
+      return "ti sto guidando alla tua posta";
+    if(document.getElementById("v-mappa") && document.getElementById("v-mappa").classList.contains("active"))
+      return "hai la mappa aperta";
+    if(gpsPerAuto()) return "tengo la freccia del rientro all'auto";
+    if(gpsManuale) return "l'hai acceso tu";
+    return null;
+  }
+  function spegniGPSaMano(){
+    var m = motivoGPS();
+    if(m){
+      if(!confirm("Vuoi spegnere il GPS?\n\n" + m.charAt(0).toUpperCase() + m.slice(1)
+        + ".\n\nSpegnendolo questa cosa si ferma.")) return false;
+    }
+    gpsForzatoOff = true;
+    gpsManuale = false;
+    gpsRichiesto = false;
+    stopGPS();
+    toast("GPS spento");
+    return true;
+  }
+  function accendiGPSaMano(){
+    gpsForzatoOff = false;
+    gpsManuale = true;
+    startGPS();
+    toast("GPS acceso");
+  }
+
   function serveGPS(motivo){
+    /* una richiesta nuova vince sullo spegnimento a mano: se apro la mappa
+       o comincio una tracciata, il GPS deve ripartire */
+    gpsForzatoOff = false;
     gpsRichiesto = true;
     startGPS();
   }
   function nonServeGPS(){
+    if(gpsForzatoOff){ gpsRichiesto=false; stopGPS(); return; }
     if(gpsManuale) return;    // se l'ha acceso lui, resta acceso
     // REGOLA NUOVA: se sto registrando una traccia o ne sto seguendo una,
     // il GPS NON si spegne mai, nemmeno se esco dalla sezione mappa.
@@ -8357,7 +8421,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
     // finche' sono in home tengo viva la freccia
     if(autoTimer){ clearInterval(autoTimer); autoTimer = null; }
-    if(parcheggio && document.getElementById("v-home").classList.contains("active")){
+    if(gpsPerAuto() && document.getElementById("v-home").classList.contains("active")){
       serveGPS("auto");
       autoTimer = setInterval(aggiornaFrecciaAuto, 3000);
     }
@@ -8371,7 +8435,9 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 
   function apriFinestraAuto(){
     caricaParcheggio();
-    serveGPS("auto");        // il GPS puo' essere spento (Giochi, Bacheca): qui serve
+    /* qui il GPS serve davvero: o per segnare il punto o per la freccia.
+       Ma se l'utente lo ha spento a mano non glielo riaccendo alle spalle. */
+    if(!gpsForzatoOff) serveGPS("auto");
 
     var corpo = document.getElementById("m-au-corpo");
     var ok = document.getElementById("m-au-ok");
@@ -15403,8 +15469,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
       b.onclick=function(){ chiudiMenu(); showView(b.dataset.go); };
     });
     document.getElementById("menu-gps").onclick=function(){
-      if(watchId!==null){ gpsManuale=false; stopGPS(); toast("GPS sospeso"); }
-      else { gpsManuale=true; startGPS(); toast("GPS riattivato"); }
+      if(watchId!==null){ spegniGPSaMano(); }
+      else { accendiGPSaMano(); }
       chiudiMenu();
     };
     document.getElementById("menu-ricarica").onclick=async function(){
@@ -15824,8 +15890,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     document.getElementById("mvz-meno").onclick=function(){ miniZoom("mv-schema", 0.67); };
 
     document.getElementById("btn-gps-toggle").onclick=function(){
-      if(watchId!==null){ gpsManuale=false; stopGPS(); this.textContent="Riattiva GPS"; }
-      else { gpsManuale=true; startGPS(); this.textContent="Sospendi GPS (risparmio batteria)"; }
+      if(watchId!==null){ if(spegniGPSaMano()) this.textContent="Riattiva GPS"; }
+      else { accendiGPSaMano(); this.textContent="Sospendi GPS (risparmio batteria)"; }
     };
     window.addEventListener("resize",function(){ if(mode==="schema") drawSchema(); });
 
