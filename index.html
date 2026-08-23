@@ -1494,6 +1494,14 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
 #m-scaricazona .zriga .tx{flex:1; min-width:0; font-size:14px; color:var(--cream);}
 #m-scaricazona .zriga .tx small{display:block; font-size:10.5px; color:var(--muted); margin-top:2px;}
 
+
+.gpsbric{display:flex; align-items:center; gap:11px; background:#00000030; border:1px solid var(--dark3);
+  border-radius:11px; padding:10px 12px; margin-top:11px;}
+.gpsbric .pal{width:12px; height:12px; border-radius:50%; background:#8a3b2e; flex-shrink:0;}
+.gpsbric.on .pal{background:#5DD97A; box-shadow:0 0 8px #5DD97A99;}
+.gpsbric .tx{flex:1; min-width:0; font-size:13px; color:var(--cream);}
+.gpsbric .tx small{display:block; font-size:10.5px; color:var(--muted); margin-top:2px;}
+
 </style>
 </head>
 <body>
@@ -3184,7 +3192,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.81";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.82";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3411,7 +3419,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
            (serve la freccia del rientro). Altrove lo accende chi ne ha bisogno.
            Tenerlo acceso in Home succhia batteria per niente. */
         caricaParcheggio();
-        if(parcheggio) serveGPS("auto"); else nonServeGPS();
+        if(gpsPerAuto()) serveGPS("auto"); else nonServeGPS();
         caricaOrdineHome();               // LE CASELLE della Home
         renderCaselleHome();
         caricaRadio();                    // dalla memoria del telefono
@@ -3828,6 +3836,28 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
      Non serve in: bacheca, squadra, calendario, adesioni. Così non consuma. */
   var gpsRichiesto = false;   // true = qualcuno lo ha chiesto (non spegnerlo)
   var gpsManuale = false;     // true = l'utente lo ha acceso a mano dal menu
+
+
+  /* ---- QUANDO IL GPS RESTA ACCESO PER L'AUTO ----
+     Con la macchina parcheggiata il GPS serve: freccia del rientro e briciole.
+     Ma un parcheggio di ieri non deve succhiare la batteria oggi, e chi non
+     vuole le briciole deve poterlo dire. */
+  var BRICIOLE_KEY = "hunter_briciole_gps";
+  function bricioleAccese(){
+    try{ return localStorage.getItem(BRICIOLE_KEY) !== "no"; }catch(e){ return true; }
+  }
+  function accendiBriciole(si){
+    try{ localStorage.setItem(BRICIOLE_KEY, si ? "si" : "no"); }catch(e){}
+    if(!si) nonServeGPS(); else if(parcheggio) serveGPS("auto");
+  }
+  function parcheggioFresco(){
+    if(!parcheggio) return false;
+    var q = parcheggio.quando || 0;
+    return (Date.now() - q) < 14*3600*1000;      // una giornata di caccia, non di piu'
+  }
+  function gpsPerAuto(){
+    return !!(parcheggio && parcheggioFresco() && bricioleAccese());
+  }
 
   function serveGPS(motivo){
     gpsRichiesto = true;
@@ -4719,7 +4749,7 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
     // il GPS si accende solo dove serve. In home serve se ho segnato il mezzo:
     // la freccia deve puntare anche stando fermi sull'elenco.
     if(v==="mappa") serveGPS("mappa");
-    else if(v==="home"){ caricaParcheggio(); if(parcheggio) serveGPS("auto"); else nonServeGPS(); }
+    else if(v==="home"){ caricaParcheggio(); if(gpsPerAuto()) serveGPS("auto"); else nonServeGPS(); }
     else if(v!=="giornata") nonServeGPS();
     if(v==="home") setTimeout(renderAuto, 30);
     else if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
@@ -8411,6 +8441,16 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
         h += '</div>';
       }
 
+      /* l'interruttore della batteria: chi non vuole le briciole spegne il GPS */
+      h += '<div class="gpsbric'+(bricioleAccese()?" on":"")+'" id="bric-sw">'
+        +  '<span class="pal"></span>'
+        +  '<span class="tx">'+(bricioleAccese()
+             ? 'GPS acceso per il rientro<small>lascia le briciole e tiene aggiornata la freccia</small>'
+             : 'GPS spento<small>la freccia si aggiorna solo aprendo questa schermata</small>')+'</span></div>';
+      if(bricioleAccese() && !parcheggioFresco()){
+        h += '<div class="hint" style="margin-top:7px">Il parcheggio \u00e8 di pi\u00f9 di quattordici ore fa: '
+          +  'il GPS non resta pi\u00f9 acceso da solo, per non consumare la batteria.</div>';
+      }
       h += '<div style="font-size:10.5px; color:var(--muted); margin-top:11px; line-height:1.5">'
          + 'segnato '+daQuandoParcheggiato()+' \u00b7 funziona anche senza rete'
          + (bussolaGradi===null ? '<br>Tieni il telefono col <b>nord in alto</b>: la parola verde ti dice da che parte andare.' : '<br>Bussola attiva: il quadrante gira con te.')
@@ -8418,6 +8458,8 @@ body.battuta-giochi .gc-caccia:after{content:"\1F512"; position:absolute; right:
          + '</div>';
 
       corpo.innerHTML = h;
+      var sw = document.getElementById("bric-sw");
+      if(sw) sw.onclick = function(){ accendiBriciole(!bricioleAccese()); apriFinestraAuto(); };
       ok.style.display = "block";
       ok.textContent = "\ud83d\uddfa\ufe0f Vedilo sulla mappa";
       ok.disabled = false;
