@@ -3,9 +3,7 @@ REM ============================================
 REM  HUNTER - Deploy automatico
 REM  Uso:  deploy.bat "messaggio del commit"
 REM ============================================
-
-cd /d C:\Users\rinal\OneDrive\Desktop\Hunter
-
+cd /d "%~dp0"
 echo.
 echo === HUNTER DEPLOY ===
 echo.
@@ -27,19 +25,38 @@ if exist "%USERPROFILE%\Downloads\hunter-index.html" (
     )
 )
 
-REM --- 2) mostra la versione che sta per pubblicare ---
+REM --- 2) controllo che sia davvero un repository ---
+if not exist ".git" (
+    echo.
+    echo ERRORE: questa cartella non e' collegata a GitHub.
+    echo Cartella: %CD%
+    echo Il deploy si ferma qui.
+    echo.
+    pause
+    exit /b 1
+)
+
+REM --- 3) mostra la versione che sta per pubblicare ---
 echo.
+echo Cartella: %CD%
 echo Versione nel file:
 findstr /C:"APP_VERSION = " index.html
 
-REM --- 3) commit e push ---
+REM --- 4) commit e push ---
 echo.
 set MSG=%~1
 if "%MSG%"=="" set MSG=aggiornamento Hunter
-
 git add .
 git commit -m "%MSG%"
 git push
+if errorlevel 1 (
+    echo.
+    echo === ATTENZIONE: il push NON e' riuscito ===
+    echo Il sito NON e' stato aggiornato. Leggi l'errore qui sopra.
+    echo.
+    pause
+    exit /b 1
+)
 
 echo.
 echo === FATTO ===
