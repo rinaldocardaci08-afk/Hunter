@@ -1705,6 +1705,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <div id="radiobox"></div>
         <div id="meteobox"></div>
 
+        <div id="pres-alert"></div>
         <div class="grid" id="home-caselle"></div>
       </div>
     </section>
@@ -1725,6 +1726,15 @@ header .menubtn{min-width:48px; min-height:48px;}
         <div class="ttl" id="sc-titolo">Le mie scadenze</div>
       </div>
       <div class="scroll" id="scadenze-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- LE MIE PRESENZE -->
+    <section class="view" id="v-presenze">
+      <div class="backbar">
+        <button data-home>‹ Home</button>
+        <div class="ttl" id="pr-titolo">Le mie presenze</div>
+      </div>
+      <div class="scroll" id="presenze-scroll"><div class="loading">Carico…</div></div>
     </section>
 
     <!-- SERGENTE MARIO -->
@@ -1842,6 +1852,13 @@ header .menubtn{min-width:48px; min-height:48px;}
           <button class="chip on" data-tipo="socio">Socio</button>
           <button class="chip" data-tipo="ospite">Ospite</button>
         </div>
+
+        <label class="lbl">Registro di caccia</label>
+        <div class="chips" id="mb-registro">
+          <button class="chip on" data-registro="membro">Membro del registro</button>
+          <button class="chip" data-registro="ospite">Ospite &mdash; non residente VV</button>
+        </div>
+        <div class="hintbox" id="mb-registro-hint" style="color:var(--muted)"></div>
 
         <label class="lbl">Carica <span class="opt">(facoltativa)</span></label>
         <div class="chips" id="mb-carica">
@@ -3200,7 +3217,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.84";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.85";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4825,6 +4842,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     else if(v==="home"){ caricaParcheggio(); if(gpsPerAuto()) serveGPS("auto"); else nonServeGPS(); }
     else if(v!=="giornata") nonServeGPS();
     if(v==="home") setTimeout(renderAuto, 30);
+    if(v==="home") setTimeout(controllaAvvisoAtc, 60);
     else if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
 
     if(v==="mappa"){
@@ -4860,6 +4878,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(v==="admin") caricaAdmin();
     if(v==="sergente") caricaSergente();
     if(v==="scadenze"){ scadenzeDi=null; caricaScadenze(); }
+    if(v==="presenze") caricaPresenze();
     window.scrollTo(0,0);
   }
 
@@ -5813,6 +5832,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       b.classList.toggle("on", b.dataset.tipo===tipo);
     });
 
+    var reg = m ? (m.registro==="ospite" ? "ospite" : "membro") : "membro";
+    document.querySelectorAll("#mb-registro .chip").forEach(function(b){
+      b.classList.toggle("on", b.dataset.registro===reg);
+    });
+    aggiornaHintRegistro();
+
     var carica = m ? (CARICHE[m.ruolo] ? m.ruolo : "cacciatore") : "cacciatore";
     document.querySelectorAll("#mb-carica .chip").forEach(function(b){
       b.classList.toggle("on", b.dataset.carica===carica);
@@ -5888,6 +5913,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.querySelectorAll("#mb-carica .chip").forEach(function(b){ if(b.classList.contains("on")) carica=b.dataset.carica; });
     var compiti=[];
     document.querySelectorAll("#mb-compiti .opz.on").forEach(function(b){ compiti.push(b.dataset.compito); });
+    var registro="membro";
+    document.querySelectorAll("#mb-registro .chip").forEach(function(b){ if(b.classList.contains("on")) registro=b.dataset.registro; });
     var admin = document.querySelector('#mb-permessi [data-perm="is_admin"]').classList.contains("on");
     var cass  = document.querySelector('#mb-permessi [data-perm="is_cassiere"]').classList.contains("on");
     var porto = document.querySelector('#mb-permessi [data-perm="porto_armi"]').classList.contains("on");
@@ -5898,7 +5925,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(admin){ vAree=true; vPoste=true; mappe=true; }
     if(mappe){ vAree=true; vPoste=true; }
     if(vPoste){ vAree=true; }
-    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti, is_admin:admin, is_cassiere:cass,
+    return { nome:nome, tipo:tipo, ruolo:carica, compiti:compiti, registro:registro, is_admin:admin, is_cassiere:cass,
              porto_armi:porto, vede_aree:vAree, vede_poste:vPoste, puo_mappare:mappe };
   }
 
@@ -14459,7 +14486,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     governativa:  { nome:"Tassa governativa", icona:"🏛️", auto:true },
     atc:          { nome:"Tassa ATC",         icona:"🎫", auto:false },
     regionale:    { nome:"Tassa regionale",   icona:"🗺️", auto:false },
-    assicurazione:{ nome:"Assicurazione",     icona:"🛡️", auto:false }
+    assicurazione:{ nome:"Assicurazione",     icona:"🛡️", auto:false },
+    atc_vv1:      { nome:"Autorizzazione ATC VV1", icona:"📄", auto:false },
+    atc_vv2:      { nome:"Autorizzazione ATC VV2", icona:"📄", auto:false }
   };
 
   function puoVedereScadenzeAltrui(){
@@ -15817,6 +15846,13 @@ header .menubtn{min-width:48px; min-height:48px;}
         var ospite = b.dataset.tipo==="ospite";
         var giaHa = membroEdit && membroEdit.user_id;
         document.getElementById("mb-acc-form").style.display = (ospite||giaHa) ? "none" : "block";
+      };
+    });
+    document.querySelectorAll("#mb-registro .chip").forEach(function(b){
+      b.onclick=function(){
+        document.querySelectorAll("#mb-registro .chip").forEach(function(x){ x.classList.remove("on"); });
+        b.classList.add("on");
+        aggiornaHintRegistro();
       };
     });
     document.querySelectorAll("#mb-carica .chip").forEach(function(b){
@@ -17539,6 +17575,330 @@ function fineA(){
      Non più scritte a mano nel file: un elenco che il capo può riordinare
      e spegnere da Amministrazione. L'ordine sta su hn_config, quindi vale
      per tutta la squadra. */
+
+  /* ================= REGISTRO ATC E PRESENZE =================
+     Tre cose distinte, e non vanno confuse:
+       - PRESENZA ALLA GIORNATA (hn_adesioni.viene): carne e spese.
+       - FIRMA SUL REGISTRO ATC (hn_presenze_atc): consuma una delle 15.
+       - AUTORIZZAZIONE ANNUALE (hn_scadenze tipo atc_vv1/atc_vv2): toglie il limite.
+     Un ospite puo' essere presente e non firmare: viene, se ne va, non lo
+     scrivono. Quella giornata non si conta. Per questo l'app CHIEDE, non deduce. */
+
+  var ATC_LIMITE   = 15;
+  var ATC_ELENCO   = ["VV1","VV2"];
+  var presenzeAtc  = [];      // le mie righe di registro
+  var presenzeDi   = null;    // di chi sto guardando le presenze (null = le mie)
+
+  function sonoOspiteRegistro(m){
+    var x = m || me;
+    return !!(x && x.registro === "ospite");
+  }
+  function aggiornaHintRegistro(){
+    var el=document.getElementById("mb-registro-hint");
+    if(!el) return;
+    var reg="membro";
+    document.querySelectorAll("#mb-registro .chip").forEach(function(b){
+      if(b.classList.contains("on")) reg=b.dataset.registro; });
+    el.innerHTML = (reg==="ospite")
+      ? "\u24d8 Non residente in provincia di Vibo Valentia: <b style=\"color:var(--gold)\">15 giornate a stagione per ogni ATC</b>, salvo autorizzazione annuale allegata nei documenti."
+      : "\u24d8 Nessun limite di giornate sul registro.";
+  }
+
+  /* La stagione del registro va dal 1 ottobre al 31 gennaio.
+     Una giornata di gennaio appartiene alla stagione aperta a ottobre. */
+  function stagioneAtcDi(dataIso){
+    var p=String(dataIso).split("-");
+    var anno=+p[0], mese=+p[1];
+    var primo = (mese>=10) ? anno : anno-1;
+    return primo + "/" + String((primo+1)%100).padStart(2,"0");
+  }
+  function dentroFinestraAtc(dataIso){
+    var m=+String(dataIso).split("-")[1];
+    return (m>=10 || m===1);
+  }
+  function stagioneAtcCorrente(){ return stagioneAtcDi(iso(new Date())); }
+
+  /* autorizzazione annuale valida per un ATC a una certa data */
+  function autorizzatoAtc(docs, atc, dataIso){
+    var s = docs ? docs["atc_" + String(atc).toLowerCase()] : null;
+    if(!s) return false;
+    if(!s.scadenza) return true;              // allegata senza scadenza: la tengo buona
+    return String(dataIso) <= String(s.scadenza);
+  }
+
+  function contaAtc(righe, atc, stagione){
+    var n=0;
+    (righe||[]).forEach(function(r){
+      if(r.atc===atc && r.stagione===stagione) n++;
+    });
+    return n;
+  }
+  /* quante ne restano: null = illimitate */
+  function restanoAtc(righe, docs, atc, stagione, dataIso){
+    if(autorizzatoAtc(docs, atc, dataIso||iso(new Date()))) return null;
+    return Math.max(0, ATC_LIMITE - contaAtc(righe, atc, stagione));
+  }
+
+  async function caricaPresenzeAtc(membroId){
+    var chi = membroId || (me && me.membro_id);
+    if(!chi) return [];
+    try{
+      var r = await sb.from("hn_presenze_atc").select("*").eq("membro_id", chi);
+      if(r.error) throw r.error;
+      try{ localStorage.setItem("hunter_presenze_atc", JSON.stringify(r.data||[])); }catch(e){}
+      return r.data || [];
+    }catch(e){
+      try{ return JSON.parse(localStorage.getItem("hunter_presenze_atc")) || []; }catch(e2){ return []; }
+    }
+  }
+
+  /* ---- L'AVVISO IN HOME ----
+     Compare quando un ospite ha una giornata a cui e' stato presente e non ha
+     ancora detto dove ha firmato. Non blocca niente: resta li'. */
+  var presAvvisoBattuta = null;
+
+  async function controllaAvvisoAtc(){
+    var box=document.getElementById("pres-alert");
+    if(!box) return;
+    box.innerHTML="";
+    presAvvisoBattuta=null;
+    if(!me || !me.membro_id || !sonoOspiteRegistro()) return;
+    try{
+      var oggi=iso(new Date());
+      var rB = await sb.from("hn_battute").select("id,data,stato")
+                 .eq("squadra_id", me.squadra_id).lte("data", oggi)
+                 .order("data",{ascending:false}).limit(12);
+      if(rB.error || !rB.data || !rB.data.length) return;
+      var batt = rB.data.filter(function(b){ return dentroFinestraAtc(b.data); });
+      if(!batt.length) return;
+      var ids = batt.map(function(b){ return b.id; });
+
+      var rA = await sb.from("hn_adesioni").select("battuta_id,viene")
+                 .eq("membro_id", me.membro_id).in("battuta_id", ids);
+      if(rA.error) return;
+      var venuto={};
+      (rA.data||[]).forEach(function(a){ if(a.viene===true) venuto[a.battuta_id]=true; });
+
+      var rP = await sb.from("hn_presenze_atc").select("battuta_id")
+                 .eq("membro_id", me.membro_id).in("battuta_id", ids);
+      if(rP.error) return;
+      var gia={};
+      (rP.data||[]).forEach(function(p){ gia[p.battuta_id]=true; });
+
+      var da=null;
+      batt.forEach(function(b){
+        if(!da && venuto[b.id] && !gia[b.id]) da=b;
+      });
+      if(!da) return;
+      presAvvisoBattuta=da;
+
+      presenzeAtc = await caricaPresenzeAtc(me.membro_id);
+      var docs = await caricaDocumentiDi(me.membro_id);
+      var st = stagioneAtcDi(da.data);
+
+      var h='<div class="card" style="border-color:#8a6d1f; background:#241f10; margin-bottom:12px">'
+        + '<div style="display:flex; gap:10px; align-items:flex-start">'
+        + '<span style="font-size:20px">\u26a0\ufe0f</span><div style="flex:1">'
+        + '<div style="font-weight:600; color:var(--gold)">Segna l\'ATC di presenza</div>'
+        + '<div style="font-size:12px; color:var(--muted); margin-top:2px">'
+        + esc(dataLunga(da.data)) + ' \u2014 dove ti sei firmato sul registro?</div></div></div>'
+        + '<div style="display:flex; flex-direction:column; gap:8px; margin-top:10px">';
+      ATC_ELENCO.forEach(function(a){
+        var r = restanoAtc(presenzeAtc, docs, a, st, da.data);
+        var testo, spento="";
+        if(r===null) testo='<span style="color:#8fbf5a">illimitate</span>';
+        else if(r<=0){ testo='<span style="color:#d97b7b">limite raggiunto</span>'; spento=' disabled style="opacity:.45"'; }
+        else if(r===1) testo='<span style="color:#e0a83c">sarebbe la 15\u00aa e ultima</span>';
+        else testo='<span style="color:var(--muted)">ne restano '+r+'</span>';
+        h+='<button class="btn line" data-atc="'+a+'"'+spento+' style="display:flex; justify-content:space-between; align-items:center">'
+         + '<span>ATC '+a+'</span>'+testo+'</button>';
+      });
+      h+='<button class="btn line" data-atc="nessuna" style="display:flex; justify-content:space-between; align-items:center">'
+       + '<span>Non mi sono firmato</span><span style="color:var(--muted)">nessuna consumata</span></button>'
+       + '</div>'
+       + '<div class="hintbox" style="color:var(--muted); margin-top:8px">Resta qui finch\u00e9 non rispondi. Se sbagli, il capocaccia pu\u00f2 correggere.</div>'
+       + '</div>';
+      box.innerHTML=h;
+      box.querySelectorAll("[data-atc]").forEach(function(b){
+        b.onclick=function(){ segnaAtc(presAvvisoBattuta, b.dataset.atc); };
+      });
+    }catch(e){}
+  }
+
+  async function segnaAtc(battuta, atc){
+    if(!battuta || !me || !me.membro_id) return;
+    var st = stagioneAtcDi(battuta.data);
+    if(atc!=="nessuna"){
+      var docs = await caricaDocumentiDi(me.membro_id);
+      presenzeAtc = await caricaPresenzeAtc(me.membro_id);
+      var r = restanoAtc(presenzeAtc, docs, atc, st, battuta.data);
+      if(r!==null && r<=0){ toast("Hai gi\u00e0 15 giornate all'ATC "+atc); return; }
+      if(r===1 && !confirm("Con questa giornata chiudi le 15 presenze all'ATC "+atc+". Confermi?")) return;
+    }
+    try{
+      var q = await sb.from("hn_presenze_atc").insert({
+        membro_id: me.membro_id,
+        battuta_id: battuta.id,
+        squadra_id: me.squadra_id,
+        atc: atc,
+        stagione: st,
+        segnata_da: me.membro_id
+      }).select().single();
+      if(q.error) throw q.error;
+      toast(atc==="nessuna" ? "Segnato: nessuna presenza a registro" : "Segnato sull'ATC "+atc);
+      presenzeAtc = await caricaPresenzeAtc(me.membro_id);
+      controllaAvvisoAtc();
+      if(document.getElementById("v-presenze").classList.contains("active")) caricaPresenze();
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
+  /* i documenti di un membro, per sapere se ha l'autorizzazione annuale */
+  async function caricaDocumentiDi(membroId){
+    try{
+      var r = await sb.from("hn_scadenze").select("*").eq("membro_id", membroId);
+      if(r.error) throw r.error;
+      var o={};
+      (r.data||[]).forEach(function(s){ o[s.tipo]=s; });
+      try{ localStorage.setItem("hunter_docs_"+membroId, JSON.stringify(o)); }catch(e){}
+      return o;
+    }catch(e){
+      try{ return JSON.parse(localStorage.getItem("hunter_docs_"+membroId)) || {}; }catch(e2){ return {}; }
+    }
+  }
+
+  /* ---- LA SCHERMATA "LE MIE PRESENZE" ---- */
+  async function caricaPresenze(){
+    var box=document.getElementById("presenze-scroll");
+    if(!box) return;
+    var chi = presenzeDi ? presenzeDi.id : (me && me.membro_id);
+    var nome= presenzeDi ? presenzeDi.nome : "Le mie presenze";
+    document.getElementById("pr-titolo").textContent = nome;
+    if(!chi){ box.innerHTML='<div class="card">Nessun componente</div>'; return; }
+    box.innerHTML='<div class="loading">Carico\u2026</div>';
+
+    var st = stagioneCorrente();
+    try{
+      var rB = await sb.from("hn_battute").select("id,data,stato")
+                 .eq("squadra_id", me.squadra_id).order("data",{ascending:false});
+      if(rB.error) throw rB.error;
+      var batt = (rB.data||[]).filter(function(b){ return stagioneDi(b.data)===st; });
+      var ids  = batt.map(function(b){ return b.id; });
+
+      var ades=[], fatti=[], pres=[];
+      if(ids.length){
+        var rA = await sb.from("hn_adesioni").select("*").in("battuta_id", ids);
+        if(!rA.error) ades = rA.data||[];
+        var rF = await sb.from("hn_fatti").select("*").in("battuta_id", ids);
+        if(!rF.error) fatti = rF.data||[];
+        var rP = await sb.from("hn_presenze_atc").select("*").eq("membro_id", chi).in("battuta_id", ids);
+        if(!rP.error) pres = rP.data||[];
+      }
+      var docs = await caricaDocumentiDi(chi);
+      var membro = presenzeDi || me;
+      box.innerHTML = renderPresenze(chi, membro, batt, ades, fatti, pres, docs, st);
+      agganciaPresenze();
+    }catch(e){
+      box.innerHTML='<div class="card">Serve la rete per caricare le presenze.</div>';
+    }
+  }
+
+  function renderPresenze(chi, membro, batt, ades, fatti, pres, docs, st){
+    var mieAdes={}, atcDi={};
+    ades.forEach(function(a){ if(a.membro_id===chi) mieAdes[a.battuta_id]=a; });
+    pres.forEach(function(p){ atcDi[p.battuta_id]=p; });
+
+    var capi={}, padelle={}, nCapi=0, nPad=0, venute=0, giocate=0;
+    fatti.forEach(function(f){
+      if(f.membro_id!==chi) return;
+      if(f.tipo==="uccisione"){ capi[f.battuta_id]=(capi[f.battuta_id]||0)+1; nCapi++; }
+      if(f.tipo==="padella"){ padelle[f.battuta_id]=(padelle[f.battuta_id]||0)+1; nPad++; }
+    });
+
+    var righe="";
+    batt.forEach(function(b){
+      var a=mieAdes[b.id];
+      if(b.stato==="conclusa" || b.stato==="chiusa") giocate++;
+      if(!a || a.viene!==true) return;
+      venute++;
+      var p=atcDi[b.id];
+      var ic="";
+      if(capi[b.id])    for(var i=0;i<capi[b.id];i++)    ic+='<img src="cinghiale.png" alt="capo" style="height:20px; vertical-align:-4px; margin-left:4px">';
+      if(padelle[b.id]) for(var j=0;j<padelle[b.id];j++) ic+='<img src="padella.png" alt="padella" style="height:20px; vertical-align:-4px; margin-left:4px">';
+      var bad="";
+      if(sonoOspiteRegistro(membro)){
+        bad = p
+          ? (p.atc==="nessuna"
+              ? '<span class="pill" style="background:#2a2a28; color:var(--muted)">nessuna</span>'
+              : '<span class="pill" style="background:#16324d; color:#9fc6ea">'+esc(p.atc)+'</span>')
+          : '<span class="pill" style="background:#3a3010; color:#e0a83c">da segnare</span>';
+      }
+      righe+='<div class="canale" data-battuta="'+b.id+'" data-data="'+esc(b.data)+'">'
+        + '<span class="mid"><div class="nome">'+esc(dataLunga(b.data))+'</div>'
+        + '<div class="f">'+(a.tracciatore?"tracciatore":"in battuta")+'</div></span>'
+        + '<span style="white-space:nowrap">'+ic+'</span>'
+        + bad + '</div>';
+    });
+    if(!righe) righe='<div class="card" style="color:var(--muted)">Nessuna giornata in questa stagione.</div>';
+
+    var h='<div class="card" style="display:flex; gap:8px; text-align:center">'
+      + '<div style="flex:1"><div style="font-size:11px; color:var(--muted)">Giornate</div>'
+      + '<div style="font-size:22px; font-weight:600">'+venute+'<span style="font-size:13px; color:var(--muted)"> / '+giocate+'</span></div></div>'
+      + '<div style="flex:1"><div style="font-size:11px; color:var(--muted)">Capi</div>'
+      + '<div style="font-size:22px; font-weight:600; color:#8fbf5a">'+nCapi+'</div></div>'
+      + '<div style="flex:1"><div style="font-size:11px; color:var(--muted)">Padelle</div>'
+      + '<div style="font-size:22px; font-weight:600; color:#c98a5a">'+nPad+'</div></div>'
+      + '</div>';
+
+    h+='<div class="lbl" style="margin-top:14px">Giornate della stagione '+esc(st)+'</div>'+righe;
+
+    if(sonoOspiteRegistro(membro)){
+      var stA = stagioneAtcCorrente();
+      h+='<div class="lbl" style="margin-top:16px">Registro ATC \u2014 1 ottobre / 31 gennaio</div>';
+      h+='<div style="display:flex; gap:8px">';
+      ATC_ELENCO.forEach(function(a){
+        var r = restanoAtc(pres, docs, a, stA, iso(new Date()));
+        var n = contaAtc(pres, a, stA);
+        var col, txt;
+        if(r===null){ col="#8fbf5a"; txt="illimitate"; }
+        else if(r<=0){ col="#d97b7b"; txt=n+" / "+ATC_LIMITE+" \u2014 esaurite"; }
+        else if(r===1){ col="#e0a83c"; txt=n+" / "+ATC_LIMITE+" \u2014 ne resta 1"; }
+        else { col="var(--muted)"; txt=n+" / "+ATC_LIMITE+" \u2014 ne restano "+r; }
+        h+='<div class="card" style="flex:1; margin:0">'
+         + '<div style="font-size:11px; color:var(--muted)">ATC '+a+'</div>'
+         + '<div style="font-size:14px; font-weight:600; color:'+col+'; margin-top:2px">'+txt+'</div>'
+         + (r===null && docs["atc_"+a.toLowerCase()] && docs["atc_"+a.toLowerCase()].scadenza
+             ? '<div style="font-size:11px; color:var(--muted); margin-top:3px">fino al '+esc(dataBreve(docs["atc_"+a.toLowerCase()].scadenza))+'</div>'
+             : '')
+         + '</div>';
+      });
+      h+='</div>';
+      h+='<div class="hintbox" style="color:var(--muted); margin-top:8px">'
+       + '\u24d8 Le firme sul registro contano anche le giornate fatte con altre squadre: '
+       + 'per questo il numero pu\u00f2 non coincidere con le giornate qui sopra.</div>';
+    }
+    return h;
+  }
+
+  function agganciaPresenze(){
+    var box=document.getElementById("presenze-scroll");
+    if(!box) return;
+    box.querySelectorAll("[data-battuta]").forEach(function(r){
+      r.onclick=function(){ /* apertura giornata: gia' gestita dalla vista Battute */ };
+    });
+  }
+
+  function dataLunga(iso0){
+    try{
+      var d=new Date(iso0+"T12:00:00");
+      var g=["domenica","luned\u00ec","marted\u00ec","mercoled\u00ec","gioved\u00ec","venerd\u00ec","sabato"][d.getDay()];
+      var m=["gennaio","febbraio","marzo","aprile","maggio","giugno","luglio","agosto","settembre","ottobre","novembre","dicembre"][d.getMonth()];
+      return g+" "+d.getDate()+" "+m;
+    }catch(e){ return String(iso0); }
+  }
+  function dataBreve(iso0){
+    try{ var p=String(iso0).split("-"); return p[2]+"/"+p[1]+"/"+p[0]; }catch(e){ return String(iso0); }
+  }
+
   var CASELLE_HOME = [
     {k:"ossnott",    ic:"\ud83d\udd2d", nm:"Osservazioni notturne", ds:"Punti, luna e avvistamenti col visore", go:"ossnott", soloVisore:true},
     {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca",          ds:"Annunci e comunicazioni",     go:"bacheca", wide:true},
@@ -17548,6 +17908,7 @@ function fineA(){
     {k:"cassa",      ic:"\ud83d\udcb0", nm:"Cassa",            ds:"Quote, spese, saldi",         go:"cassa"},
     {k:"scadenze",   ic:"\ud83d\udccb", nm:"Le mie scadenze",  ds:"Tasse e assicurazione",       go:"scadenze"},
     {k:"classifica", ic:"\ud83c\udfc6", nm:"Classifica",       ds:"Punteggi e storici",          go:"classifica"},
+    {k:"presenze",   ic:"📅", nm:"Le mie presenze",  ds:"Giornate, capi e registro ATC", go:"presenze"},
     {k:"sergente",   ic:"\ud83c\udf96\ufe0f", nm:"Sergente Mario", ds:"Giudice di giornata",     go:"sergente"},
     {k:"squadra",    ic:"\ud83d\udc65", nm:"Squadra",          ds:"Componenti e ruoli",          go:"squadra"},
     {k:"mappa",      ic:"\ud83d\uddfa\ufe0f", nm:"Mappa",      ds:"Satellite, schema, bussola",  go:"mappa", spentaDiDefault:true},
@@ -17578,6 +17939,7 @@ function fineA(){
       if(c) homeOrdine=c;
     }catch(e){}
     renderCaselleHome();
+    setTimeout(controllaAvvisoAtc, 200);
     if(!me || !me.squadra_id) return;
     try{
       var r=await sb.from("hn_config").select("home_ordine").eq("squadra_id",me.squadra_id).limit(1);
