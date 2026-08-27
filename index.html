@@ -712,6 +712,18 @@
   .tile.wide{grid-column:1 / -1; flex-direction:row; align-items:center; min-height:0; gap:12px;}
   .tile.wide .ic{font-size:22px;}
   .tile.wide .tx{flex:1;}
+  .tile.wide .foto{height:52px; border-radius:8px; flex-shrink:0; object-fit:cover;
+    max-width:46%; align-self:center;}
+
+  /* SEGNALI: cosa resta da fare, visibile dalla Home senza entrare */
+  .tile .segno{position:absolute; top:9px; right:9px; min-width:20px; height:20px;
+    border-radius:10px; padding:0 6px; font-size:11px; font-weight:700;
+    display:flex; align-items:center; justify-content:center; line-height:1;}
+  .tile .segno.giallo{background:var(--amber); color:#241d0c;}
+  .tile .segno.rosso{background:var(--red); color:#fff;}
+  .tile .sunto{font-size:10.5px; line-height:1.35; margin-top:1px;}
+  .tile .sunto.giallo{color:var(--amber);}
+  .tile .sunto.rosso{color:#e79a9a;}
 
   /* barra "torna" nelle sezioni */
   .backbar{flex-shrink:0; display:flex; align-items:center; gap:10px; padding:10px 14px;
@@ -3220,7 +3232,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.88";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.89";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4851,6 +4863,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     else if(v!=="giornata") nonServeGPS();
     if(v==="home") setTimeout(renderAuto, 30);
     if(v==="home") setTimeout(controllaAvvisoAtc, 60);
+    if(v==="home") setTimeout(calcolaSegnali, 500);
     else if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
 
     if(v==="mappa"){
@@ -17634,12 +17647,17 @@ function fineA(){
     return String(dataIso) <= String(s.scadenza);
   }
 
-  function contaAtc(righe, atc, stagione){
+  function contaAtcNostre(righe, atc, stagione){
     var n=0;
     (righe||[]).forEach(function(r){
       if(r.atc===atc && r.stagione===stagione) n++;
     });
     return n;
+  }
+  /* il totale a registro: le nostre battute PIU' quelle firmate altrove.
+     Il limite delle 15 guarda questo, non solo le nostre. */
+  function contaAtc(righe, atc, stagione){
+    return contaAtcNostre(righe, atc, stagione) + esterneDi(atc, stagione);
   }
   /* quante ne restano: null = illimitate */
   function restanoAtc(righe, docs, atc, stagione, dataIso){
@@ -17716,6 +17734,7 @@ function fineA(){
       presAvvisoBattuta=da;
 
       presenzeAtc = await caricaPresenzeAtc(me.membro_id);
+      atcEsterne = await caricaAtcEsterne(me.membro_id);
       var docs = await caricaDocumentiDi(me.membro_id);
       var st = stagioneAtcDi(da.data);
 
@@ -17754,6 +17773,7 @@ function fineA(){
     if(atc!=="nessuna"){
       var docs = await caricaDocumentiDi(me.membro_id);
       presenzeAtc = await caricaPresenzeAtc(me.membro_id);
+      atcEsterne = await caricaAtcEsterne(me.membro_id);
       var r = restanoAtc(presenzeAtc, docs, atc, st, battuta.data);
       if(r!==null && r<=0){ toast("Hai gi\u00e0 15 giornate all'ATC "+atc); return; }
       if(r===1 && !confirm("Con questa giornata chiudi le 15 presenze all'ATC "+atc+". Confermi?")) return;
@@ -17818,6 +17838,7 @@ function fineA(){
         if(!rP.error) pres = rP.data||[];
       }
       var docs = await caricaDocumentiDi(chi);
+      atcEsterne = await caricaAtcEsterne(chi);
       var membro = presenzeDi || me;
       box.innerHTML = renderPresenze(chi, membro, batt, ades, fatti, pres, docs, st);
       agganciaPresenze();
@@ -17882,14 +17903,18 @@ function fineA(){
       ATC_ELENCO.forEach(function(a){
         var r = restanoAtc(pres, docs, a, stA, iso(new Date()));
         var n = contaAtc(pres, a, stA);
+        var nostre = contaAtcNostre(pres, a, stA), fuori = esterneDi(a, stA);
         var col, txt;
         if(r===null){ col="#8fbf5a"; txt="illimitate"; }
         else if(r<=0){ col="#d97b7b"; txt=n+" / "+ATC_LIMITE+" \u2014 esaurite"; }
         else if(r===1){ col="#e0a83c"; txt=n+" / "+ATC_LIMITE+" \u2014 ne resta 1"; }
         else { col="var(--muted)"; txt=n+" / "+ATC_LIMITE+" \u2014 ne restano "+r; }
-        h+='<div class="card" style="flex:1; margin:0">'
+        h+='<div class="card atcbox" data-atc="'+a+'" data-nostre="'+nostre+'" style="flex:1; margin:0; cursor:pointer">'
          + '<div style="font-size:11px; color:var(--muted)">ATC '+a+'</div>'
          + '<div style="font-size:14px; font-weight:600; color:'+col+'; margin-top:2px">'+txt+'</div>'
+         + '<div style="font-size:10.5px; color:var(--muted); margin-top:3px">'
+         +   'Zannalunga '+nostre+(fuori?' \u00b7 altre squadre '+fuori:'')+'</div>'
+         + (presenzeDi ? '' : '<div style="font-size:10.5px; color:var(--gold); margin-top:3px">tocca per correggere</div>')
          + (r===null && docs["atc_"+a.toLowerCase()] && docs["atc_"+a.toLowerCase()].scadenza
              ? '<div style="font-size:11px; color:var(--muted); margin-top:3px">fino al '+esc(dataBreve(docs["atc_"+a.toLowerCase()].scadenza))+'</div>'
              : '')
@@ -17897,8 +17922,9 @@ function fineA(){
       });
       h+='</div>';
       h+='<div class="hintbox" style="color:var(--muted); margin-top:8px">'
-       + '\u24d8 Le firme sul registro contano anche le giornate fatte con altre squadre: '
-       + 'per questo il numero pu\u00f2 non coincidere con le giornate qui sopra.</div>';
+       + '\u24d8 Il registro \u00e8 tuo e dell\'ATC, non della squadra: se hai firmato con '
+       + 'altre squadre tocca il riquadro e aggiungi quelle giornate, altrimenti il '
+       + 'numero \u00e8 pi\u00f9 basso del vero e sembra che tu abbia margine.</div>';
     }
     return h;
   }
@@ -17906,8 +17932,10 @@ function fineA(){
   function agganciaPresenze(){
     var box=document.getElementById("presenze-scroll");
     if(!box) return;
-    box.querySelectorAll("[data-battuta]").forEach(function(r){
-      r.onclick=function(){ /* apertura giornata: gia' gestita dalla vista Battute */ };
+    box.querySelectorAll(".atcbox").forEach(function(c){
+      c.onclick=function(){
+        apriEsterne(c.dataset.atc, stagioneAtcCorrente(), +c.dataset.nostre);
+      };
     });
   }
 
@@ -17923,9 +17951,187 @@ function fineA(){
     try{ var p=String(iso0).split("-"); return p[2]+"/"+p[1]+"/"+p[0]; }catch(e){ return String(iso0); }
   }
 
+
+  /* ================= I SEGNALI SULLE CASELLE =================
+     Dalla Home si deve capire cosa resta da fare senza entrare da nessuna parte.
+     REGOLA: la Home si disegna SUBITO, i segnali arrivano dopo. In montagna con
+     una tacca di rete, aspettare le interrogazioni prima di disegnare fa sembrare
+     l'app piantata. E l'ultimo stato lo tengo sul telefono, cosi' senza rete
+     vedi quello di ieri invece del nulla.
+     Rosso = gia' andato (documento scaduto, limite ATC finito).
+     Giallo = da fare, ma c'e' tempo.
+     Niente = niente. Se si accende tutto, non si guarda piu' niente. */
+
+  var SEGNALI = {};
+  var SEGNALI_KEY = "hunter_segnali";
+  var GIORNI_SCADENZA = 10;      // fisso: un numero in meno da spiegare
+
+  try{ SEGNALI = JSON.parse(localStorage.getItem(SEGNALI_KEY)) || {}; }catch(e){ SEGNALI = {}; }
+
+  function salvaSegnali(){
+    try{ localStorage.setItem(SEGNALI_KEY, JSON.stringify(SEGNALI)); }catch(e){}
+  }
+  function giorniA(dataIso){
+    try{
+      var a=new Date(dataIso+"T12:00:00"), b=new Date(iso(new Date())+"T12:00:00");
+      return Math.round((a-b)/86400000);
+    }catch(e){ return 999; }
+  }
+
+  async function calcolaSegnali(){
+    if(!me || !me.membro_id || !me.squadra_id) return;
+    var nuovi = {};
+    try{ await segnaleScadenze(nuovi); }catch(e){}
+    try{ await segnaleBattute(nuovi);  }catch(e){}
+    try{ await segnalePresenze(nuovi); }catch(e){}
+    SEGNALI = nuovi;
+    salvaSegnali();
+    renderCaselleHome();
+  }
+
+  /* SCADENZE: rosso se ne ho gia' una scaduta, giallo se scade entro 10 giorni */
+  async function segnaleScadenze(out){
+    var r = await sb.from("hn_scadenze").select("tipo,scadenza").eq("membro_id", me.membro_id);
+    if(r.error) return;
+    var scadute=0, vicine=0;
+    (r.data||[]).forEach(function(s){
+      if(!s.scadenza) return;
+      var g = giorniA(s.scadenza);
+      if(g < 0) scadute++;
+      else if(g <= GIORNI_SCADENZA) vicine++;
+    });
+    if(!scadute && !vicine) return;
+    var pezzi=[];
+    if(scadute) pezzi.push(scadute===1 ? "1 scaduta" : scadute+" scadute");
+    if(vicine)  pezzi.push(vicine+" entro "+GIORNI_SCADENZA+" giorni");
+    out.scadenze = { n:(scadute+vicine), col:(scadute?"rosso":"giallo"), testo:pezzi.join(" \u00b7 ") };
+  }
+
+  /* BATTUTE: le giornate future dove non ho ancora detto se vengo.
+     Solo quelle: se contassi anche le presenze non confermate al ritrovo,
+     il segnale resterebbe acceso quasi sempre e smetteresti di guardarlo. */
+  async function segnaleBattute(out){
+    var oggi = iso(new Date());
+    var rB = await sb.from("hn_battute").select("id,data,stato")
+               .eq("squadra_id", me.squadra_id).gte("data", oggi)
+               .order("data").limit(20);
+    if(rB.error || !rB.data || !rB.data.length) return;
+    var aperte = rB.data.filter(function(b){ return b.stato!=="annullata" && b.stato!=="conclusa"; });
+    if(!aperte.length) return;
+    var ids = aperte.map(function(b){ return b.id; });
+    var rA = await sb.from("hn_adesioni").select("battuta_id,viene")
+               .eq("membro_id", me.membro_id).in("battuta_id", ids);
+    if(rA.error) return;
+    var risposto={};
+    (rA.data||[]).forEach(function(a){ if(a.viene===true || a.viene===false) risposto[a.battuta_id]=true; });
+    var mancanti = aperte.filter(function(b){ return !risposto[b.id]; });
+    if(!mancanti.length) return;
+    var prima = mancanti[0];
+    var g = giorniA(prima.data);
+    var quando = (g===0) ? "oggi" : (g===1 ? "domani" : giornoDella(prima.data));
+    out.battute = { n:mancanti.length, col:(g<=1?"rosso":"giallo"), testo:quando+": non hai risposto" };
+  }
+
+  /* PRESENZE: solo per gli ospiti, le giornate a cui sono venuto e per le quali
+     non ho ancora detto dove ho firmato. E il limite ATC raggiunto. */
+  async function segnalePresenze(out){
+    await assicuraRegistro();
+    if(!sonoOspiteRegistro()) return;
+    var oggi = iso(new Date());
+    var rB = await sb.from("hn_battute").select("id,data")
+               .eq("squadra_id", me.squadra_id).lte("data", oggi)
+               .order("data",{ascending:false}).limit(20);
+    if(rB.error || !rB.data) return;
+    var batt = rB.data.filter(function(b){ return dentroFinestraAtc(b.data); });
+    if(!batt.length) return;
+    var ids = batt.map(function(b){ return b.id; });
+
+    var rA = await sb.from("hn_adesioni").select("battuta_id,viene")
+               .eq("membro_id", me.membro_id).in("battuta_id", ids);
+    if(rA.error) return;
+    var venuto={};
+    (rA.data||[]).forEach(function(a){ if(a.viene===true) venuto[a.battuta_id]=true; });
+
+    var rP = await sb.from("hn_presenze_atc").select("battuta_id")
+               .eq("membro_id", me.membro_id).in("battuta_id", ids);
+    if(rP.error) return;
+    var gia={};
+    (rP.data||[]).forEach(function(p){ gia[p.battuta_id]=true; });
+
+    var n=0;
+    batt.forEach(function(b){ if(venuto[b.id] && !gia[b.id]) n++; });
+    if(!n) return;
+    out.presenze = { n:n, col:"giallo", testo:(n===1?"1 ATC da segnare":n+" ATC da segnare") };
+  }
+
+  function giornoDella(dataIso){
+    try{
+      var d=new Date(dataIso+"T12:00:00");
+      return ["domenica","luned\u00ec","marted\u00ec","mercoled\u00ec","gioved\u00ec","venerd\u00ec","sabato"][d.getDay()];
+    }catch(e){ return String(dataIso); }
+  }
+
+  /* ================= GIORNATE FIRMATE CON ALTRE SQUADRE =================
+     Il registro e' del cacciatore e dell'ATC, non della squadra: le giornate
+     fatte altrove contano lo stesso. Le tiene separate dalle nostre, cosi' se
+     un numero non torna si vede subito da dove viene. */
+  var atcEsterne = {};
+
+  async function caricaAtcEsterne(membroId){
+    var chi = membroId || (me && me.membro_id);
+    var o={};
+    if(!chi) return o;
+    try{
+      var r = await sb.from("hn_atc_esterne").select("*").eq("membro_id", chi);
+      if(r.error) throw r.error;
+      (r.data||[]).forEach(function(x){ o[x.atc+"|"+x.stagione]=x; });
+      try{ localStorage.setItem("hunter_atc_esterne_"+chi, JSON.stringify(o)); }catch(e){}
+      return o;
+    }catch(e){
+      try{ return JSON.parse(localStorage.getItem("hunter_atc_esterne_"+chi)) || {}; }catch(e2){ return {}; }
+    }
+  }
+  function esterneDi(atc, stagione){
+    var x = atcEsterne[atc+"|"+stagione];
+    return x ? (x.giornate||0) : 0;
+  }
+
+  function apriEsterne(atc, stagione, nostre){
+    if(presenzeDi) return;              // il numero lo mette il cacciatore, non altri
+    var x = atcEsterne[atc+"|"+stagione];
+    var attuale = x ? (x.giornate||0) : 0;
+    var nota = x ? (x.nota||"") : "";
+    var testo = prompt(
+      "ATC "+atc+" \u2014 stagione "+stagione+"\n\n"+
+      "Con la Zannalunga: "+nostre+" giornate.\n\n"+
+      "Quante giornate hai firmato sul registro dell'ATC "+atc+" con ALTRE squadre?\n"+
+      "(solo quelle in cui hai firmato davvero)", String(attuale));
+    if(testo===null) return;
+    var n = parseInt(String(testo).replace(/[^0-9]/g,""),10);
+    if(isNaN(n) || n<0){ toast("Numero non valido"); return; }
+    if(n>60){ toast("Troppe: il massimo \u00e8 60"); return; }
+    var nn = prompt("Nota (facoltativa): con chi, quando", nota);
+    salvaEsterne(atc, stagione, n, nn===null?nota:nn);
+  }
+
+  async function salvaEsterne(atc, stagione, giornate, nota){
+    if(!me || !me.membro_id) return;
+    try{
+      var r = await sb.from("hn_atc_esterne").upsert({
+        membro_id: me.membro_id, atc: atc, stagione: stagione,
+        giornate: giornate, nota: nota || null,
+        aggiornata_il: new Date().toISOString(), aggiornata_da: me.membro_id
+      }, { onConflict:"membro_id,atc,stagione" }).select().single();
+      if(r.error) throw r.error;
+      toast("Salvato");
+      atcEsterne = await caricaAtcEsterne(me.membro_id);
+      caricaPresenze();
+    }catch(e){ toast("Serve la rete per salvare"); }
+  }
+
   var CASELLE_HOME = [
     {k:"ossnott",    ic:"\ud83d\udd2d", nm:"Osservazioni notturne", ds:"Punti, luna e avvistamenti col visore", go:"ossnott", soloVisore:true},
-    {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca",          ds:"Annunci e comunicazioni",     go:"bacheca", wide:true},
+    {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca",          ds:"Annunci e comunicazioni",     go:"bacheca", wide:true, foto:"bacheca.png"},
     {k:"battute",    ic:"\ud83d\udd25", nm:"Battute",          ds:"Calendario e adesioni",       go:"battute"},
     {k:"aree",       ic:"\ud83d\udccd", nm:"Mappe e poste",    ds:"Crea e modifica i terreni",   go:"aree"},
     {k:"mezzo",      ic:"\ud83d\ude97", nm:"Il mio mezzo",     ds:"Dove ho parcheggiato \u00b7 anche senza rete", azione:"mezzo"},
@@ -17964,6 +18170,7 @@ function fineA(){
     }catch(e){}
     renderCaselleHome();
     setTimeout(controllaAvvisoAtc, 200);
+    setTimeout(calcolaSegnali, 400);   // la Home e' gia' a schermo: adesso posso chiedere
     if(!me || !me.squadra_id) return;
     try{
       var r=await sb.from("hn_config").select("home_ordine").eq("squadra_id",me.squadra_id).limit(1);
@@ -17998,11 +18205,19 @@ function fineA(){
       var attr = c.soon ? 'data-soon="'+esc(c.soon)+'"'
                : c.azione ? 'data-azione="'+c.azione+'"'
                : 'data-go="'+c.go+'"';
+      /* il segnale: quanto resta da fare in quella sezione, e in una riga cosa */
+      var sg = SEGNALI[k] || null;
+      var segno = (sg && sg.n>0)
+        ? '<span class="segno '+sg.col+'">'+sg.n+'</span>' : '';
+      var sunto = (sg && sg.testo)
+        ? '<div class="sunto '+sg.col+'">'+esc(sg.testo)+'</div>' : '';
+      var foto  = c.foto ? '<img class="foto" src="'+esc(c.foto)+'" alt="" onerror="this.style.display=\'none\'">' : '';
       h+='<button class="tile'+(c.wide?" wide":"")+(c.soon?" soon":"")+'" '+attr+'>'
        + (c.soon?'<span class="badge">presto</span>':'')
+       + segno
        + (c.wide
-          ? '<div class="ic">'+c.ic+'</div><div class="tx"><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div></div>'
-          : '<div class="ic">'+c.ic+'</div><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>')
+          ? '<div class="ic">'+c.ic+'</div><div class="tx"><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>'+sunto+'</div>'+foto
+          : '<div class="ic">'+c.ic+'</div><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>'+sunto)
        + '</button>';
     });
     g.innerHTML=h;
