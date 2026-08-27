@@ -712,6 +712,28 @@
   .tile.wide{grid-column:1 / -1; flex-direction:row; align-items:center; min-height:0; gap:12px;}
   .tile.wide .ic{font-size:22px;}
   .tile.wide .tx{flex:1;}
+  /* LA MEDAGLIA INGRANDITA: sul telefono sul muro e' piccola e il retro
+     non si legge. Toccandola viene al centro grande, e si gira da sola
+     dopo un attimo per farti leggere con calma. */
+  #m-medzoom{align-items:center;}
+  #m-medzoom .medzoom-in{display:flex; flex-direction:column; align-items:center; gap:14px;
+    padding:20px; width:100%;}
+  .medzoom-card{width:min(78vw, 270px); aspect-ratio:1/1; position:relative;
+    transform-style:preserve-3d; transition:transform .65s cubic-bezier(.3,.8,.3,1);}
+  .medzoom-card.girata{transform:rotateY(180deg);}
+  .medzoom-faccia{position:absolute; inset:0; backface-visibility:hidden;
+    -webkit-backface-visibility:hidden; border-radius:50%;
+    display:flex; align-items:center; justify-content:center; overflow:hidden;}
+  .mz-fronte img{width:100%; height:100%; object-fit:contain;}
+  .mz-fronte .em{font-size:110px;}
+  .mz-retro{transform:rotateY(180deg); background:#F3E7CC; border:5px solid #6B5219;
+    flex-direction:column; padding:22px 20px; text-align:center;}
+  .mz-retro .rn{font-size:17px; font-weight:700; color:#4A3A10; margin-bottom:9px;}
+  .mz-retro .rd{font-size:12.5px; color:#6B5A34; line-height:1.55;}
+  .mz-retro .rd b{color:#4A3A10;}
+  .mz-retro .rm{font-size:12.5px; color:#6B5A34; font-style:italic; line-height:1.5;
+    margin-top:9px; padding-top:8px; border-top:1px solid #C9B58A;}
+  .medzoom-tocca{font-size:11.5px; color:var(--muted);}
   .tile.wide .foto{height:52px; border-radius:8px; flex-shrink:0; object-fit:cover;
     max-width:46%; align-self:center;}
 
@@ -3094,6 +3116,63 @@ header .menubtn{min-width:48px; min-height:48px;}
 </div>
 
 <!-- MODALE: il mezzo -->
+<!-- MEDAGLIA INGRANDITA: si stacca dal chiodo e si gira -->
+<div class="modal" id="m-medzoom">
+  <div class="medzoom-in">
+    <div class="medzoom-card" id="mz-card">
+      <div class="medzoom-faccia mz-fronte" id="mz-fronte"></div>
+      <div class="medzoom-faccia mz-retro"  id="mz-retro"></div>
+    </div>
+    <div class="medzoom-tocca">tocca per girarla &middot; fuori per chiudere</div>
+  </div>
+</div>
+
+<!-- GIORNATE FIRMATE CON ALTRE SQUADRE -->
+<div class="modal" id="m-esterne">
+  <div class="sheet">
+    <h3 id="es-titolo">Registro ATC</h3>
+    <p class="hint" id="es-stagione">Stagione</p>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:11px 0; border-bottom:1px solid var(--dark2)">
+      <div>
+        <div style="font-size:14px; color:var(--cream)">Con la Zannalunga</div>
+        <div style="font-size:11px; color:var(--muted)">contate dall'app</div>
+      </div>
+      <div style="font-size:18px; font-weight:700; color:var(--cream)" id="es-nostre">0</div>
+    </div>
+
+    <div style="padding:14px 0; border-bottom:1px solid var(--dark2)">
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:12px">
+        <div style="flex:1">
+          <div style="font-size:14px; color:var(--cream)">Con altre squadre</div>
+          <div style="font-size:11px; color:var(--muted)">le aggiungi tu</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:14px">
+          <button class="btn line" id="es-meno" style="width:44px; height:44px; padding:0; font-size:22px; flex:0 0 44px">&minus;</button>
+          <span id="es-n" style="font-size:20px; font-weight:700; color:var(--cream); min-width:28px; text-align:center">0</span>
+          <button class="btn line" id="es-piu" style="width:44px; height:44px; padding:0; font-size:22px; flex:0 0 44px">+</button>
+        </div>
+      </div>
+      <input type="text" id="es-nota" placeholder="nota: con chi, quando (facoltativa)" style="margin-top:11px">
+    </div>
+
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:14px 0 4px">
+      <div style="font-size:15px; font-weight:600; color:var(--cream)">Totale a registro</div>
+      <div style="font-size:20px; font-weight:700" id="es-tot">0 / 15</div>
+    </div>
+    <div style="font-size:11px; color:var(--muted); margin-bottom:12px" id="es-sotto"></div>
+
+    <div class="hintbox" style="color:var(--amber); line-height:1.5">
+      Metti solo le giornate in cui hai <b>firmato il registro</b>. Non quelle in cui sei venuto senza firmare.
+    </div>
+
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="es-annulla">Annulla</button>
+      <button class="btn gold" id="es-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal" id="m-auto">
   <div class="sheet">
     <h3 id="m-au-tit">Il tuo mezzo</h3>
@@ -3232,7 +3311,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.89";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.90";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12489,8 +12568,17 @@ header .menubtn{min-width:48px; min-height:48px;}
           nomeMappa = nomi.join(", ");
         }else if(ar){ nomeMappa = ar.nome; }
       }
-      h += '<div class="rd">' + (d ? esc(fmtGiornoBreve(d)) : "data sconosciuta")
+      /* la data: prima quella della battuta, se non c'e' quella in cui e' stata
+         assegnata. "data sconosciuta" solo se davvero non ne abbiamo nessuna. */
+      var quando = d ? fmtGiornoBreve(d)
+                 : (x.assegnato_il ? fmtGiornoBreve(new Date(x.assegnato_il)) : null);
+      h += '<div class="rd"><b>' + (quando ? esc(quando) : "data sconosciuta") + '</b>'
          + (nomeMappa ? '<br>' + esc(nomeMappa) : '') + '</div>';
+      /* chi te l'ha data: e' meta' del valore di una medaglia */
+      if(x.assegnato_da){
+        var chi = nomeDi(x.assegnato_da);
+        if(chi && chi!=="\u2014") h += '<div class="rd" style="margin-top:6px">assegnata da<br><b>' + esc(chi) + '</b></div>';
+      }
       if(x.nota) h += '<div class="rm">' + esc(x.nota) + '</div>';
     });
     if(ord.length > 3) h += '<div class="rd">e altre ' + (ord.length - 3) + '</div>';
@@ -12590,13 +12678,48 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-flip]").forEach(function(el){
       el.onclick = function(ev){
         if(ev) ev.stopPropagation();
-        // una girata per volta: le altre tornano dritte
+        var id = el.dataset.flip;
+        /* sul telefono il muro e' piccolo e il retro non si legge: la porto
+           al centro grande. Sul monitor si vede bene, giro sul posto. */
+        if((window.innerWidth||380) < 560){ apriMedZoom(id); return; }
         root.querySelectorAll(".flip.girata").forEach(function(x){
           if(x !== el) x.classList.remove("girata");
         });
         el.classList.toggle("girata");
       };
     });
+  }
+
+  /* la medaglia al centro: arriva dritta, dopo un attimo si gira da sola.
+     Il ritardo serve: prima la guardi, poi leggi. */
+  var mzTimer = null;
+  function apriMedZoom(medId){
+    var m = medaglie.find(function(x){ return x.id === medId; });
+    if(!m) return;
+    var mie = mdFatti.filter(function(f){ return f.medaglia_id === medId; });
+    var fr = document.getElementById("mz-fronte");
+    fr.innerHTML = m.immagine
+      ? '<img src="'+esc(m.immagine)+'" onerror="this.outerHTML=\'<span class=&quot;em&quot;>\ud83c\udf96\ufe0f</span>\'">'
+      : '<span class="em">\ud83c\udf96\ufe0f</span>';
+    document.getElementById("mz-retro").innerHTML = retroMedaglia(m, mie);
+
+    var card = document.getElementById("mz-card");
+    card.classList.remove("girata");
+    var mod = document.getElementById("m-medzoom");
+    mod.classList.add("show");
+
+    if(mzTimer) clearTimeout(mzTimer);
+    mzTimer = setTimeout(function(){ card.classList.add("girata"); }, 1100);
+
+    card.onclick = function(ev){
+      ev.stopPropagation();
+      if(mzTimer){ clearTimeout(mzTimer); mzTimer=null; }
+      card.classList.toggle("girata");
+    };
+    mod.onclick = function(){
+      if(mzTimer){ clearTimeout(mzTimer); mzTimer=null; }
+      mod.classList.remove("show");
+    };
   }
 
   async function aggiornaBadgeMedaglie(){
@@ -17609,6 +17732,7 @@ function fineA(){
   var ATC_ELENCO   = ["VV1","VV2"];
   var presenzeAtc  = [];      // le mie righe di registro
   var presenzeDi   = null;    // di chi sto guardando le presenze (null = le mie)
+  var presDocs = {}, presRighe = [];   // documenti e righe di chi sto guardando
 
   function sonoOspiteRegistro(m){
     var x = m || me;
@@ -17840,6 +17964,7 @@ function fineA(){
       var docs = await caricaDocumentiDi(chi);
       atcEsterne = await caricaAtcEsterne(chi);
       var membro = presenzeDi || me;
+      presDocs = docs; presRighe = pres;
       box.innerHTML = renderPresenze(chi, membro, batt, ades, fatti, pres, docs, st);
       agganciaPresenze();
     }catch(e){
@@ -17934,7 +18059,8 @@ function fineA(){
     if(!box) return;
     box.querySelectorAll(".atcbox").forEach(function(c){
       c.onclick=function(){
-        apriEsterne(c.dataset.atc, stagioneAtcCorrente(), +c.dataset.nostre);
+        agganciaEsterne();
+        apriEsterne(c.dataset.atc, stagioneAtcCorrente(), +c.dataset.nostre, presDocs, presRighe);
       };
     });
   }
@@ -17984,6 +18110,7 @@ function fineA(){
     try{ await segnaleScadenze(nuovi); }catch(e){}
     try{ await segnaleBattute(nuovi);  }catch(e){}
     try{ await segnalePresenze(nuovi); }catch(e){}
+    try{ await segnaleCassa(nuovi);    }catch(e){}
     SEGNALI = nuovi;
     salvaSegnali();
     renderCaselleHome();
@@ -18064,6 +18191,39 @@ function fineA(){
     out.presenze = { n:n, col:"giallo", testo:(n===1?"1 ATC da segnare":n+" ATC da segnare") };
   }
 
+  /* CASSA: quello che deve LUI, non la squadra. Il capocaccia vede i conti
+     di tutti dentro la sezione: sulla casella ci va solo il suo. */
+  async function segnaleCassa(out){
+    var r1 = await sb.from("hn_movimenti").select("*").eq("squadra_id", me.squadra_id);
+    if(r1.error) return;
+    movimenti = r1.data || [];
+    var r2 = await sb.from("hn_obiettivi").select("*").eq("squadra_id", me.squadra_id);
+    if(!r2.error) obiettivi = r2.data || [];
+    var r3 = await sb.from("hn_obiettivi_part").select("*");
+    if(!r3.error) partObiettivo = r3.data || [];
+    var r4 = await sb.from("hn_config").select("*").eq("squadra_id", me.squadra_id).limit(1);
+    if(!r4.error && r4.data && r4.data.length) config = r4.data[0];
+
+    var voci = 0, manca = 0;
+    var qa = Number(config.quota_associativa)||0;
+    if(qa){
+      var pa = movimenti.filter(function(m){ return m.causale==="associativa" && m.membro_id===me.membro_id; })
+                        .reduce(function(x,m){ return x+(Number(m.importo)||0); },0);
+      if(pa < qa){ voci++; manca += (qa-pa); }
+    }
+    partObiettivo.filter(function(x){ return x.membro_id===me.membro_id; }).forEach(function(x){
+      var o = obiettivi.find(function(y){ return y.id===x.obiettivo_id; });
+      if(!o || o.chiuso) return;
+      var v = movimenti.filter(function(m){ return m.causale==="obiettivo" && m.rif_id===x.obiettivo_id && m.membro_id===me.membro_id; })
+                       .reduce(function(a,m){ return a+(Number(m.importo)||0); },0);
+      var q = Number(x.quota)||0;
+      if(v < q){ voci++; manca += (q-v); }
+    });
+    if(!voci) return;
+    out.cassa = { n:voci, col:"giallo",
+                  testo:(voci===1?"1 sospeso":voci+" sospesi")+" \u00b7 "+eur(manca) };
+  }
+
   function giornoDella(dataIso){
     try{
       var d=new Date(dataIso+"T12:00:00");
@@ -18096,22 +18256,66 @@ function fineA(){
     return x ? (x.giornate||0) : 0;
   }
 
-  function apriEsterne(atc, stagione, nostre){
+  /* il modale vero, non il prompt di sistema: si vede il totale mentre lo cambi */
+  var esCtx = null;
+
+  function apriEsterne(atc, stagione, nostre, docs, righe){
     if(presenzeDi) return;              // il numero lo mette il cacciatore, non altri
     var x = atcEsterne[atc+"|"+stagione];
-    var attuale = x ? (x.giornate||0) : 0;
-    var nota = x ? (x.nota||"") : "";
-    var testo = prompt(
-      "ATC "+atc+" \u2014 stagione "+stagione+"\n\n"+
-      "Con la Zannalunga: "+nostre+" giornate.\n\n"+
-      "Quante giornate hai firmato sul registro dell'ATC "+atc+" con ALTRE squadre?\n"+
-      "(solo quelle in cui hai firmato davvero)", String(attuale));
-    if(testo===null) return;
-    var n = parseInt(String(testo).replace(/[^0-9]/g,""),10);
-    if(isNaN(n) || n<0){ toast("Numero non valido"); return; }
-    if(n>60){ toast("Troppe: il massimo \u00e8 60"); return; }
-    var nn = prompt("Nota (facoltativa): con chi, quando", nota);
-    salvaEsterne(atc, stagione, n, nn===null?nota:nn);
+    esCtx = {
+      atc: atc, stagione: stagione, nostre: nostre,
+      n: x ? (x.giornate||0) : 0,
+      illimitate: autorizzatoAtc(docs, atc, iso(new Date()))
+    };
+    document.getElementById("es-titolo").textContent   = "Registro ATC " + atc;
+    document.getElementById("es-stagione").textContent = "Stagione " + stagione;
+    document.getElementById("es-nostre").textContent   = nostre;
+    document.getElementById("es-nota").value           = x ? (x.nota||"") : "";
+    disegnaEsterne();
+    document.getElementById("m-esterne").classList.add("show");
+  }
+
+  function disegnaEsterne(){
+    if(!esCtx) return;
+    var tot = esCtx.nostre + esCtx.n;
+    document.getElementById("es-n").textContent = esCtx.n;
+    var el = document.getElementById("es-tot"), sotto = document.getElementById("es-sotto");
+    if(esCtx.illimitate){
+      el.textContent = tot + " firmate";
+      el.style.color = "#8fbf5a";
+      sotto.textContent = "Hai l'autorizzazione annuale: nessun limite in questo ATC.";
+    }else{
+      var resta = ATC_LIMITE - tot;
+      el.textContent = tot + " / " + ATC_LIMITE;
+      el.style.color = (resta<=0) ? "#d97b7b" : (resta<=1 ? "var(--amber)" : "var(--cream)");
+      sotto.textContent = (resta<0)  ? "Sei oltre il limite di " + (-resta) + " giornate."
+                        : (resta===0) ? "Hai chiuso le 15 giornate."
+                        : (resta===1) ? "Ne resta 1."
+                        : "Ne restano " + resta + ".";
+    }
+    document.getElementById("es-meno").disabled = (esCtx.n<=0);
+    document.getElementById("es-meno").style.opacity = (esCtx.n<=0) ? ".4" : "1";
+  }
+
+  function agganciaEsterne(){
+    var m = document.getElementById("m-esterne");
+    if(!m || m.__ok) return;
+    m.__ok = true;
+    document.getElementById("es-meno").onclick = function(){
+      if(!esCtx || esCtx.n<=0) return; esCtx.n--; disegnaEsterne();
+    };
+    document.getElementById("es-piu").onclick = function(){
+      if(!esCtx || esCtx.n>=60) return; esCtx.n++; disegnaEsterne();
+    };
+    document.getElementById("es-annulla").onclick = function(){ m.classList.remove("show"); esCtx=null; };
+    m.onclick = function(ev){ if(ev.target===m){ m.classList.remove("show"); esCtx=null; } };
+    document.getElementById("es-salva").onclick = function(){
+      if(!esCtx) return;
+      var nota = document.getElementById("es-nota").value.trim();
+      m.classList.remove("show");
+      salvaEsterne(esCtx.atc, esCtx.stagione, esCtx.n, nota);
+      esCtx = null;
+    };
   }
 
   async function salvaEsterne(atc, stagione, giornate, nota){
