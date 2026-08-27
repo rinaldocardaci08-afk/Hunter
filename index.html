@@ -2659,7 +2659,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <button class="btn line" id="dc-scatta">📷 Foto / scegli</button>
         <button class="btn danger" id="dc-delfoto" style="flex:0 0 52px">🗑</button>
       </div>
-      <input type="file" id="dc-file" accept="image/*" capture="environment" style="display:none">
+      <input type="file" id="dc-file" accept="image/*" style="display:none">
 
       <div id="dc-rilascio-box" style="display:none">
         <label class="lbl" style="margin-top:0">Rilasciato il</label>
@@ -3217,7 +3217,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.85";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.86";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3474,6 +3474,7 @@ header .menubtn{min-width:48px; min-height:48px;}
          puo_mappare:(m.puo_mappare===true),
          vede_aree:(m.vede_aree===true),
          vede_poste:(m.vede_poste===true),
+         registro:(m.registro==="ospite" ? "ospite" : "membro"),
          squadra_id:m.squadra_id, squadra_nome:squadraNome };
     try{ localStorage.setItem(ME_KEY, JSON.stringify(me)); }catch(e4){}
 
@@ -17639,6 +17640,19 @@ function fineA(){
     return Math.max(0, ATC_LIMITE - contaAtc(righe, atc, stagione));
   }
 
+  /* il profilo salvato sul telefono puo' essere anteriore a questa versione:
+     in quel caso "registro" non c'e' e l'ospite verrebbe trattato da membro. */
+  async function assicuraRegistro(){
+    if(!me || !me.membro_id) return;
+    if(me.registro==="ospite" || me.registro==="membro") return;
+    try{
+      var r=await sb.from("hn_membri").select("registro").eq("id",me.membro_id).single();
+      if(r.error) throw r.error;
+      me.registro = (r.data && r.data.registro==="ospite") ? "ospite" : "membro";
+      try{ localStorage.setItem(ME_KEY, JSON.stringify(me)); }catch(e){}
+    }catch(e){ me.registro="membro"; }
+  }
+
   async function caricaPresenzeAtc(membroId){
     var chi = membroId || (me && me.membro_id);
     if(!chi) return [];
@@ -17658,6 +17672,7 @@ function fineA(){
   var presAvvisoBattuta = null;
 
   async function controllaAvvisoAtc(){
+    await assicuraRegistro();
     var box=document.getElementById("pres-alert");
     if(!box) return;
     box.innerHTML="";
@@ -17768,6 +17783,7 @@ function fineA(){
 
   /* ---- LA SCHERMATA "LE MIE PRESENZE" ---- */
   async function caricaPresenze(){
+    await assicuraRegistro();
     var box=document.getElementById("presenze-scroll");
     if(!box) return;
     var chi = presenzeDi ? presenzeDi.id : (me && me.membro_id);
