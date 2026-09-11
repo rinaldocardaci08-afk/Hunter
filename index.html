@@ -3346,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.95";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.96";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3796,11 +3796,24 @@ header .menubtn{min-width:48px; min-height:48px;}
     try{
       if(String(a.id).indexOf("coda_area_")!==0){
         await sb.from("hn_aree").update({comune:nome}).eq("id", a.id);
+      }else{
+        /* mappa nata senza rete: il comune viaggia con lei quando sale */
+        var cq=leggiCodaAree(); cq.forEach(function(v){ if(v.id===a.id) v.comune=nome; }); scriviCodaAree(cq);
       }
     }catch(e){}
     salvaCacheAree();
     if(document.getElementById("v-aree").classList.contains("active")) renderAree();
-    toast("Comune della mappa: "+nome);
+    /* un attimo dopo, per non coprire il "Posta salvata" */
+    setTimeout(function(){ toast("Comune della mappa: "+nome); }, 2600);
+  }
+  /* dopo una sincronizzazione: le mappe rimaste senza comune lo prendono ora */
+  async function ricavaComuniMancanti(){
+    for(var i=0;i<aree.length;i++){
+      var a=aree[i];
+      if(a.comune || String(a.id).indexOf("coda_area_")===0) continue;
+      var p0=(a.poste||[]).find(function(p){ return p && isFinite(p.lat) && isFinite(p.lng) && p.lat; });
+      if(p0) await ricavaComuneMappa(a, p0);
+    }
   }
   async function creaArea(){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
@@ -5628,6 +5641,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!a){ toast("Mappa non trovata"); return; }
     areaAttivaId=areaId;
     mappatura=true;
+    /* BUG TROVATO DAL COLLAUDO (12/09): la mappatura non metteva la mappa in
+       LABORATORIO. All'avvio la mappa e' in "campo", quindi creando una mappa
+       nuova il tasto "Segna posta qui" restava nascosto e il tocco sulla mappa
+       non creava niente. La mappatura e' laboratorio per definizione. */
+    modoMappa="laboratorio";
+    mappaVenutoDa=null;
     tieniSchermoAcceso();        // il display non si spegne mentre cammini
     if(riprendi && percorso){
       percorsoAttivo=true; salvaPercorsoCorso(percorso, areaId);
@@ -5904,6 +5923,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     if(caricati){
       await caricaAree();   // ricarico dal database: ora e' tutto vero
+      ricavaComuniMancanti();
       toast(caricati===1 ? "1 elemento caricato" : (caricati+" elementi caricati"));
     }
     if(falliti && !silenzioso){
