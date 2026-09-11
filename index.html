@@ -3318,7 +3318,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.93";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.94";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9954,6 +9954,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     h += '<button class="btn primary" id="ad-mappa">🗺️ Apri sulla mappa</button>';
     h += htmlZona(a);
+    h += htmlMeteoMappa(a, "ad");
     if(puoMappare()){
       /* il punto si segna SOLO stando sul posto: le coordinate devono essere
          quelle vere, non un tocco approssimativo sulla mappa */
@@ -10051,6 +10052,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     root.innerHTML = h;
     bindSchedaArea();
+    montaMeteoMappa(a, "ad");
   }
 
   function bindSchedaArea(){
@@ -17632,8 +17634,8 @@ function fineA(){
      L'ora della pioggia e' l'informazione che fa spostare una battuta:
      sta in mezzo, grande, con la fascia della battuta segnata sopra. */
   var mtDati = null, mtGiorno = 0, mtLuogo = "", mtSotto = "";
-  function apriMeteo(dati, luogo, sotto){
-    mtDati = dati || meteo; mtGiorno = 0;
+  function apriMeteo(dati, luogo, sotto, giorno){
+    mtDati = dati || meteo; mtGiorno = (giorno>0 && giorno<7) ? giorno : 0;
     mtLuogo = luogo || ""; mtSotto = sotto || "";
     document.getElementById("m-meteo").classList.add("show");
     disegnaMeteo();
@@ -17653,26 +17655,78 @@ function fineA(){
     for(var h=ORE_BATTUTA[0]; h<=ORE_BATTUTA[1]; h++){ (probOra(h)>=40 ? bag : asc).push(h); }
     return {asc:asc, bag:bag};
   }
-  function disegnaMeteo(){
-    var corpo = document.getElementById("mt-corpo");
-    document.getElementById("mt-luogo").textContent = mtLuogo || "Meteo";
-    document.getElementById("mt-sotto").textContent = mtSotto || "";
-    if(!mtDati || !mtDati.daily){ corpo.innerHTML='<p class="hint">Meteo non disponibile senza rete.</p>'; return; }
-    var d = mtDati.daily, i = mtGiorno;
+  /* la striscia dei 7 giorni: la stessa nel resoconto grande e sotto le mappe.
+     sel = giorno evidenziato (-1 = nessuno) */
+  function htmlGiorniMeteo(d, sel){
     var g = ["Dom","Lun","Mar","Mer","Gio","Ven","Sab"];
     var h = '<div class="mt-giorni">';
     (d.time||[]).forEach(function(t, k){
       var dt = new Date(t+"T12:00:00");
       var pio = d.precipitation_probability_max ? (d.precipitation_probability_max[k]||0) : 0;
       var col = pio>=60 ? "#3E6FCC" : (pio>=30 ? "#5E7FA8" : "#2F7A4F");
-      h += '<button class="mt-g'+(k===i?" on":"")+'" data-mtg="'+k+'"'
-         + (k===i?"":' style="background:linear-gradient(160deg,'+col+'55,'+col+'22); border-color:'+col+'"')+'>'
+      h += '<button class="mt-g'+(k===sel?" on":"")+'" data-mtg="'+k+'"'
+         + (k===sel?"":' style="background:linear-gradient(160deg,'+col+'55,'+col+'22); border-color:'+col+'"')+'>'
          + '<div class="dd">'+(k===0?"Oggi":g[dt.getDay()]+" "+dt.getDate())+'</div>'
          + '<div class="tt">'+Math.round(d.temperature_2m_max?d.temperature_2m_max[k]:0)+'\u00b0'
          + '<span>/'+Math.round(d.temperature_2m_min?d.temperature_2m_min[k]:0)+'\u00b0</span></div>'
          + '<div class="pp">\ud83d\udca7'+pio+'%</div></button>';
     });
     h += '</div>';
+    return h;
+  }
+  /* METEO DI UNA MAPPA: preso sulla prima posta con coordinate buone (a trenta
+     chilometri da casa il tempo e' un altro). In cima il COMUNE della posta,
+     sotto i 7 giorni in sintesi; toccando si apre il resoconto grande.
+     Lo stesso pezzo serve alla scheda in Mappe e poste e alla mappa della giornata. */
+  function htmlMeteoMappa(a, pre){
+    var p0 = (a.poste||[]).find(function(p){ return p && isFinite(p.lat) && isFinite(p.lng) && p.lat; });
+    if(!p0) return "";
+    return '<div id="'+pre+'-meteo" style="margin-top:8px">'
+      + '<button class="met" id="'+pre+'-meteo-b"><span class="rosa"></span>'
+      + '<span style="flex:1; min-width:0"><div class="vento" id="'+pre+'-meteo-t">METEO SU '+esc(a.nome).toUpperCase()+'</div>'
+      + '<div class="sotto" id="'+pre+'-meteo-ds">carico il tempo su questa mappa\u2026</div></span>'
+      + '<span style="color:var(--muted)">\u203a</span></button>'
+      + '<div id="'+pre+'-meteo-g" style="margin-top:6px"></div></div>';
+  }
+  function montaMeteoMappa(a, pre){
+    var box = document.getElementById(pre+"-meteo");
+    if(!box) return;
+    var p0 = (a.poste||[]).find(function(p){ return p && isFinite(p.lat) && isFinite(p.lng) && p.lat; });
+    if(!p0){ box.style.display="none"; return; }
+    var b = document.getElementById(pre+"-meteo-b");
+    (async function(){
+      var comune = await nomeLuogo(p0.lat, p0.lng);
+      var t = document.getElementById(pre+"-meteo-t");
+      if(t && comune) t.textContent = "METEO SU "+comune.toUpperCase();
+      var dd = await chiediMeteo(p0.lat, p0.lng);
+      var ds = document.getElementById(pre+"-meteo-ds");
+      if(!dd || !dd.daily){ if(ds) ds.textContent = "meteo non disponibile senza rete"; return; }
+      var sotto = a.nome+" \u00b7 sulla prima posta";
+      if(ds && dd.current){
+        ds.textContent = a.nome+" \u00b7 vento da "+daDove(dd.current.wind_direction_10m)+" "
+          + Math.round(dd.current.wind_speed_10m)+" km/h \u00b7 "+Math.round(dd.current.temperature_2m)+"\u00b0";
+        var ro = b ? b.querySelector(".rosa") : null;
+        if(ro) ro.innerHTML = '<span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="o">O</span>'
+          + '<div class="freccia" style="transform:rotate('+Math.round((dd.current.wind_direction_10m+180)%360)+'deg)">\u25b2</div>';
+      }
+      var luogo = comune || a.nome;
+      if(b) b.onclick = function(){ apriMeteo(dd, luogo, sotto, 0); };
+      var g = document.getElementById(pre+"-meteo-g");
+      if(g){
+        g.innerHTML = htmlGiorniMeteo(dd.daily, -1);
+        g.querySelectorAll("[data-mtg]").forEach(function(x){
+          x.onclick = function(){ apriMeteo(dd, luogo, sotto, +x.dataset.mtg); };
+        });
+      }
+    })();
+  }
+  function disegnaMeteo(){
+    var corpo = document.getElementById("mt-corpo");
+    document.getElementById("mt-luogo").textContent = mtLuogo || "Meteo";
+    document.getElementById("mt-sotto").textContent = mtSotto || "";
+    if(!mtDati || !mtDati.daily){ corpo.innerHTML='<p class="hint">Meteo non disponibile senza rete.</p>'; return; }
+    var d = mtDati.daily, i = mtGiorno;
+    var h = htmlGiorniMeteo(d, i);
 
     var f = fasceMeteo();
     if(f.bag.length){
@@ -18599,10 +18653,7 @@ function fineA(){
        + '<span><i style="background:#E04A34"></i>uscita</span>'
        + '<span><i style="background:#5DD97A"></i>entrata</span></div>';
     h += '<button class="btn primary" id="gm-apri" style="margin:10px 0 4px">\ud83d\uddfa\ufe0f Apri la mappa intera</button>';
-    h += '<button class="met" id="gm-meteo" style="margin-top:8px"><span class="rosa"></span>'
-       + '<span style="flex:1; min-width:0"><div class="vento">METEO SU '+esc(a.nome).toUpperCase()+'</div>'
-       + '<div class="sotto" id="gm-meteo-ds">tocca per il tempo su questa mappa</div></span>'
-       + '<span style="color:var(--muted)">\u203a</span></button>';
+    h += htmlMeteoMappa(a, "gm");
 
     /* l'informazione scritta, non solo il disegno: il capo deve poterla leggere */
     var avvB = avvistamentiPerLaBattuta(a.id);
@@ -18643,28 +18694,7 @@ function fineA(){
     });
     var ap = document.getElementById("gm-apri");
     if(ap) ap.onclick = function(){ mappaVenutoDa = "giomappa"; apriAreaDaBattuta(a.id); };
-    var gmm = document.getElementById("gm-meteo");
-    if(gmm){
-      /* il meteo di QUESTA mappa: preso sulla prima posta con coordinate buone.
-         A trenta chilometri da casa il tempo e' un altro. */
-      var p0 = (a.poste||[]).find(function(p){ return p && isFinite(p.lat) && isFinite(p.lng) && p.lat; });
-      if(!p0){ gmm.style.display = "none"; }
-      else{
-        (async function(){
-          var dd = await chiediMeteo(p0.lat, p0.lng);
-          if(!dd || !dd.current) return;
-          var el2 = document.getElementById("gm-meteo-ds");
-          if(el2) el2.textContent = "vento da "+daDove(dd.current.wind_direction_10m)+" "
-            + Math.round(dd.current.wind_speed_10m)+" km/h \u00b7 pioggia "
-            + ((dd.daily && dd.daily.precipitation_probability_max) ? dd.daily.precipitation_probability_max[0] : 0)
-            + "% \u00b7 "+Math.round(dd.current.temperature_2m)+"\u00b0";
-          var ro = gmm.querySelector(".rosa");
-          if(ro) ro.innerHTML = '<span class="n">N</span><span class="e">E</span><span class="s">S</span><span class="o">O</span>'
-            + '<div class="freccia" style="transform:rotate('+Math.round((dd.current.wind_direction_10m+180)%360)+'deg)">\u25b2</div>';
-          gmm.onclick = function(){ apriMeteo(dd, a.nome, "meteo di questa mappa \u00b7 sulla prima posta"); };
-        })();
-      }
-    }
+    montaMeteoMappa(a, "gm");
   }
 
   /* l'anteprima: a schema, non satellite. A questa dimensione il satellite
