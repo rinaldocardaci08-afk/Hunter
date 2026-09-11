@@ -469,7 +469,7 @@
   .barrapos i{display:block; height:100%; border-radius:4px;}
 
   /* ---------- LE MAPPE A QUADRATI ---------- */
-  .mapgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(148px, 1fr)); gap:10px;}
+  .mapgrid{display:grid; grid-template-columns:1fr; gap:10px;}
   .mapcubo{background:var(--dark2); border:1px solid var(--dark3); border-radius:13px;
     padding:12px; text-align:left; color:var(--cream); min-height:104px;
     display:flex; flex-direction:column;}
@@ -485,6 +485,18 @@
   .mapcubo .nums .v{font-size:18px; font-weight:700; color:#fff;}
   .mapcubo .nums .t{font-size:9.5px; color:var(--muted);}
   .mapcubo .abb .v{color:var(--gold);}
+  /* il riquadro dell'annata, a destra: uccisioni, battute, %, voto con la stella */
+  .mapcubo .stat{flex-shrink:0; width:118px; border-left:1px solid var(--dark3); padding-left:10px;
+    display:flex; flex-direction:column; gap:3px; font-size:10px; color:var(--muted); line-height:1.15;}
+  .mapcubo .stat b{color:#fff; font-size:13px; font-weight:700;}
+  .mapcubo .stat .voto{margin-top:auto; display:flex; align-items:center; gap:6px;}
+  .mapcubo .stat .voto .vn{font-family:'Arial Narrow',Impact,sans-serif; font-size:22px; color:var(--gold); line-height:1;}
+  .mapcubo .stat .voto .vt{font-size:10px; color:var(--cream);}
+  .mapcubo .stat .stella{width:34px; height:34px; flex-shrink:0;}
+  .mapcubo .del{position:absolute; top:18px; right:8px; width:28px; height:28px; border-radius:8px;
+    background:#00000055; border:1px solid var(--dark3); display:flex; align-items:center; justify-content:center;
+    font-size:13px; z-index:2;}
+  .mapcubo{position:relative;}
 
   /* ---------- CUBI DI SINTESI ---------- */
   .cubi{display:flex; gap:9px; overflow-x:auto; padding-bottom:4px; margin-bottom:14px;
@@ -2969,13 +2981,29 @@ header .menubtn{min-width:48px; min-height:48px;}
     <p class="hint">Il terreno di battuta. Dentro registri le poste.</p>
     <label>Nome della mappa</label>
     <input id="m-area-nome" type="text" autocomplete="off" placeholder="Bosco di Sopra">
-    <label>Comune</label>
-    <input id="m-area-comune" type="text" autocomplete="off" placeholder="Cittanova">
+    <div id="m-area-comune-box">
+      <label>Comune</label>
+      <input id="m-area-comune" type="text" autocomplete="off" placeholder="lo ricava l'app dalla prima posta">
+    </div>
+    <p class="hint" id="m-area-comune-hint">Il comune non lo scrivi tu: l'app lo ricava da sola dalla prima posta che segni.</p>
     <div class="btnrow" style="margin-top:15px">
       <button class="btn line" id="m-area-annulla">Annulla</button>
       <button class="btn primary" id="m-area-salva">Crea mappa</button>
     </div>
-    <button class="btn danger" id="m-area-elimina" style="margin-top:9px; display:none">🗑 Elimina questa mappa</button>
+  </div>
+</div>
+
+<!-- MODALE: cancellazione di una mappa (solo dall'elenco, solo admin e capocaccia) -->
+<div class="modal" id="m-delmappa">
+  <div class="sheet">
+    <h3>Cancellare la mappa?</h3>
+    <div id="dm-nome" style="font-size:16px; font-weight:700; color:var(--cream); margin:6px 0"></div>
+    <p class="hint" id="dm-dett"></p>
+    <p class="hint" style="color:#e07a6a">Sparisce per tutta la squadra e non si può annullare.</p>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="dm-annulla">Annulla</button>
+      <button class="btn danger" id="dm-cancella">🗑 Cancella</button>
+    </div>
   </div>
 </div>
 
@@ -3318,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.94";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.95";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3758,6 +3786,22 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(!a.poste.find(function(x){return x.id===p.id;})) a.poste.push(p);
     });
   }
+  /* IL COMUNE LO TROVA L'APP: dalla prima posta con coordinate. In campagna o in
+     montagna chi mappa puo' non sapere in che comune sta. */
+  async function ricavaComuneMappa(a, p){
+    if(!a || a.comune || !p || !isFinite(p.lat) || !isFinite(p.lng) || !p.lat) return;
+    var nome = await nomeLuogo(p.lat, p.lng);
+    if(!nome) return;
+    a.comune = nome;
+    try{
+      if(String(a.id).indexOf("coda_area_")!==0){
+        await sb.from("hn_aree").update({comune:nome}).eq("id", a.id);
+      }
+    }catch(e){}
+    salvaCacheAree();
+    if(document.getElementById("v-aree").classList.contains("active")) renderAree();
+    toast("Comune della mappa: "+nome);
+  }
   async function creaArea(){
     if(!puoMappare()){ toast("Non hai il permesso"); return; }
     var nome=document.getElementById("m-area-nome").value.trim();
@@ -3892,6 +3936,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!a.poste) a.poste=[];
     a.poste.push(salvata);
     salvaCacheAree();           // aggiorno anche la copia locale
+    ricavaComuneMappa(a, salvata);
     schemaReset(); schemaGeo=null;
     renderAree(); refreshMapArea();
 
@@ -3932,14 +3977,25 @@ header .menubtn{min-width:48px; min-height:48px;}
     renderAree(); refreshMapArea();
     toast("Posta eliminata");
   }
-  async function eliminaArea(areaId){
-    if(!puoMappare()){ toast("Non hai il permesso"); return; }
+  /* CANCELLAZIONE DI UNA MAPPA: solo dall'elenco Mappe, solo admin e capocaccia,
+     sempre con la finestra di conferma (chiediCancellaMappa) e mai con confirm(). */
+  var delMappaId=null;
+  function puoCancellareMappe(){
+    return !!(me && (me.is_admin===true || me.ruolo==="capocaccia"));
+  }
+  function chiediCancellaMappa(areaId){
+    if(!puoCancellareMappe()){ toast("Solo l'amministratore o il capocaccia possono cancellare una mappa"); return; }
     var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
-    var np=(a.poste||[]).length;
-    var msg='Eliminare la mappa "'+a.nome+'"?';
-    if(np) msg+='\n\nPerderai anche le sue '+np+' post'+(np===1?'a':'e')+'.';
-    msg+='\n\nQuesta operazione non si può annullare.';
-    if(!confirm(msg)) return;
+    var np=(a.poste||[]).length, ns=settoriDi(a.id).length, nl=tracceDi(a.id).length;
+    delMappaId=areaId;
+    document.getElementById("dm-nome").textContent=a.nome+(a.comune?" · "+a.comune:"");
+    document.getElementById("dm-dett").textContent="Perdi anche "+np+" post"+(np===1?"a":"e")
+      +", "+ns+" sezion"+(ns===1?"e":"i")+" e "+nl+" line"+(nl===1?"a":"e")+".";
+    document.getElementById("m-delmappa").classList.add("show");
+  }
+  async function eliminaArea(areaId){
+    if(!puoCancellareMappe()){ toast("Non hai il permesso"); return; }
+    var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
     try{
       var r=await sb.from("hn_aree").delete().eq("id",areaId);
       if(r.error) throw r.error;
@@ -4684,6 +4740,67 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   /* ================= RENDER AREE ================= */
+  /* ===== IL RIQUADRO DELL'ANNATA su ogni mappa dell'elenco =====
+     uccisioni della stagione, battute fatte (chiuse) sulla mappa, quante volte
+     l'abbiamo fatta rispetto a tutte le battute della stagione, e il VOTO:
+     uccisioni diviso battute fatte, portato su una scala da 1 a 10
+     (0 capi a battuta = 1, 1 capo a battuta = 7, 1,5 e oltre = 10). */
+  function battuteSvolteStagione(){
+    var st = stagioneCorrente();
+    return tutteBattuteSvolte.filter(function(x){
+      if(!x.chiusa_il) return false;
+      var g = battute.find(function(b){ return b.id === x.giornata_id; });
+      return g && stagioneDi(g.data) === st;
+    });
+  }
+  function statMappaAnnata(areaId, ucc, totBattute){
+    var fatte = battuteSvolteStagione().filter(function(x){ return x.area_id === areaId; }).length;
+    var perc = totBattute ? Math.round(fatte*100/totBattute) : 0;
+    var voto = null, testo = "";
+    if(fatte){
+      var r = ucc/fatte;
+      voto = Math.max(1, Math.min(10, Math.round(1 + r*6)));
+      testo = voto>=10 ? "Eccellente" : voto>=8 ? "Ottima" : voto>=6 ? "Buona" : voto>=4 ? "Discreta" : "Scarsa";
+    }
+    return {ucc:ucc, fatte:fatte, perc:perc, voto:voto, testo:testo};
+  }
+  /* la stella si riempie da sinistra quanto vale il voto */
+  function stellaHtml(voto, id){
+    var q = voto ? Math.round(voto*10) : 0;
+    var gid = "st"+id.replace(/[^a-z0-9]/gi,"");
+    return '<svg class="stella" viewBox="0 0 40 40" aria-hidden="true">'
+      + '<defs><linearGradient id="'+gid+'" x1="0" x2="1" y1="0" y2="0">'
+      + '<stop offset="'+q+'%" stop-color="#E8C86A"/><stop offset="'+q+'%" stop-color="transparent"/></linearGradient></defs>'
+      + '<polygon points="20,3 25,15 38,16 28,25 31,38 20,31 9,38 12,25 2,16 15,15" fill="url(#'+gid+')" stroke="#E8C86A" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+  }
+  function htmlStatMappa(sm){
+    return '<div class="stat">'
+      + '<div>uccisioni<br><b>'+sm.ucc+'</b></div>'
+      + '<div>battute fatte<br><b>'+sm.fatte+'</b></div>'
+      + '<div>% sulle battute<br><b>'+sm.perc+'%</b></div>'
+      + '<div class="voto">'+stellaHtml(sm.voto, String(sm.ucc)+"_"+sm.fatte+"_"+Math.random().toString(36).slice(2,6))
+      + '<div><div class="vn">'+(sm.voto===null?"\u2014":sm.voto)+'</div><div class="vt">'+(sm.voto===null?"mai battuta":sm.testo)+'</div></div></div>'
+      + '</div>';
+  }
+  var statMappeCaricate=false;
+  async function caricaStatMappe(){
+    if(statMappeCaricate || caricaStatMappe.__inCorso) return;
+    caricaStatMappe.__inCorso=true;
+    try{
+      if(!battute.length) await caricaBattute();
+      if(!clFatti.length){
+        var r = await sb.from("hn_fatti").select("*").eq("squadra_id", me.squadra_id).eq("tipo","uccisione");
+        if(!r.error) clFatti = r.data || [];
+      }
+      if(!tutteBattuteSvolte.length){
+        var rb = await sb.from("hn_battute_svolte").select("*").eq("squadra_id", me.squadra_id);
+        if(!rb.error) tutteBattuteSvolte = rb.data || [];
+      }
+      statMappeCaricate=true;
+      if(document.getElementById("v-aree").classList.contains("active")) renderAree();
+    }catch(e){}
+    caricaStatMappe.__inCorso=false;
+  }
   function renderAree(){
     var root=document.getElementById("aree-scroll");
     var puoScrivere=puoMappare();
@@ -4713,6 +4830,10 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='<div class="empty">Nessuna mappa ancora.'+(puoScrivere?'<br>Creane una per iniziare a segnare le poste.':'')+'</div>';
     }
 
+    // i dati dell'annata (fatti e battute svolte): se non ci sono ancora, li carico e ridisegno
+    var totBattute = battuteSvolteStagione().length;
+    caricaStatMappe();
+
     // raggruppo per comune
     var gruppi={};
     aree.forEach(function(a){
@@ -4728,8 +4849,10 @@ header .menubtn{min-width:48px; min-height:48px;}
         var ns=settoriDi(a.id).length;
         var nl=tracceDi(a.id).length;
         var ab=abbattimentiArea(a.id);
+        var sm=statMappaAnnata(a.id, ab, totBattute);
         h+='<button class="mapcubo" data-apri="'+a.id+'">';
         h+=profiloMonti(a.nome);
+        if(puoCancellareMappe()) h+='<span class="del" data-del="'+a.id+'" title="Cancella la mappa">\ud83d\uddd1</span>';
         h+='<div class="dentro"><div class="testo">';
         h+='<div class="nm">'+esc(a.nome)+'</div>';
         h+='<div class="cm">'+(a.comune?esc(a.comune):'&nbsp;')+'</div>';
@@ -4741,6 +4864,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='</div></div>';
         // l'impronta e' la forma del terreno: la vede solo chi puo' vedere le poste
         if(vedePoste) h+=improntaMappa(a);
+        h+=htmlStatMappa(sm);
         h+='</div></button>';
       });
       h+='</div>';
@@ -4766,13 +4890,17 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-area-titolo").textContent="Nuova mappa";
       document.getElementById("m-area-nome").value="";
       document.getElementById("m-area-comune").value="";
+      document.getElementById("m-area-comune-box").style.display="none";
+      document.getElementById("m-area-comune-hint").style.display="block";
       document.getElementById("m-area-salva").textContent="Crea mappa";
-      document.getElementById("m-area-elimina").style.display="none";
       document.getElementById("m-area").classList.add("show");
       setTimeout(function(){document.getElementById("m-area-nome").focus();},120);
     };
     root.querySelectorAll("[data-apri]").forEach(function(el){
       el.onclick=function(){ apriSchedaArea(el.dataset.apri); };
+    });
+    root.querySelectorAll("[data-del]").forEach(function(el){
+      el.onclick=function(ev){ ev.stopPropagation(); ev.preventDefault(); chiediCancellaMappa(el.dataset.del); };
     });
     root.querySelectorAll("[data-apri-vecchio]").forEach(function(el){
       el.onclick=function(){ apriPopupArea(el.dataset.apri); };
@@ -4860,8 +4988,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("m-area-titolo").textContent="Modifica mappa";
     document.getElementById("m-area-nome").value=a.nome||"";
     document.getElementById("m-area-comune").value=a.comune||"";
+    document.getElementById("m-area-comune-box").style.display="block";
+    document.getElementById("m-area-comune-hint").style.display="none";
     document.getElementById("m-area-salva").textContent="Salva modifiche";
-    document.getElementById("m-area-elimina").style.display="block";
     document.getElementById("m-area").classList.add("show");
   }
 
@@ -15899,8 +16028,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-area").classList.remove("show");
       areaEditId=null;
     };
-    document.getElementById("m-area-elimina").onclick=function(){
-      if(areaEditId) eliminaArea(areaEditId);
+    document.getElementById("dm-annulla").onclick=function(){
+      document.getElementById("m-delmappa").classList.remove("show"); delMappaId=null; };
+    document.getElementById("dm-cancella").onclick=function(){
+      var id=delMappaId; document.getElementById("m-delmappa").classList.remove("show"); delMappaId=null;
+      if(id) eliminaArea(id);
     };
     document.getElementById("mapbanner-fine").onclick=esciMappatura;
     // --- PERCORSO ---
