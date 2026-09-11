@@ -3346,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.96";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.97";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -8247,8 +8247,21 @@ header .menubtn{min-width:48px; min-height:48px;}
     var r=window.__ritrovoAperto;
     if(!r || !map) return;
     document.getElementById("m-ritrovo").classList.remove("show");
+    /* GUARDARE un ritrovo e' solo guardare: serve a capire dove NON mettere
+       poste, linee o altro. Se sulla mappa era rimasta aperta un'area (con la
+       sua ✕ in alto a destra e il menu' Modifica), la chiudo. Se invece sto
+       mappando, resto in mappatura: il ritrovo e' un riferimento anche li'. */
+    if(!mappatura && areaApertaInMappa){
+      areaApertaInMappa=false;
+      aggiornaPills();
+      if(posteLayer) posteLayer.clearLayers();
+      document.getElementById("areatag").textContent="Mappa";
+      setMode("sat");
+      clearNav();
+    }
     showView("mappa");
     setTimeout(function(){
+      renderAreePoligoni();   // i terreni si vedono: il ritrovo va letto rispetto a loro
       map.setView([r.lat, r.lng], 17);
       if(window.__ritrovoMarker) map.removeLayer(window.__ritrovoMarker);
       window.__ritrovoMarker = L.marker([r.lat,r.lng],{icon:L.divIcon({className:"",iconSize:[34,34],iconAnchor:[17,17],
