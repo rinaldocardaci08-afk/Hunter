@@ -3311,7 +3311,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.90";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.92";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -17992,8 +17992,9 @@ function fineA(){
       venute++;
       var p=atcDi[b.id];
       var ic="";
-      if(capi[b.id])    for(var i=0;i<capi[b.id];i++)    ic+='<img src="cinghiale.png" alt="capo" style="height:20px; vertical-align:-4px; margin-left:4px">';
-      if(padelle[b.id]) for(var j=0;j<padelle[b.id];j++) ic+='<img src="padella.png" alt="padella" style="height:20px; vertical-align:-4px; margin-left:4px">';
+      /* cinghiale-icona.png = UNA posa sola; cinghiale.png e' il foglio degli sprite del gioco (6 cinghiali) */
+      if(capi[b.id])    for(var i=0;i<capi[b.id];i++)    ic+='<img src="cinghiale-icona.png" alt="capo" style="height:22px; width:auto; vertical-align:-5px; margin-left:4px">';
+      if(padelle[b.id]) for(var j=0;j<padelle[b.id];j++) ic+='<img src="padella.png" alt="padella" style="height:20px; width:auto; vertical-align:-4px; margin-left:4px">';
       var bad="";
       if(sonoOspiteRegistro(membro)){
         bad = p
@@ -18005,7 +18006,7 @@ function fineA(){
       righe+='<div class="canale" data-battuta="'+b.id+'" data-data="'+esc(b.data)+'">'
         + '<span class="mid"><div class="nome">'+esc(dataLunga(b.data))+'</div>'
         + '<div class="f">'+(a.tracciatore?"tracciatore":"in battuta")+'</div></span>'
-        + '<span style="white-space:nowrap">'+ic+'</span>'
+        + '<span style="white-space:nowrap; flex-shrink:0">'+ic+'</span>'
         + bad + '</div>';
     });
     if(!righe) righe='<div class="card" style="color:var(--muted)">Nessuna giornata in questa stagione.</div>';
