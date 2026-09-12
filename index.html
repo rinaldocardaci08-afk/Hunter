@@ -1091,6 +1091,8 @@
 .lpd .nick.vuoto{color:#6b6b6b; font-style:italic;}
 .lpd button{border:1px solid var(--dark3); background:transparent; color:var(--cream); border-radius:8px; padding:5px 8px; font-size:12px; flex-shrink:0;}
 .lpd button.seg{border-color:var(--gold); color:var(--gold);}
+.lpd button.star{border:none; font-size:17px; padding:2px 4px; color:#6b6b6b;}
+.lpd button.star.on{color:var(--gold);}
 .lpd.attivo button.seg{background:#7FD948; border-color:#7FD948; color:#0d2408; font-weight:700;}
 
 
@@ -3365,7 +3367,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.07";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.08";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12433,6 +12435,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-lpd-seg]").forEach(function(b){
       b.onclick = function(){ segnalaLpd(+b.dataset.lpdSeg); };
     });
+    root.querySelectorAll("[data-lpd-star]").forEach(function(b){
+      b.onclick = function(){ togglePreferitoLpd(+b.dataset.lpdStar); };
+    });
     root.querySelectorAll("[data-home-su]").forEach(function(b){
       b.onclick = function(){ spostaCasella(b.dataset.homeSu, false); };
     });
@@ -17872,6 +17877,37 @@ function fineA(){
     return radioCanali.find(function(c){ return lpdCanaleDi(c)===ch; }) || null;
   }
   var lpdAperta = false;
+  /* la stellina: i canali preferiti stanno in un elenco a parte, cosi' non si
+     scorre ogni volta tutta la tabella (sua richiesta 12/09). Colonna preferito. */
+  async function togglePreferitoLpd(ch){
+    var c = canaleLpd(ch);
+    try{
+      if(!c){
+        var r0 = await sb.from("hn_radio_canali").insert({
+          squadra_id: me.squadra_id, nome:null, frequenza: lpdMhz(ch), note:"LPD 433", ordine:100+ch, attivo:true, preferito:true
+        }).select().single();
+        if(r0.error) throw r0.error;
+        radioCanali.push(r0.data);
+      }else{
+        var r = await sb.from("hn_radio_canali").update({preferito: !c.preferito}).eq("id", c.id).select().single();
+        if(r.error) throw r.error;
+        Object.assign(c, r.data);
+      }
+      renderAdmin();
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+  function rigaLpd(ch){
+    var cl = canaleLpd(ch);
+    var att = !!(cl && radioOggi && radioOggi.canale_id===cl.id);
+    var pref = !!(cl && cl.preferito);
+    return '<div class="lpd'+(att?" attivo":"")+'">'
+      + '<button class="star'+(pref?" on":"")+'" data-lpd-star="'+ch+'" title="Preferito">'+(pref?"\u2605":"\u2606")+'</button>'
+      + '<span class="ch">'+ch+'</span><span class="mhz">'+lpdMhz(ch)+'</span>'
+      + '<span class="nick'+(cl&&cl.nome?'':' vuoto')+'">'+(cl&&cl.nome?esc(cl.nome):'senza nome')+'</span>'
+      + '<button data-lpd-nick="'+ch+'" title="Soprannome">\u270e</button>'
+      + '<button class="seg" data-lpd-seg="'+ch+'">'+(att?"OGGI":"Segnala")+'</button>'
+      + '</div>';
+  }
   async function salvaNickLpd(ch, nick){
     var c = canaleLpd(ch);
     try{
@@ -18030,19 +18066,21 @@ function fineA(){
     h+='<div class="sechead" style="margin-top:14px">Canali LPD 433 \u00b7 69</div>';
     h+='<div class="hint" style="margin-bottom:8px">Da 433.075 a 434.775 MHz, passo 25 kHz. Metti un soprannome ai canali che usate (Cani, Poste, Rientro): '
      + 'in battuta si vede numero, frequenza e soprannome.'+(conNick?' \u00b7 '+conNick+' con soprannome':'')+'</div>';
+    /* I PREFERITI: le stelline, sempre in vista */
+    var prefs = radioCanali.filter(function(c){ return lpdCanaleDi(c) && c.preferito; })
+                           .map(function(c){ return lpdCanaleDi(c); }).sort(function(a,b){ return a-b; });
+    h+='<div style="font-size:11px; color:var(--gold); letter-spacing:.5px; margin:4px 0 6px">\u2605 PREFERITI'+(prefs.length?' \u00b7 '+prefs.length:'')+'</div>';
+    if(prefs.length){
+      h+='<div style="background:#ffffff06; border:1px solid var(--dark3); border-radius:11px; overflow:hidden; margin-bottom:10px">';
+      prefs.forEach(function(ch){ h+=rigaLpd(ch); });
+      h+='</div>';
+    }else{
+      h+='<div class="hint" style="margin-bottom:10px">Nessun preferito. Apri la tabella e tocca la stellina sui canali che usate.</div>';
+    }
     h+='<button class="btn line" id="adm-lpd-apri" style="margin-bottom:8px">'+(lpdAperta?'\u2304 Chiudi la tabella':'\u203a Apri la tabella dei 69 canali')+'</button>';
     if(lpdAperta){
       h+='<div style="background:#ffffff06; border:1px solid var(--dark3); border-radius:11px; overflow:hidden; margin-bottom:12px">';
-      for(var ch=1; ch<=69; ch++){
-        var cl = canaleLpd(ch);
-        var att = !!(cl && radioOggi && radioOggi.canale_id===cl.id);
-        h+='<div class="lpd'+(att?" attivo":"")+'">'
-         + '<span class="ch">'+ch+'</span><span class="mhz">'+lpdMhz(ch)+'</span>'
-         + '<span class="nick'+(cl&&cl.nome?'':' vuoto')+'">'+(cl&&cl.nome?esc(cl.nome):'senza nome')+'</span>'
-         + '<button data-lpd-nick="'+ch+'" title="Soprannome">\u270e</button>'
-         + '<button class="seg" data-lpd-seg="'+ch+'">'+(att?"OGGI":"Segnala")+'</button>'
-         + '</div>';
-      }
+      for(var ch=1; ch<=69; ch++) h+=rigaLpd(ch);
       h+='</div>';
     }
     if(radioOggi){
