@@ -1082,6 +1082,16 @@
 .canale .seg{border:1px solid var(--gold); background:transparent; color:var(--gold);
   border-radius:20px; padding:8px 12px; font-size:11.5px; white-space:nowrap;}
 .canale.attivo .seg{background:#7FD948; border-color:#7FD948; color:#0d2408; font-weight:700;}
+/* la tabella dei 69 canali LPD 433: righe strette */
+.lpd{display:flex; align-items:center; gap:8px; padding:7px 8px; border-bottom:1px solid var(--dark3); font-size:13px;}
+.lpd.attivo{background:#7FD9481a;}
+.lpd .ch{width:34px; font-family:'Arial Narrow',Impact,sans-serif; font-size:18px; color:var(--gold); text-align:right; flex-shrink:0;}
+.lpd .mhz{width:62px; color:var(--muted); font-size:12px; flex-shrink:0;}
+.lpd .nick{flex:1; min-width:0; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.lpd .nick.vuoto{color:#6b6b6b; font-style:italic;}
+.lpd button{border:1px solid var(--dark3); background:transparent; color:var(--cream); border-radius:8px; padding:5px 8px; font-size:12px; flex-shrink:0;}
+.lpd button.seg{border-color:var(--gold); color:var(--gold);}
+.lpd.attivo button.seg{background:#7FD948; border-color:#7FD948; color:#0d2408; font-weight:700;}
 
 
 /* ================= GIOCHI CHIUSI DURANTE LA BATTUTA ================= */
@@ -3355,7 +3365,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.06";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.07";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7462,6 +7472,21 @@ header .menubtn{min-width:48px; min-height:48px;}
                  : (b.stato==="aperta" ? "● adesioni aperte" : "● adesioni chiuse");
     var statoCol = conclusa ? "var(--gold)" : (b.stato==="aperta" ? "#7be0a8" : "var(--muted)");
     h+='<div style="font-size:12px; color:'+statoCol+'; margin-bottom:12px">'+statoTxt+'</div>';
+
+    /* IL CANALE RADIO DI OGGI, in cima alla giornata del giorno (sua richiesta 12/09):
+       numero, frequenza e soprannome, gli stessi della Home. */
+    if(String(b.data||"").slice(0,10) === oggiISO() && radioOggi){
+      var cR = canaleDi(radioOggi.canale_id);
+      if(cR){
+        var eR = etichettaCanale(cR);
+        h+='<div class="card" style="background:#1d3a1a; border:1px solid #7FD948; margin-bottom:12px; padding:10px 13px">';
+        h+='<div style="display:flex; align-items:center; gap:11px">';
+        h+='<span style="font-size:22px">\ud83d\udcfb</span>';
+        h+='<div style="flex:1; min-width:0"><div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:22px; letter-spacing:1px; color:#fff; line-height:1">'+esc(eR.titolo)+'</div>';
+        h+='<div style="font-size:12px; color:#CFE9B8; margin-top:3px">'+esc(eR.sotto)+' \u00b7 canale di oggi</div></div>';
+        h+='</div></div>';
+      }
+    }
 
     /* I tre cubi in cima e i tre riquadroni sotto dicevano le stesse cose tre volte.
        Adesso: UNA striscia di numeri, e ognuno si apre dove serve. */
@@ -12396,6 +12421,18 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(rt) rt.onclick = togliCanaleOggi;
     var rn = document.getElementById("adm-radio-nuovo");
     if(rn) rn.onclick = nuovoCanaleRadio;
+    var la = document.getElementById("adm-lpd-apri");
+    if(la) la.onclick = function(){ lpdAperta = !lpdAperta; renderAdmin(); };
+    root.querySelectorAll("[data-lpd-nick]").forEach(function(b){
+      b.onclick = function(){
+        var ch = +b.dataset.lpdNick, cl = canaleLpd(ch);
+        chiediTesto("Soprannome del canale "+ch, lpdMhz(ch)+" MHz \u00b7 come lo chiamate fra voi (vuoto = nessuno)", cl?cl.nome:"", "text",
+          function(v){ salvaNickLpd(ch, String(v||"").trim()); });
+      };
+    });
+    root.querySelectorAll("[data-lpd-seg]").forEach(function(b){
+      b.onclick = function(){ segnalaLpd(+b.dataset.lpdSeg); };
+    });
     root.querySelectorAll("[data-home-su]").forEach(function(b){
       b.onclick = function(){ spostaCasella(b.dataset.homeSu, false); };
     });
@@ -17815,6 +17852,59 @@ function fineA(){
     return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
   }
   function puoSegnalareRadio(){ return puoGestireSquadra(); }
+  /* ===== CANALI LPD 433 (69 canali, passo 25 kHz da 433.075) =====
+     Il canale si ricava dalla frequenza: nessuna colonna nuova. Il soprannome
+     ("Cani", "Poste") sta nel campo nome. L'etichetta e' la stessa ovunque:
+     Home, amministrazione, giornata. */
+  function lpdMhz(ch){ return (433.075 + (ch-1)*0.025).toFixed(3); }
+  function lpdCanaleDi(c){
+    var f = parseFloat(String(c && c.frequenza || "").replace(",", "."));
+    if(!isFinite(f)) return 0;
+    var ch = Math.round((f - 433.075)/0.025) + 1;
+    return (ch>=1 && ch<=69 && Math.abs(f - (433.075+(ch-1)*0.025)) < 0.002) ? ch : 0;
+  }
+  function etichettaCanale(c){
+    var ch = lpdCanaleDi(c);
+    if(ch) return { titolo: "CH "+ch+(c.nome ? " \u00b7 "+c.nome : ""), sotto: lpdMhz(ch)+" MHz" };
+    return { titolo: c.nome || "CANALE", sotto: c.frequenza || "" };
+  }
+  function canaleLpd(ch){
+    return radioCanali.find(function(c){ return lpdCanaleDi(c)===ch; }) || null;
+  }
+  var lpdAperta = false;
+  async function salvaNickLpd(ch, nick){
+    var c = canaleLpd(ch);
+    try{
+      if(c){
+        var r = await sb.from("hn_radio_canali").update({nome:(nick||null)}).eq("id", c.id).select().single();
+        if(r.error) throw r.error;
+        Object.assign(c, r.data);
+      }else{
+        var r2 = await sb.from("hn_radio_canali").insert({
+          squadra_id: me.squadra_id, nome:(nick||null), frequenza: lpdMhz(ch), note: "LPD 433",
+          ordine: 100+ch, attivo: true
+        }).select().single();
+        if(r2.error) throw r2.error;
+        radioCanali.push(r2.data);
+      }
+      toast("Canale "+ch+" salvato");
+      renderAdmin();
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+  async function segnalaLpd(ch){
+    var c = canaleLpd(ch);
+    if(!c){
+      /* il canale non ha ancora una riga: la creo senza soprannome e la segnalo */
+      try{
+        var r = await sb.from("hn_radio_canali").insert({
+          squadra_id: me.squadra_id, nome:null, frequenza: lpdMhz(ch), note:"LPD 433", ordine:100+ch, attivo:true
+        }).select().single();
+        if(r.error) throw r.error;
+        radioCanali.push(r.data); c = r.data;
+      }catch(e){ toast("Non riesco: "+(e.message||e)); return; }
+    }
+    segnalaCanale(c.id);
+  }
   function canaleDi(id){
     var t=null;
     radioCanali.forEach(function(c){ if(c.id===id) t=c; });
@@ -17854,8 +17944,8 @@ function fineA(){
     }else{
       box.innerHTML='<button class="radio" id="radio-tocca">'
         + '<span class="em">\ud83d\udcfb</span>'
-        + '<span class="mid"><span class="can">'+esc(c.nome||"CANALE")+'</span>'
-        + '<span class="fq">'+esc(c.frequenza||"")+'</span></span>'
+        + '<span class="mid"><span class="can">'+esc(etichettaCanale(c).titolo)+'</span>'
+        + '<span class="fq">'+esc(etichettaCanale(c).sotto)+'</span></span>'
         + '<span class="oggi">OGGI</span><span class="giu" id="radio-giu">\u2304</span></button>'
         + '<div class="radio-piu" id="radio-piu"></div>';
     }
@@ -17926,7 +18016,7 @@ function fineA(){
     if(!radioCanali.length){
       h+='<div class="hint" style="margin-bottom:10px">Nessun canale ancora. Aggiungine uno.</div>';
     }
-    radioCanali.forEach(function(c){
+    radioCanali.filter(function(c){ return !lpdCanaleDi(c); }).forEach(function(c){
       var attivo = radioOggi && radioOggi.canale_id===c.id;
       h+='<div class="canale'+(attivo?" attivo":"")+'">'
        + '<span style="font-size:20px">\ud83d\udcfb</span>'
@@ -17935,6 +18025,26 @@ function fineA(){
        + '<button class="seg" data-radio-seg="'+c.id+'">'+(attivo?"IN USO OGGI":"Segnala")+'</button>'
        + '</div>';
     });
+    /* LA TABELLA LPD 433: 69 canali fissi, soprannome accanto (sua richiesta 12/09) */
+    var conNick = radioCanali.filter(function(c){ return lpdCanaleDi(c) && c.nome; }).length;
+    h+='<div class="sechead" style="margin-top:14px">Canali LPD 433 \u00b7 69</div>';
+    h+='<div class="hint" style="margin-bottom:8px">Da 433.075 a 434.775 MHz, passo 25 kHz. Metti un soprannome ai canali che usate (Cani, Poste, Rientro): '
+     + 'in battuta si vede numero, frequenza e soprannome.'+(conNick?' \u00b7 '+conNick+' con soprannome':'')+'</div>';
+    h+='<button class="btn line" id="adm-lpd-apri" style="margin-bottom:8px">'+(lpdAperta?'\u2304 Chiudi la tabella':'\u203a Apri la tabella dei 69 canali')+'</button>';
+    if(lpdAperta){
+      h+='<div style="background:#ffffff06; border:1px solid var(--dark3); border-radius:11px; overflow:hidden; margin-bottom:12px">';
+      for(var ch=1; ch<=69; ch++){
+        var cl = canaleLpd(ch);
+        var att = !!(cl && radioOggi && radioOggi.canale_id===cl.id);
+        h+='<div class="lpd'+(att?" attivo":"")+'">'
+         + '<span class="ch">'+ch+'</span><span class="mhz">'+lpdMhz(ch)+'</span>'
+         + '<span class="nick'+(cl&&cl.nome?'':' vuoto')+'">'+(cl&&cl.nome?esc(cl.nome):'senza nome')+'</span>'
+         + '<button data-lpd-nick="'+ch+'" title="Soprannome">\u270e</button>'
+         + '<button class="seg" data-lpd-seg="'+ch+'">'+(att?"OGGI":"Segnala")+'</button>'
+         + '</div>';
+      }
+      h+='</div>';
+    }
     if(radioOggi){
       h+='<button class="btn line" id="adm-radio-togli" style="margin-top:6px">Togli la segnalazione di oggi</button>';
     }
