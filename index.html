@@ -3014,6 +3014,18 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE GENERICA DI CONFERMA (al posto di confirm() del sistema) -->
+<div class="modal" id="m-conferma">
+  <div class="sheet">
+    <h3 id="mc-titolo">Confermi?</h3>
+    <p class="hint" id="mc-testo"></p>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="mc-no">Annulla</button>
+      <button class="btn danger" id="mc-si">Conferma</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: cancellazione di una mappa (solo dall'elenco, solo admin e capocaccia) -->
 <div class="modal" id="m-delmappa">
   <div class="sheet">
@@ -3367,7 +3379,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.08";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.09";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12438,6 +12450,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-lpd-star]").forEach(function(b){
       b.onclick = function(){ togglePreferitoLpd(+b.dataset.lpdStar); };
     });
+    root.querySelectorAll("[data-radio-star]").forEach(function(b){
+      b.onclick = function(){ togglePreferitoCanale(b.dataset.radioStar); };
+    });
+    root.querySelectorAll("[data-radio-del]").forEach(function(b){
+      b.onclick = function(){ chiediCancellaCanale(b.dataset.radioDel); };
+    });
     root.querySelectorAll("[data-home-su]").forEach(function(b){
       b.onclick = function(){ spostaCasella(b.dataset.homeSu, false); };
     });
@@ -16356,6 +16374,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-area").classList.remove("show");
       areaEditId=null;
     };
+    document.getElementById("mc-no").onclick=function(){
+      document.getElementById("m-conferma").classList.remove("show"); confermaCb=null; };
+    document.getElementById("mc-si").onclick=function(){
+      var cb=confermaCb; confermaCb=null; document.getElementById("m-conferma").classList.remove("show");
+      if(cb) cb();
+    };
     document.getElementById("dm-annulla").onclick=function(){
       document.getElementById("m-delmappa").classList.remove("show"); delMappaId=null; };
     document.getElementById("dm-cancella").onclick=function(){
@@ -17877,6 +17901,38 @@ function fineA(){
     return radioCanali.find(function(c){ return lpdCanaleDi(c)===ch; }) || null;
   }
   var lpdAperta = false;
+  /* finestra di conferma dell'app: titolo, testo, etichetta del tasto, cosa fare */
+  var confermaCb = null;
+  function chiediConferma(titolo, testo, tasto, cb){
+    document.getElementById("mc-titolo").textContent = titolo;
+    document.getElementById("mc-testo").textContent = testo || "";
+    document.getElementById("mc-si").textContent = tasto || "Conferma";
+    confermaCb = cb;
+    document.getElementById("m-conferma").classList.add("show");
+  }
+  /* i canali liberi (fuori dalla tabella 433): stellina e cancellazione con finestra */
+  async function togglePreferitoCanale(id){
+    var c = radioCanali.find(function(x){ return x.id===id; }); if(!c) return;
+    try{
+      var r = await sb.from("hn_radio_canali").update({preferito: !c.preferito}).eq("id", id).select().single();
+      if(r.error) throw r.error;
+      Object.assign(c, r.data); renderAdmin();
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+  function chiediCancellaCanale(id){
+    var c = radioCanali.find(function(x){ return x.id===id; }); if(!c) return;
+    var inUso = !!(radioOggi && radioOggi.canale_id===id);
+    chiediConferma("Cancellare il canale?", (c.nome||"Canale")+" \u00b7 "+(c.frequenza||"")+(inUso?"\n\u00c8 il canale segnalato per oggi: la segnalazione viene tolta.":""), "\ud83d\uddd1 Cancella",
+      async function(){
+        try{
+          if(inUso){ await sb.from("hn_radio_oggi").delete().eq("canale_id", id); radioOggi = null; }
+          var r = await sb.from("hn_radio_canali").delete().eq("id", id);
+          if(r.error) throw r.error;
+          radioCanali = radioCanali.filter(function(x){ return x.id!==id; });
+          toast("Canale cancellato"); renderAdmin(); renderRadio();
+        }catch(e){ toast("Non riesco: "+(e.message||e)); }
+      });
+  }
   /* la stellina: i canali preferiti stanno in un elenco a parte, cosi' non si
      scorre ogni volta tutta la tabella (sua richiesta 12/09). Colonna preferito. */
   async function togglePreferitoLpd(ch){
@@ -18052,15 +18108,17 @@ function fineA(){
     if(!radioCanali.length){
       h+='<div class="hint" style="margin-bottom:10px">Nessun canale ancora. Aggiungine uno.</div>';
     }
-    radioCanali.filter(function(c){ return !lpdCanaleDi(c); }).forEach(function(c){
+    var rigaLibera = function(c){
       var attivo = radioOggi && radioOggi.canale_id===c.id;
-      h+='<div class="canale'+(attivo?" attivo":"")+'">'
-       + '<span style="font-size:20px">\ud83d\udcfb</span>'
+      return '<div class="canale'+(attivo?" attivo":"")+'">'
+       + '<button class="star'+(c.preferito?" on":"")+'" data-radio-star="'+c.id+'" title="Preferito" style="border:none; background:none; font-size:18px; padding:0 2px; color:'+(c.preferito?'var(--gold)':'#6b6b6b')+'">'+(c.preferito?"\u2605":"\u2606")+'</button>'
        + '<span class="mid"><div class="nome">'+esc(c.nome||"")+'</div>'
        + '<div class="f">'+esc(c.frequenza||"")+(c.note?" \u00b7 "+esc(c.note):"")+'</div></span>'
+       + '<button data-radio-del="'+c.id+'" title="Cancella" style="border:1px solid var(--dark3); background:transparent; color:var(--muted); border-radius:8px; padding:6px 8px; font-size:13px">\ud83d\uddd1</button>'
        + '<button class="seg" data-radio-seg="'+c.id+'">'+(attivo?"IN USO OGGI":"Segnala")+'</button>'
        + '</div>';
-    });
+    };
+    radioCanali.filter(function(c){ return !lpdCanaleDi(c); }).forEach(function(c){ h+=rigaLibera(c); });
     /* LA TABELLA LPD 433: 69 canali fissi, soprannome accanto (sua richiesta 12/09) */
     var conNick = radioCanali.filter(function(c){ return lpdCanaleDi(c) && c.nome; }).length;
     h+='<div class="sechead" style="margin-top:14px">Canali LPD 433 \u00b7 69</div>';
@@ -18069,11 +18127,16 @@ function fineA(){
     /* I PREFERITI: le stelline, sempre in vista */
     var prefs = radioCanali.filter(function(c){ return lpdCanaleDi(c) && c.preferito; })
                            .map(function(c){ return lpdCanaleDi(c); }).sort(function(a,b){ return a-b; });
-    h+='<div style="font-size:11px; color:var(--gold); letter-spacing:.5px; margin:4px 0 6px">\u2605 PREFERITI'+(prefs.length?' \u00b7 '+prefs.length:'')+'</div>';
-    if(prefs.length){
-      h+='<div style="background:#ffffff06; border:1px solid var(--dark3); border-radius:11px; overflow:hidden; margin-bottom:10px">';
-      prefs.forEach(function(ch){ h+=rigaLpd(ch); });
-      h+='</div>';
+    var prefLiberi = radioCanali.filter(function(c){ return !lpdCanaleDi(c) && c.preferito; });
+    var nPref = prefs.length + prefLiberi.length;
+    h+='<div style="font-size:11px; color:var(--gold); letter-spacing:.5px; margin:4px 0 6px">\u2605 PREFERITI'+(nPref?' \u00b7 '+nPref:'')+'</div>';
+    if(nPref){
+      prefLiberi.forEach(function(c){ h+=rigaLibera(c); });
+      if(prefs.length){
+        h+='<div style="background:#ffffff06; border:1px solid var(--dark3); border-radius:11px; overflow:hidden; margin-bottom:10px">';
+        prefs.forEach(function(ch){ h+=rigaLpd(ch); });
+        h+='</div>';
+      }
     }else{
       h+='<div class="hint" style="margin-bottom:10px">Nessun preferito. Apri la tabella e tocca la stellina sui canali che usate.</div>';
     }
