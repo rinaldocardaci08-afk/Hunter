@@ -146,6 +146,11 @@
   .memrow .av.carica{border-radius:9px; transform:rotate(45deg);}
   .memrow .av.carica svg{transform:rotate(-45deg);}
   .memrow .nm{flex:1; min-width:0;}
+  .memrow .pallino{min-width:20px; height:20px; border-radius:10px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center;
+    font-size:11px; font-weight:700; margin-left:4px; flex-shrink:0;}
+  .memrow .pallino.rosso{background:#C0392B; color:#fff;}
+  .memrow .pallino.giallo{background:#E0B878; color:#241d13;}
+  .memrow .pallino.avv{background:transparent; font-size:13px; padding:0;}
   .memrow .nm .a{font-size:14px; color:var(--cream); font-weight:600;
     white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
   .memrow .nm .b{font-size:11px; color:var(--muted);
@@ -3379,7 +3384,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.12";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.13";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3585,7 +3590,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var rm;
     try{
       rm=await sb.from("hn_membri")
-        .select("id,nome,ruolo,squadra_id,is_admin,puo_mappare,vede_aree,vede_poste,registro")
+        .select("id,nome,ruolo,squadra_id,is_admin,puo_mappare,vede_aree,vede_poste,registro,avviso_scadenze")
         .eq("user_id",u.id).eq("attivo",true).limit(1);
       if(rm.error) throw rm.error;
     }catch(e){
@@ -3637,6 +3642,7 @@ header .menubtn{min-width:48px; min-height:48px;}
          vede_aree:(m.vede_aree===true),
          vede_poste:(m.vede_poste===true),
          registro:(m.registro || null),
+         avviso_scadenze:(m.avviso_scadenze || null),
          squadra_id:m.squadra_id, squadra_nome:squadraNome };
     try{ localStorage.setItem(ME_KEY, JSON.stringify(me)); }catch(e4){}
 
@@ -6081,9 +6087,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(m.puo_mappare) s+='<span class="tag">mappe</span>';
       if(!m.user_id && m.tipo!=="ospite") s+='<span class="tag" style="background:#4a3320; color:#e0b878">no accesso</span>';
       if(m.porto_armi) s+='<svg class="ci arma" style="color:#E0B878"><use href="#ic-fucile"/></svg>';
+      if(puoVedereScadenzeAltrui()) s+=pallineScadenze(m);
       s+='</div>';
       return s;
     }
+    caricaScadenzeSquadra();
 
     if(conCarica.length){
       h+='<div class="sechead">Cariche</div>';
@@ -15176,6 +15184,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     var root=document.getElementById("scadenze-scroll");
     root.innerHTML='<div class="loading">Carico…</div>';
     var chi = scadenzeDi ? scadenzeDi.id : me.membro_id;
+    /* aperte le proprie scadenze, l'avviso del capocaccia si spegne */
+    if(!scadenzeDi && me && me.avviso_scadenze){
+      me.avviso_scadenze = null;
+      try{ localStorage.setItem(ME_KEY, JSON.stringify(me)); }catch(e0){}
+      try{ await sb.from("hn_membri").update({avviso_scadenze:null}).eq("id", me.membro_id); }catch(e1){}
+    }
     try{
       var r=await sb.from("hn_scadenze").select("*").eq("membro_id",chi);
       if(r.error) throw r.error;
@@ -15287,6 +15301,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     }else if(puoVedereScadenzeAltrui()){
       h+='<button class="btn line" id="sc-squadra" style="margin-top:16px">👥 Documenti della squadra</button>';
     }
+    /* il capocaccia/amministratore, guardando le scadenze di un altro, lo avvisa:
+       al cacciatore compare in Home, in rosso, "il capocaccia ti chiede di controllarle" */
+    if(!mio && puoGestireSquadra()){
+      var giaAvv = !!(scadenzeDi && scadenzeDi.avviso_scadenze);
+      h+='<button class="btn line" id="sc-segnala" style="margin-top:16px; border-color:'+(giaAvv?'#7be0a8':'var(--gold)')+'; color:'+(giaAvv?'#7be0a8':'var(--gold)')+'">'
+        +(giaAvv?'\u2713 Avvisato \u00b7 rimanda l\'avviso':'\ud83d\udce3 Segnala: controlla le tue scadenze')+'</button>';
+    }
 
     root.innerHTML=h;
     root.querySelectorAll("[data-doc]").forEach(function(el){
@@ -15294,6 +15315,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     var sb2=root.querySelector("#sc-squadra");
     if(sb2) sb2.onclick=mostraScadenzeSquadra;
+    var sg=root.querySelector("#sc-segnala");
+    if(sg) sg.onclick=function(){ segnalaScadenzeA(scadenzeDi); };
     var bk=root.querySelector("#sc-back");
     if(bk) bk.onclick=function(){ scadenzeDi=null; caricaScadenze(); };
   }
@@ -15481,6 +15504,47 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   /* --- il capocaccia vede i semafori della squadra --- */
+  async function segnalaScadenzeA(m){
+    if(!m || !puoGestireSquadra()) return;
+    try{
+      var r=await sb.from("hn_membri").update({avviso_scadenze:new Date().toISOString()}).eq("id", m.id).select().single();
+      if(r.error) throw r.error;
+      m.avviso_scadenze = r.data.avviso_scadenze;
+      var k=membri.findIndex(function(x){ return x.id===m.id; }); if(k>=0) membri[k].avviso_scadenze=m.avviso_scadenze;
+      toast("Avviso mandato a "+m.nome+": lo vede in Home");
+      renderScadenze();
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+  /* I PALLINI nella Squadra (sua regola 12/09): rosso col numero delle tasse
+     scadute, giallo col numero di quelle in scadenza. Solo per chi puo' vedere
+     le scadenze degli altri. Si caricano una volta, poi si ridisegna. */
+  var scadenzeSquadra = null, scadenzeSquadraInCorso = false;
+  function pallineScadenze(m){
+    if(!scadenzeSquadra || m.tipo==="ospite") return "";
+    var suoi={};
+    scadenzeSquadra.filter(function(s){ return s.membro_id===m.id; }).forEach(function(s){ suoi[s.tipo]=s; });
+    var porto=suoi.porto, nS=0, nP=0;
+    Object.keys(TASSE).forEach(function(k){
+      var s=suoi[k]; if(!s) return;
+      var data = (k==="governativa" && porto) ? scadenzaGovernativa(porto.rilascio) : s.scadenza;
+      var st=statoScadenza(data).k;
+      if(st==="scaduta") nS++; else if(st==="scadenza") nP++;
+    });
+    var h="";
+    if(nS) h+='<span class="pallino rosso" title="tasse scadute">'+nS+'</span>';
+    if(nP) h+='<span class="pallino giallo" title="in scadenza">'+nP+'</span>';
+    if(m.avviso_scadenze) h+='<span class="pallino avv" title="avvisato">\ud83d\udce3</span>';
+    return h;
+  }
+  async function caricaScadenzeSquadra(){
+    if(!puoVedereScadenzeAltrui() || scadenzeSquadra || scadenzeSquadraInCorso) return;
+    scadenzeSquadraInCorso = true;
+    try{
+      var r=await sb.from("hn_scadenze").select("membro_id,tipo,scadenza,rilascio").eq("squadra_id",me.squadra_id);
+      if(!r.error){ scadenzeSquadra = r.data||[]; if(document.getElementById("v-squadra").classList.contains("active")) renderSquadra(); }
+    }catch(e){}
+    scadenzeSquadraInCorso = false;
+  }
   async function mostraScadenzeSquadra(){
     if(!puoVedereScadenzeAltrui()){ toast("Non hai il permesso"); return; }
     var root=document.getElementById("scadenze-scroll");
@@ -18903,11 +18967,13 @@ function fineA(){
       if(g < 0) scadute++;
       else if(g <= GIORNI_SCADENZA) vicine++;
     });
-    if(!scadute && !vicine) return;
+    var avvisato = !!(me && me.avviso_scadenze);
+    if(!scadute && !vicine && !avvisato) return;
     var pezzi=[];
+    if(avvisato) pezzi.push("il capocaccia ti chiede di controllarle");
     if(scadute) pezzi.push(scadute===1 ? "1 scaduta" : scadute+" scadute");
     if(vicine)  pezzi.push(vicine+" entro "+GIORNI_SCADENZA+" giorni");
-    out.scadenze = { n:(scadute+vicine), col:(scadute?"rosso":"giallo"), testo:pezzi.join(" \u00b7 ") };
+    out.scadenze = { n:Math.max(1, scadute+vicine), col:((scadute||avvisato)?"rosso":"giallo"), testo:pezzi.join(" \u00b7 ") };
   }
 
   /* BATTUTE: le giornate future dove non ho ancora detto se vengo.
@@ -18919,7 +18985,9 @@ function fineA(){
                .eq("squadra_id", me.squadra_id).gte("data", oggi)
                .order("data").limit(20);
     if(rB.error || !rB.data || !rB.data.length) return;
-    var aperte = rB.data.filter(function(b){ return b.stato!=="annullata" && b.stato!=="conclusa"; });
+    /* SOLO le giornate con adesioni ancora aperte (sua regola 12/09): chiuse
+       le adesioni o conclusa la giornata, rispondere non serve piu' */
+    var aperte = rB.data.filter(function(b){ return b.stato==="aperta"; });
     if(!aperte.length) return;
     var ids = aperte.map(function(b){ return b.id; });
     var rA = await sb.from("hn_adesioni").select("battuta_id,viene")
@@ -18931,7 +18999,9 @@ function fineA(){
     if(!mancanti.length) return;
     var prima = mancanti[0];
     var g = giorniA(prima.data);
-    var quando = (g===0) ? "oggi" : (g===1 ? "domani" : giornoDella(prima.data));
+    /* oltre la settimana il solo nome del giorno confonde ("giovedì" quale?):
+       si mette anche la data */
+    var quando = (g===0) ? "oggi" : (g===1 ? "domani" : (g<=6 ? giornoDella(prima.data) : giornoDella(prima.data)+" "+fmtData2(prima.data).slice(0,5)));
     out.battute = { n:mancanti.length, col:(g<=1?"rosso":"giallo"), testo:quando+": non hai risposto" };
   }
 
