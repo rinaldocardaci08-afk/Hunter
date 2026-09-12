@@ -3384,7 +3384,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.13";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.14";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -18958,21 +18958,39 @@ function fineA(){
 
   /* SCADENZE: rosso se ne ho gia' una scaduta, giallo se scade entro 10 giorni */
   async function segnaleScadenze(out){
-    var r = await sb.from("hn_scadenze").select("tipo,scadenza").eq("membro_id", me.membro_id);
+    /* STESSA REGOLA della scheda Scadenze e dei pallini in Squadra (12/09):
+       scaduta = rosso, entro 30 giorni = giallo, governativa calcolata dal porto.
+       Prima qui contava solo 10 giorni e ignorava la governativa: il pallino
+       giallo in Squadra c'era e in Home non compariva niente. */
+    var r = await sb.from("hn_scadenze").select("tipo,scadenza,rilascio").eq("membro_id", me.membro_id);
     if(r.error) return;
-    var scadute=0, vicine=0;
-    (r.data||[]).forEach(function(s){
-      if(!s.scadenza) return;
-      var g = giorniA(s.scadenza);
-      if(g < 0) scadute++;
-      else if(g <= GIORNI_SCADENZA) vicine++;
+    var suoi={};
+    (r.data||[]).forEach(function(x){ suoi[x.tipo]=x; });
+    var porto=suoi.porto, scadute=0, vicine=0, primaVicina=null;
+    Object.keys(TASSE).forEach(function(k){
+      var x=suoi[k]; if(!x) return;
+      var data = (k==="governativa" && porto) ? scadenzaGovernativa(porto.rilascio) : x.scadenza;
+      var st=statoScadenza(data).k;
+      if(st==="scaduta") scadute++;
+      else if(st==="scadenza"){ vicine++; var g=giorniA(data); if(primaVicina===null || g<primaVicina) primaVicina=g; }
     });
+    /* l'avviso del capocaccia si legge dal database, non dal profilo di stamattina */
     var avvisato = !!(me && me.avviso_scadenze);
+    try{
+      var ra = await sb.from("hn_membri").select("avviso_scadenze").eq("id", me.membro_id).limit(1);
+      if(!ra.error && ra.data && ra.data.length){
+        avvisato = !!ra.data[0].avviso_scadenze;
+        if(me.avviso_scadenze !== (ra.data[0].avviso_scadenze||null)){
+          me.avviso_scadenze = ra.data[0].avviso_scadenze||null;
+          try{ localStorage.setItem(ME_KEY, JSON.stringify(me)); }catch(e0){}
+        }
+      }
+    }catch(e){}
     if(!scadute && !vicine && !avvisato) return;
     var pezzi=[];
     if(avvisato) pezzi.push("il capocaccia ti chiede di controllarle");
     if(scadute) pezzi.push(scadute===1 ? "1 scaduta" : scadute+" scadute");
-    if(vicine)  pezzi.push(vicine+" entro "+GIORNI_SCADENZA+" giorni");
+    if(vicine)  pezzi.push(vicine===1 ? ("1 scade tra "+primaVicina+" giorni") : (vicine+" in scadenza, la prima tra "+primaVicina+" giorni"));
     out.scadenze = { n:Math.max(1, scadute+vicine), col:((scadute||avvisato)?"rosso":"giallo"), testo:pezzi.join(" \u00b7 ") };
   }
 
