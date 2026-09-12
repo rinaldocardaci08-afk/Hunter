@@ -3379,7 +3379,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.11";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.12";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5057,7 +5057,8 @@ header .menubtn{min-width:48px; min-height:48px;}
        giornata, che chiama showView("battute")), sto TORNANDO, non andando
        avanti: il gradino si toglie, non si aggiunge. Altrimenti la pila diceva
        home > battute > giornata e il "‹ Home" di Battute riportava alla giornata. */
-    if(pilaViste.length && pilaViste[pilaViste.length-1] === nuova){ pilaViste.pop(); return; }
+    var k = pilaViste.lastIndexOf(nuova);
+    if(k >= 0){ pilaViste.length = k; return; }   /* torno a un gradino gia' passato: tolgo tutto quello sopra */
     pilaViste.push(vistaAttiva);
     if(pilaViste.length > 12) pilaViste.shift();
   }
