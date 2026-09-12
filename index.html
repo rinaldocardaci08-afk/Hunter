@@ -3346,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.01";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.02";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12535,6 +12535,8 @@ header .menubtn{min-width:48px; min-height:48px;}
   var clAdesioni = [];        // le adesioni delle giornate concluse della stagione
   var smBattutaId = null;     // la giornata su cui sta lavorando Mario
   var smConSvolte = {};       // giornate con almeno una battuta chiusa
+  var smTutte = [];           // TUTTE le battute chiuse della squadra: il lavoro del sergente
+  var smMostraFatte = false;  // l'elenco delle gia' fatte sta chiuso
   var smCerca = "", smExtraAperto = {};
   var smBsId = null;          // e quale battuta di quella giornata
   var smBattute = [];         // le battute della giornata scelta
@@ -13128,11 +13130,11 @@ header .menubtn{min-width:48px; min-height:48px;}
          fra una battuta e l'altra c'e' il tempo di segnare. Medaglie e verbale
          restano a giornata conclusa, la sera con calma. */
       try{
-        var rS = await sb.from("hn_battute_svolte").select("giornata_id,chiusa_il")
+        var rS = await sb.from("hn_battute_svolte").select("id,giornata_id,area_id,numero,chiusa_il,giudicata_il,capi_abbattuti")
                    .eq("squadra_id", me.squadra_id).not("chiusa_il","is",null);
-        smConSvolte = {};
-        if(!rS.error) (rS.data||[]).forEach(function(x){ smConSvolte[x.giornata_id] = true; });
-      }catch(e){ smConSvolte = {}; }
+        smConSvolte = {}; smTutte = [];
+        if(!rS.error){ smTutte = rS.data || []; smTutte.forEach(function(x){ smConSvolte[x.giornata_id] = true; }); }
+      }catch(e){ smConSvolte = {}; smTutte = []; }
       var concluse = battute.filter(function(b){
                               return b.stato === "conclusa" || smConSvolte[b.id]; })
                             .sort(function(a,b){ return a.data < b.data ? 1 : -1; });
@@ -13185,6 +13187,35 @@ header .menubtn{min-width:48px; min-height:48px;}
          + '<b>chiude una battuta</b>: da quel momento qui si assegnano uccisioni e padelle. '
          + 'Medaglie e verbale restano a giornata conclusa.</div>';
       root.innerHTML = h; bindSergente(); return;
+    }
+
+    /* IL LAVORO DEL SERGENTE (sua regola 12/09): prima le battute chiuse su cui
+       deve ancora segnare, poi quelle gia' fatte, ripiegate. Toccando una riga
+       si apre quella battuta. */
+    if(giudice && smTutte.length){
+      var giornoDi = function(x){ var g = battute.find(function(b){ return b.id===x.giornata_id; }); return g ? String(g.data).slice(0,10) : ""; };
+      var ordinate = smTutte.slice().sort(function(a,b){ var da=giornoDi(a), db=giornoDi(b); return da<db ? 1 : (da>db ? -1 : (b.numero||0)-(a.numero||0)); });
+      var daFare = ordinate.filter(function(x){ return !x.giudicata_il; });
+      var fatte  = ordinate.filter(function(x){ return !!x.giudicata_il; });
+      var rigaLav = function(x, fatta){
+        var arL = aree.find(function(a){ return a.id===x.area_id; });
+        var gL = giornoDi(x);
+        var ab = Number(x.capi_abbattuti)||0;
+        var attiva = (x.id===smBsId);
+        return '<button class="smbatt'+(attiva?" scelta":"")+(fatta?" fatta":"")+'" data-smlav="'+x.id+'" data-smlavg="'+x.giornata_id+'">'
+          + '<span class="num">'+(fatta?"\u2713":(x.numero||"?"))+'</span>'
+          + '<span class="mid"><div class="nm">'+esc(arL?arL.nome:"mappa")+'</div>'
+          + '<div class="ds">'+(gL?esc(fmtGiorno(daIso(gL))):"")+(x.numero?' \u00b7 '+x.numero+'\u00aa battuta':'')+' \u00b7 '+ab+' abbattut'+(ab===1?"o":"i")+'</div></span>'
+          + '<span class="st">'+(fatta ? ("fatta il "+String(x.giudicata_il).slice(8,10)+"/"+String(x.giudicata_il).slice(5,7)) : "da fare")+'</span>'
+          + '</button>';
+      };
+      h += '<div class="sechead">Da fare \u00b7 '+daFare.length+'</div>';
+      if(daFare.length) daFare.forEach(function(x){ h += rigaLav(x, false); });
+      else h += '<div class="card" style="font-size:12px; color:#7be0a8; margin-bottom:8px">\u2713 Tutte le battute chiuse sono state segnate.</div>';
+      h += '<button class="btn line" id="sm-fatte" style="margin:4px 0 8px; font-size:12px; padding:9px">'
+        + (smMostraFatte ? '\u2304 Nascondi le fatte' : '\u203a Gi\u00e0 fatte \u00b7 '+fatte.length)+'</button>';
+      if(smMostraFatte) fatte.forEach(function(x){ h += rigaLav(x, true); });
+      h += '<div style="height:6px"></div>';
     }
 
     h += '<div class="sechead">Giornata</div>';
@@ -13255,7 +13286,7 @@ header .menubtn{min-width:48px; min-height:48px;}
                            .reduce(function(t,f){ return t + (Number(f.quanti)||0); }, 0);
     var scappati = bsOra ? (Number(bsOra.capi_scappati)||0)
                          : smBattute.reduce(function(t,x){ return t + (Number(x.capi_scappati)||0); }, 0);
-    if(giudice && (daBattute || assegnati)){
+    if(giudice && (daBattute || assegnati) && !(bsOra && bsOra.giudicata_il)){
       var restano = daBattute - assegnati;
       h += '<div class="bilancio'+(restano===0?" ok":(restano<0?" troppi":""))+'">'
         +  '<span class="em">'+(restano===0?"\u2713":"\ud83d\udc17")+'</span>'
@@ -13275,10 +13306,25 @@ header .menubtn{min-width:48px; min-height:48px;}
         : ('<button class="btn primary" id="sm-chiudi" style="margin-bottom:10px">'
            + '\u2713 Ho finito con ' + esc(arO?arO.nome:"questa battuta") + '</button>');
     }
-    if(giudice && !gConclusa){
+    /* BATTUTA GIA' FATTA: i contatori restano chiusi (sua regola 12/09). Si vede
+       solo il riassunto di chi ha preso cosa; per correggere si preme Riapri. */
+    var chiusaSm = !!(giudice && bsOra && bsOra.giudicata_il);
+    if(chiusaSm){
+      var chiUc = smFatti.filter(function(f){ return f.tipo==="uccisione" && f.battuta_svolta_id===bsOra.id; })
+                         .map(function(f){ return f.membro_id ? nomeBreveDi(f.membro_id)+(f.quanti>1?(" \u00d7"+f.quanti):"") : "contesa"+(f.quanti>1?(" \u00d7"+f.quanti):""); });
+      var chiPd = smFatti.filter(function(f){ return f.tipo==="padella" && f.battuta_svolta_id===bsOra.id; })
+                         .map(function(f){ return nomeBreveDi(f.membro_id)+(f.quanti>1?(" \u00d7"+f.quanti):""); });
+      h += '<div class="card" style="background:#1d3a2a; border:1px solid #2f6a48; margin-bottom:12px">';
+      h += '<div style="font-size:12px; color:#7be0a8; font-weight:600; margin-bottom:6px">\u2713 Segnata il '+String(bsOra.giudicata_il).slice(8,10)+'/'+String(bsOra.giudicata_il).slice(5,7)+' alle '+String(bsOra.giudicata_il).slice(11,16)+'</div>';
+      h += '<div style="font-size:13px; color:var(--cream); line-height:1.6">\ud83d\udc17 '+(chiUc.length?esc(chiUc.join(", ")):"nessuna uccisione")+'</div>';
+      h += '<div style="font-size:13px; color:var(--cream); line-height:1.6">\ud83d\udca8 '+(chiPd.length?esc(chiPd.join(", ")):"nessuna padella")+'</div>';
+      h += '</div>';
+    }
+    if(giudice && !gConclusa && !chiusaSm){
       h += '<div class="hint" style="margin:-4px 2px 10px">Giornata ancora aperta: qui segni '
         +  '<b>uccisioni e padelle</b>. Medaglie e verbale quando il capocaccia la conclude.</div>';
     }
+    if(!chiusaSm){
     h += '<div class="sechead">'+(giudice ? 'Uccisioni e padelle' : 'La giornata')+'</div>';
     if(!giudice){
       h += '<div class="card" style="font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:8px">'
@@ -13387,6 +13433,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<button data-smf="contesa|uccisione|1">+</button></div>';
       h += '</div></div>';
     }
+    }  /* fine: contatori solo se la battuta non e' gia' stata segnata */
 
     h += '<div class="sechead">Verbale</div>';
     if(!gConclusa){
@@ -13469,6 +13516,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("rb-si").onclick=confermaRiapriBattuta;
     var bch = root.querySelector("#sm-chiudi");
     if(bch) bch.onclick = chiudiGiudizioBattuta;
+    var bft = root.querySelector("#sm-fatte");
+    if(bft) bft.onclick = function(){ smMostraFatte = !smMostraFatte; renderSergente(); };
+    root.querySelectorAll("[data-smlav]").forEach(function(b){
+      b.onclick = function(){
+        var cambiaG = (smBattutaId !== b.dataset.smlavg);
+        smBattutaId = b.dataset.smlavg; smBsId = b.dataset.smlav;
+        if(cambiaG) caricaSergente(); else renderSergente();
+      };
+    });
     var bri = root.querySelector("#sm-riapri");
     if(bri) bri.onclick = riapriGiudizioBattuta;
     var sc = root.querySelector("#sm-cerca");
@@ -13578,7 +13634,9 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(k>=0) smBattute[k] = r.data;
       var k2 = battuteSvolte.findIndex(function(x){ return x.id===id; });
       if(k2>=0) battuteSvolte[k2] = r.data;
-      toast(quando ? "Battuta chiusa" : "Battuta riaperta");
+      var k3 = smTutte.findIndex(function(x){ return x.id===id; });
+      if(k3>=0) smTutte[k3].giudicata_il = r.data.giudicata_il;
+      toast(quando ? "Battuta segnata" : "Battuta riaperta");
     }catch(e){ toast("Non riesco a salvare: " + (e && e.message ? e.message : "errore")); return; }
     /* dopo la chiusura si passa alla prossima da fare, senza cercarla a mano */
     if(quando){
