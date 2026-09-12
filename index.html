@@ -3346,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.00";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.01";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7449,6 +7449,33 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='<div class="box" style="background:#4a3320"><div class="n" style="color:var(--gold)">'+nPres+'</div><div class="t" style="color:var(--gold)">presenti</div></div>';
       h+='</div>';
       if(osp) h+='<div style="font-size:12px; color:#9fc8ed; margin-bottom:12px">+ '+osp+' ospit'+(osp===1?'e':'i')+'</div>';
+
+      /* A GIORNATA CONCLUSA anche il cacciatore vede com'e' andata (sua regola
+         12/09): capi, padelle, podio, e su quali mappe siamo stati. Solo come
+         informazione: la mappa NON si apre da qui. La propria posta, se
+         assegnata quel giorno, la vede piu' sotto come sempre. */
+      if(conclusa){
+        h+=htmlRiepilogoGiornata(b);
+        var chiuseC = battuteSvolte.filter(function(x){ return !!x.chiusa_il; });
+        if(chiuseC.length){
+          h+='<div class="sechead">Dove siamo stati</div>';
+          chiuseC.forEach(function(bs){
+            var arB2 = aree.find(function(x){ return x.id === bs.area_id; });
+            var capiB2 = capiDiSvolta(bs, gioUccisioni()), minB2 = minutiSvolta(bs);
+            var daB2 = bs.aperta_il || bs.creata_il || bs.created_at;
+            h+='<div class="card" style="margin-bottom:7px">';
+            h+='<div style="display:flex; align-items:center; gap:10px">';
+            h+='<span style="font-size:17px">\ud83c\udf32</span>';
+            h+='<div style="flex:1; min-width:0">';
+            h+='<div style="font-size:13.5px; color:var(--cream); font-weight:600">'+(bs.numero?bs.numero+'\u00aa \u00b7 ':'')+esc(arB2?arB2.nome:'mappa')
+              +(arB2&&arB2.comune?' <span style="font-weight:400; color:var(--muted)">\u00b7 '+esc(arB2.comune)+'</span>':'')+'</div>';
+            h+='<div style="font-size:10.5px; color:var(--muted)">'
+              +(daB2?oraCorta(daB2):'')+(bs.chiusa_il?' \u2013 '+oraCorta(bs.chiusa_il):'')+(minB2?' \u00b7 '+durataTesto(minB2):'')
+              +' \u00b7 <span style="color:var(--gold)">'+capiB2+' cap'+(capiB2===1?'o':'i')+'</span></div>';
+            h+='</div></div></div>';
+          });
+        }
+      }
     }
 
     // --- LA STRISCIA: tre numeri, e ognuno si apre qui sotto ---
