@@ -3346,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.02";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.04";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6636,8 +6636,21 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   function battutaDi(dataIso){ return battute.find(function(b){ return b.data===dataIso; }) || null; }
 
+  /* IL SERGENTE e' al pari del capocaccia (sua regola 12/09): vede le mappe,
+     le mappe delle battute con le informazioni, e la vista capo della giornata. */
+  function isSergente(){
+    if(!me) return false;
+    var m = membri.find(function(x){ return x.id === me.membro_id; });
+    return !!(m && (m.compiti || []).indexOf("sergente") >= 0);
+  }
   function puoGestireBattute(){
+    /* AGIRE (aprire/chiudere battute, poste, ritrovo, presenze, carne, concludere):
+       solo amministratore, capocaccia e vicecapocaccia. Il sergente NO. */
     return me && (me.is_admin===true || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia");
+  }
+  function vedeComeCapo(){
+    /* GUARDARE con la vista capo: anche il sergente */
+    return puoGestireBattute() || isSergente();
   }
 
   async function caricaBattute(){
@@ -7238,7 +7251,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
   }
   function htmlPresenze(){
-    var capo = puoGestireBattute() && vistaGiornata==="capo";
+    var capo = puoGestireBattute() && vistaGiornata==="capo";   // qui capo = chi puo' segnare
     var conclusa = giornataAperta && giornataAperta.stato==="conclusa";
     var h = '<div class="cvfil" style="margin-top:9px">'
       + '<button class="'+(cvFiltro2==="presenti"?"on":"")+'" data-fil2="presenti">Presenti</button>'
@@ -7400,8 +7413,9 @@ header .menubtn{min-width:48px; min-height:48px;}
   function renderGiornata(){
     var root=document.getElementById("giornata-scroll");
     var b=giornataAperta;
-    var capoReale=puoGestireBattute();          // che poteri ha davvero
+    var capoReale=vedeComeCapo();               // chi guarda con la vista capo (anche il sergente)
     var capo=capoReale && vistaGiornata==="capo";  // cosa sta guardando adesso
+    var agisce=capo && puoGestireBattute();      // chi puo' anche toccare: admin, capocaccia, vice
     var h="";
 
     // --- giornata non ancora aperta (solo il capo la vede) ---
@@ -7535,7 +7549,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<button class="btn line" data-bsapri="'+inCorsoQ.id+'">\ud83c\udfaf Poste e incarichi</button>';
         h+='<button class="btn line" data-giomap="'+inCorsoQ.area_id+'">\ud83d\uddfa\ufe0f Mappa</button>';
         h+='</div>';
-        h+='<button class="btn primary" data-bschiudi="'+inCorsoQ.id+'" style="width:100%">Chiudi la battuta</button>';
+        if(agisce) h+='<button class="btn primary" data-bschiudi="'+inCorsoQ.id+'" style="width:100%">Chiudi la battuta</button>';
         h+='</div>';
       }
 
@@ -7566,7 +7580,7 @@ header .menubtn{min-width:48px; min-height:48px;}
             +' \u00b7 '+inc+' incarich'+(inc===1?'o':'i')
             +' \u00b7 '+cp.perc+'% delle poste</div>';
           h+='</div>';
-          if(!viva && capo && !conclusa){
+          if(!viva && agisce && !conclusa){
             /* una battuta chiusa si deve poter riaprire: se ci si accorge dopo
                di aver sbagliato una posta o un abbattimento, senza matita
                bisognerebbe rifare tutto */
@@ -7580,7 +7594,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       /* LA CARNE: si divide appena c'e' una battuta chiusa (sua regola 12/09),
          non solo a giornata conclusa. Sta sulla giornata: e' il totale del giorno. */
       var cChiusa = battuteSvolte.some(function(x){ return !!x.chiusa_il; });
-      if(conclusa || cChiusa){
+      if(agisce && (conclusa || cChiusa)){
         var ncG = quantiCarne(b);
         h+='<button class="btn" data-carne="'+b.id+'" style="margin:8px 0 10px; border:1px solid var(--gold)'
           +(ncG?'; background:#2d5a3f; border-color:#3d7a55; color:#fff':'')+'">'
@@ -7619,8 +7633,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='</div>';
 
         // il comando a se': si sceglie dalla tendina. A giornata conclusa non c'e'.
-        if(!conclusa && !prima && !inCorso0) h+='<button class="btn primary" id="gi-iniziabattuta" style="margin-bottom:14px">\ud83c\udfaf Inizia la battuta</button>';
-        if(prima) h+='<div style="font-size:11px; color:var(--muted); margin:-4px 0 14px 2px">La battuta si apre il giorno stesso, da qui.</div>';
+        if(agisce && !conclusa && !prima && !inCorso0) h+='<button class="btn primary" id="gi-iniziabattuta" style="margin-bottom:14px">\ud83c\udfaf Inizia la battuta</button>';
+        if(agisce && prima) h+='<div style="font-size:11px; color:var(--muted); margin:-4px 0 14px 2px">La battuta si apre il giorno stesso, da qui.</div>';
         if(inCorso0 && !conclusa){
           h+='<div style="font-size:11px; color:var(--gold); margin:-10px 0 14px 2px">'
             +'C\'\u00e8 la battuta su \u00ab'+esc(nomeBattuta(inCorso0))+'\u00bb in corso: chiudila prima di aprirne un\'altra.</div>';
@@ -7642,13 +7656,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     }else{
       h+='<div class="card" style="font-size:12px; color:var(--muted)">Non ancora deciso.</div>';
     }
-    if(capo && !conclusa) h+='<button class="btn line" id="gi-ritrovo" style="margin-bottom:14px">📌 Scegli il punto di ritrovo</button>';
+    if(agisce && !conclusa) h+='<button class="btn line" id="gi-ritrovo" style="margin-bottom:14px">📌 Scegli il punto di ritrovo</button>';
 
     // --- LE MAPPE DA TRACCIARE: l'elenco non si ripete ---
     /* Erano scritte due volte: qui e nelle "Mappe di oggi". Sono le stesse.
        Resta il tasto per sceglierle, che quello serve. */
     var areeSeg = b.aree_segnalate || [];
-    if(capo && vistaGiornata==="capo" && !conclusa){
+    if(agisce && !conclusa){
       h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">\ud83c\udf32 '
        + (areeSeg.length ? "Cambia le mappe da tracciare" : "Scegli le mappe da tracciare")+'</button>';
     }
@@ -7932,14 +7946,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
 
     // --- AZIONI DEL CAPO ---
-    if(capo && b.stato==="aperta"){
+    if(agisce && b.stato==="aperta"){
       h+='<div class="btnrow" style="margin-top:16px">';
       if(tr) h+='<button class="btn primary" id="gi-dividi">Dividi i tracciatori</button>';
       h+='<button class="btn line" id="gi-chiudi">Chiudi le adesioni</button>';
       h+='</div>';
     }
     // la giornata si conclude quando e' passata: da li' i presenti sono definitivi
-    if(capo && !conclusa && b.id && daIso(b.data) <= new Date()){
+    if(agisce && !conclusa && b.id && daIso(b.data) <= new Date()){
       h+='<button class="btn primary" id="gi-concludi" style="margin-top:10px">🏁 Concludi la giornata</button>';
       h+='<div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5">'+
          'Chi ha dato l\'adesione e non hai tolto risulter&agrave; presente. Da quel momento le quote e la classifica contano queste presenze.</div>';
@@ -15850,13 +15864,13 @@ header .menubtn{min-width:48px; min-height:48px;}
   // 1) vedere le AREE (i poligoni sulla mappa)
   function puoVedereAree(){
     if(!me) return false;
-    if(isCapo()) return true;
+    if(isCapo() || isSergente()) return true;
     return me.vede_aree===true || me.vede_poste===true || me.puo_mappare===true;
   }
   // 2) vedere le POSTE dentro un'area
   function puoVederePoste(){
     if(!me) return false;
-    if(isCapo()) return true;
+    if(isCapo() || isSergente()) return true;
     return me.vede_poste===true || me.puo_mappare===true;
   }
   // 3) CREARE e MODIFICARE le mappe (l'unico che dà la scrittura)
