@@ -3379,7 +3379,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.09";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.10";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7497,7 +7497,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<div style="display:flex; align-items:center; gap:11px">';
         h+='<span style="font-size:22px">\ud83d\udcfb</span>';
         h+='<div style="flex:1; min-width:0"><div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:22px; letter-spacing:1px; color:#fff; line-height:1">'+esc(eR.titolo)+'</div>';
-        h+='<div style="font-size:12px; color:#CFE9B8; margin-top:3px">'+esc(eR.sotto)+' \u00b7 canale di oggi</div></div>';
+        h+='<div style="font-size:12px; color:#CFE9B8; margin-top:3px">'+esc(eR.sotto)+' \u00b7 '+(radioBloccata()?'canale fisso \ud83d\udd12':'canale di oggi')+'</div></div>';
         h+='</div></div>';
       }
     }
@@ -18002,6 +18002,40 @@ function fineA(){
     radioCanali.forEach(function(c){ if(c.id===id) t=c; });
     return t;
   }
+  /* IL LUCCHETTO (sua regola 12/09): amministratore e capocaccia possono
+     BLOCCARE il canale da Home, e resta valido per piu' giorni finche' non lo
+     sbloccano. Il blocco e' una riga di hn_radio_oggi col giorno sentinella
+     FISSO: nessuna colonna nuova. Un canale segnalato per oggi vince sul fisso. */
+  var RADIO_FISSO = "9999-12-31";
+  var radioFisso = null;
+  function puoBloccareRadio(){ return !!(me && (me.is_admin===true || me.ruolo==="capocaccia")); }
+  function radioBloccata(){ return !!(radioOggi && radioOggi.giorno===RADIO_FISSO); }
+  async function bloccaRadio(){
+    if(!puoBloccareRadio() || !radioOggi) return;
+    try{
+      var r=await sb.from("hn_radio_oggi").upsert({
+        squadra_id: me.squadra_id, canale_id: radioOggi.canale_id,
+        giorno: RADIO_FISSO, segnalato_da: me.membro_id
+      }, {onConflict:"squadra_id,giorno"}).select().single();
+      if(r.error) throw r.error;
+      radioFisso=r.data; radioOggi=r.data;
+      toast("Canale bloccato: resta finch\u00e9 non lo sblocchi");
+    }catch(e){ toast("Non riesco: "+(e.message||e)); return; }
+    renderRadio(); renderAdmin();
+  }
+  async function sbloccaRadio(){
+    if(!puoBloccareRadio()) return;
+    try{
+      var r=await sb.from("hn_radio_oggi").delete().eq("squadra_id",me.squadra_id).eq("giorno",RADIO_FISSO);
+      if(r.error) throw r.error;
+      radioFisso=null;
+      /* torno al canale di oggi, se c'era, altrimenti niente */
+      var s=await sb.from("hn_radio_oggi").select("*").eq("squadra_id",me.squadra_id).eq("giorno",oggiISO()).limit(1);
+      radioOggi = (!s.error && s.data && s.data.length) ? s.data[0] : null;
+      toast("Canale sbloccato: ora puoi sceglierne un altro");
+    }catch(e){ toast("Non riesco: "+(e.message||e)); return; }
+    renderRadio(); renderAdmin();
+  }
   async function caricaRadio(){
     if(!me || !me.squadra_id) return;
     try{
@@ -18009,15 +18043,23 @@ function fineA(){
         .eq("squadra_id",me.squadra_id).eq("attivo",true).order("ordine");
       if(!r.error) radioCanali=r.data||[];
       var s=await sb.from("hn_radio_oggi").select("*")
-        .eq("squadra_id",me.squadra_id).eq("giorno",oggiISO()).limit(1);
-      radioOggi = (!s.error && s.data && s.data.length) ? s.data[0] : null;
+        .eq("squadra_id",me.squadra_id).in("giorno",[oggiISO(), RADIO_FISSO]);
+      var righe = (!s.error && s.data) ? s.data : [];
+      radioFisso = righe.find(function(x){ return x.giorno===RADIO_FISSO; }) || null;
+      var diOggi = righe.find(function(x){ return x.giorno===oggiISO(); }) || null;
+      /* il blocco vince: e' stato messo apposta per restare */
+      radioOggi = radioFisso || diOggi;
       try{ localStorage.setItem("hunter_radio_oggi", JSON.stringify({
-        giorno:oggiISO(), canali:radioCanali, oggi:radioOggi })); }catch(e){}
+        giorno:oggiISO(), canali:radioCanali, oggi:radioOggi, fisso:radioFisso })); }catch(e){}
     }catch(e){
-      // senza rete: mi tengo quella di stamattina, ma solo se è di oggi
+      // senza rete: mi tengo quella di stamattina se e' di oggi; il canale fisso vale sempre
       try{
         var c=JSON.parse(localStorage.getItem("hunter_radio_oggi"));
-        if(c && c.giorno===oggiISO()){ radioCanali=c.canali||[]; radioOggi=c.oggi||null; }
+        if(c){
+          radioCanali=c.canali||[];
+          radioFisso=c.fisso||null;
+          radioOggi = radioFisso || (c.giorno===oggiISO() ? (c.oggi||null) : null);
+        }
       }catch(e2){}
     }
     renderRadio();
@@ -18038,7 +18080,7 @@ function fineA(){
         + '<span class="em">\ud83d\udcfb</span>'
         + '<span class="mid"><span class="can">'+esc(etichettaCanale(c).titolo)+'</span>'
         + '<span class="fq">'+esc(etichettaCanale(c).sotto)+'</span></span>'
-        + '<span class="oggi">OGGI</span><span class="giu" id="radio-giu">\u2304</span></button>'
+        + '<span class="oggi">'+(radioBloccata()?'\ud83d\udd12 FISSO':'OGGI')+'</span><span class="giu" id="radio-giu">\u2304</span></button>'
         + '<div class="radio-piu" id="radio-piu"></div>';
     }
     var t=document.getElementById("radio-tocca");
@@ -18060,16 +18102,26 @@ function fineA(){
     }
     var chi = radioOggi.segnalato_da ? nomeMembro(radioOggi.segnalato_da) : "";
     var h='';
-    if(chi) h+='<div class="rp-riga">segnalato da <b>'+esc(chi)+'</b> \u00b7 vale per oggi</div>';
+    var bloccata = radioBloccata();
+    if(chi) h+='<div class="rp-riga">'+(bloccata?'bloccato da':'segnalato da')+' <b>'+esc(chi)+'</b> \u00b7 '+(bloccata?'vale finch\u00e9 non si sblocca':'vale per oggi')+'</div>';
     if(c.note) h+='<div class="rp-riga">'+esc(c.note)+'</div>';
     h+='<div class="rp-riga" style="opacity:.75">Vale tutta la giornata, anche fuori dalla battuta: '
      + 'pulizia, tracciamento, recupero dei cani.</div>';
-    if(puoSegnalareRadio()) h+='<button class="btn line" id="rp-cambia" style="margin-top:8px">\u2699\ufe0f Cambia il canale di oggi</button>';
+    /* il lucchetto: solo amministratore e capocaccia. Bloccato = non si cambia
+       finche' non si sblocca. */
+    if(puoBloccareRadio()){
+      h+='<button class="btn line" id="rp-lucchetto" style="margin-top:8px'+(bloccata?'; border-color:var(--gold); color:var(--gold)':'')+'">'
+        +(bloccata?'\ud83d\udd13 Sblocca il canale':'\ud83d\udd12 Blocca questo canale per pi\u00f9 giorni')+'</button>';
+    }
+    if(puoSegnalareRadio() && !bloccata) h+='<button class="btn line" id="rp-cambia" style="margin-top:8px">\u2699\ufe0f Cambia il canale di oggi</button>';
+    if(bloccata && puoSegnalareRadio() && !puoBloccareRadio()) h+='<div class="rp-riga" style="opacity:.75">Canale bloccato: lo sblocca l\'amministratore o il capocaccia.</div>';
     piu.innerHTML=h;
     piu.classList.add("aperta");
     if(giu) giu.textContent="\u2303";
     var cb=document.getElementById("rp-cambia");
     if(cb) cb.onclick=function(){ adminSub="radio"; showView("admin"); };
+    var lk=document.getElementById("rp-lucchetto");
+    if(lk) lk.onclick=function(){ if(radioBloccata()) sbloccaRadio(); else bloccaRadio(); };
   }
   function nomeMembro(id){
     var t=null;
@@ -18079,6 +18131,7 @@ function fineA(){
   }
   async function segnalaCanale(canaleId){
     if(!puoSegnalareRadio()) return;
+    if(radioBloccata()){ toast("Canale bloccato: sbloccalo dalla Home prima di cambiarlo"); return; }
     try{
       var r=await sb.from("hn_radio_oggi").upsert({
         squadra_id: me.squadra_id, canale_id: canaleId,
@@ -18092,6 +18145,7 @@ function fineA(){
   }
   async function togliCanaleOggi(){
     if(!puoSegnalareRadio()) return;
+    if(radioBloccata()){ toast("Canale bloccato: sbloccalo dalla Home"); return; }
     try{
       var r=await sb.from("hn_radio_oggi").delete()
         .eq("squadra_id",me.squadra_id).eq("giorno",oggiISO());
