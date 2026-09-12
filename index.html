@@ -3346,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.97";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.98";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7339,8 +7339,10 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     var nPres = adesioni.filter(function(a){return a.presente;}).length;
     var conclusa = b.stato==="conclusa";
-    // il selettore delle due viste: solo per chi ha i poteri
-    if(capoReale){
+    // il selettore delle due viste: SOLO L'AMMINISTRATORE (serve a Rinaldo per
+    // vedere cosa vede Toni). Il capocaccia vede la sua vista e basta.
+    if(capoReale && !(me && me.is_admin===true)) vistaGiornata="capo";
+    if(capoReale && me && me.is_admin===true){
       h+='<div style="display:flex; gap:6px; margin-bottom:12px">';
       h+='<button class="chip '+(vistaGiornata==="capo"?"on":"")+'" data-vg="capo" style="flex:1; justify-content:center">👑 Vista capo</button>';
       h+='<button class="chip '+(vistaGiornata==="cacciatore"?"on":"")+'" data-vg="cacciatore" style="flex:1; justify-content:center">🎯 Vista cacciatore</button>';
