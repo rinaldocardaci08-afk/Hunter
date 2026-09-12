@@ -3346,7 +3346,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v2.98";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v2.99";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6846,7 +6846,93 @@ header .menubtn{min-width:48px; min-height:48px;}
     caricaSegnalazioni();
     await caricaBattuteSvolte();  // le battute gia' aperte oggi
     caricaAssegnazioni();
+    await caricaFattiGiornata();  // capi e padelle del giorno (per il riepilogo)
     await caricaAdesioni();
+  }
+
+  /* I FATTI DEL GIORNO (uccisioni e padelle) per il riepilogo della giornata
+     conclusa e per i numeri sulle battute chiuse. */
+  var gioFatti = [];
+  async function caricaFattiGiornata(){
+    if(!giornataSalvata()){ gioFatti = []; return; }
+    try{
+      var r = await sb.from("hn_fatti").select("*").eq("battuta_id", giornataAperta.id);
+      if(!r.error) gioFatti = r.data || [];
+    }catch(e){ gioFatti = []; }
+  }
+  /* capiDiSvolta vuole SOLO uccisioni: altrove i fatti arrivano gia' filtrati */
+  function gioUccisioni(){ return gioFatti.filter(function(f){ return f.tipo==="uccisione"; }); }
+  function oraCorta(ts){ return ts ? String(ts).slice(11,16) : ""; }
+  function durataTesto(min){
+    if(!(min>0)) return "";
+    var hh=Math.floor(min/60), mm=min%60;
+    return hh ? (hh+" h"+(mm?" "+mm:"")) : (mm+" min");
+  }
+  /* durata di una battuta svolta: dall'apertura alla chiusura */
+  function minutiSvolta(bs){
+    var da = bs.aperta_il || bs.creata_il || bs.created_at, a = bs.chiusa_il;
+    if(!da || !a) return 0;
+    return Math.round((new Date(a) - new Date(da))/60000);
+  }
+  /* IL RIEPILOGO DEL GIORNO CONCLUSO: numeri, podio, padelle */
+  function htmlRiepilogoGiornata(b){
+    var ucc = gioUccisioni();
+    var capi = battuteSvolte.reduce(function(t,bs){ return t + capiDiSvolta(bs, ucc); }, 0);
+    /* i fatti vecchi senza battuta svolta contano lo stesso */
+    capi += gioFatti.filter(function(f){ return f.tipo==="uccisione" && !f.battuta_svolta_id; })
+                    .reduce(function(t,f){ return t+(Number(f.quanti)||1); }, 0);
+    var padelle = gioFatti.filter(function(f){ return f.tipo==="padella"; })
+                    .reduce(function(t,f){ return t+(Number(f.quanti)||1); }, 0);
+    var visti = 0;
+    (b.aree_segnalate||[]).forEach(function(idA){ visti += capiAvvistati(avvistamentiPerLaBattuta(idA)); });
+    var presenti = adesioni.filter(function(a){ return a.presente; }).length + ospiti.filter(function(o){ return o.presente; }).length;
+    var minTot = battuteSvolte.reduce(function(t,bs){ return t + minutiSvolta(bs); }, 0);
+    var chiuse = battuteSvolte.filter(function(x){ return x.chiusa_il; }).length;
+
+    var h = '<div class="sechead">Riepilogo del giorno</div>';
+    h += '<div style="font-size:11px; color:var(--muted); margin:-4px 0 8px">'
+      + chiuse+' battut'+(chiuse===1?'a':'e')+(minTot?' \u00b7 '+durataTesto(minTot)+' in tutto':'')+'</div>';
+    h += '<div class="conta">';
+    h += '<div class="box" style="background:#4a3320"><div class="n" style="color:var(--gold)">'+capi+'</div><div class="t" style="color:var(--gold)">capi</div></div>';
+    h += '<div class="box" style="background:#3a2a3a"><div class="n" style="color:#FF8A75">'+visti+'</div><div class="t" style="color:#e0a090">visti col visore</div></div>';
+    h += '<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--cream)">'+padelle+'</div><div class="t" style="color:var(--muted)">padelle</div></div>';
+    h += '<div class="box" style="background:#1d3a2a"><div class="n" style="color:#7be0a8">'+presenti+'</div><div class="t" style="color:#7bd3b0">presenti</div></div>';
+    h += '</div>';
+
+    /* il podio: chi ha sparato, oro argento bronzo */
+    var perM = {}, senza = 0;
+    gioFatti.filter(function(f){ return f.tipo==="uccisione"; }).forEach(function(f){
+      var q = Number(f.quanti)||1;
+      if(f.membro_id) perM[f.membro_id] = (perM[f.membro_id]||0) + q; else senza += q;
+    });
+    var podio = Object.keys(perM).map(function(k){ return {id:k, n:perM[k]}; }).sort(function(a,b){ return b.n-a.n; });
+    if(podio.length || (capi && !podio.length)){
+      h += '<div class="sechead">Podio uccisioni</div>';
+      var med = ["\ud83e\udd47","\ud83e\udd48","\ud83e\udd49"];
+      var sfondi = ["#4a3320","#2f2f33","#3a2a1f"];
+      podio.slice(0,3).forEach(function(x,i){
+        h += '<div class="card" style="background:'+sfondi[i]+'; margin-bottom:6px; padding:9px 12px">'
+          + '<div style="display:flex; align-items:center; gap:10px">'
+          + '<span style="font-size:20px">'+med[i]+'</span>'
+          + '<span style="flex:1; font-size:14px; color:var(--cream); font-weight:600">'+esc(nomeDi(x.id))+'</span>'
+          + '<span style="font-size:13px; color:var(--gold)">'+x.n+' cap'+(x.n===1?'o':'i')+'</span></div></div>';
+      });
+      if(podio.length>3){
+        h += '<div style="font-size:11px; color:var(--muted); margin:2px 0 6px 4px">e '
+          + podio.slice(3).map(function(x){ return esc(nomeDi(x.id))+' ('+x.n+')'; }).join(', ')+'</div>';
+      }
+      if(senza) h += '<div style="font-size:11px; color:var(--muted); margin:2px 0 6px 4px">'+senza+' cap'+(senza===1?'o':'i')+' ancora da assegnare dal sergente</div>';
+      if(!podio.length) h += '<div class="card" style="font-size:12px; color:var(--muted)">'+capi+' cap'+(capi===1?'o':'i')+' segnat'+(capi===1?'o':'i')+' dal capo, il sergente non ha ancora detto chi ha sparato.</div>';
+    }
+    var chiPad = {};
+    gioFatti.filter(function(f){ return f.tipo==="padella" && f.membro_id; }).forEach(function(f){
+      chiPad[f.membro_id] = (chiPad[f.membro_id]||0) + (Number(f.quanti)||1); });
+    var kp = Object.keys(chiPad);
+    if(kp.length){
+      h += '<div style="font-size:11.5px; color:var(--muted); margin:4px 0 10px 4px">Padelle: '
+        + kp.map(function(k){ return esc(nomeDi(k))+(chiPad[k]>1?' ('+chiPad[k]+')':''); }).join(', ')+'</div>';
+    }
+    return h;
   }
 
   async function caricaAdesioni(){
@@ -7384,6 +7470,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='</div>';
       h+='<div id="str-apri"></div>';
 
+      if(conclusa) h += htmlRiepilogoGiornata(b);
+
       /* LE BATTUTE DI OGGI.
          Le mappe candidate restano tutte disponibili: se la prima battuta
          finisce presto o non si trova niente, la seconda si fa su un'altra. */
@@ -7404,8 +7492,11 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='<div style="flex:1; min-width:0">';
           h+='<div style="font-size:13.5px; color:var(--cream); font-weight:600">'
             +(bs.numero?bs.numero+'ª · ':'')+esc(arB?arB.nome:'mappa')+'</div>';
+          var capiBs = capiDiSvolta(bs, gioUccisioni()), minBs = minutiSvolta(bs);
           h+='<div style="font-size:10.5px; color:var(--muted)">'
-            +(viva?'in corso':'chiusa')+' \u00b7 '+inc+' incarich'+(inc===1?'io':'i')
+            +(viva?'in corso':('chiusa'+(bs.chiusa_il?' alle '+oraCorta(bs.chiusa_il):'')+(minBs?' \u00b7 '+durataTesto(minBs):'')))
+            +(viva?'':' \u00b7 <span style="color:var(--gold)">'+capiBs+' cap'+(capiBs===1?'o':'i')+'</span>')
+            +' \u00b7 '+inc+' incarich'+(inc===1?'o':'i')
             +' \u00b7 '+cp.perc+'% delle poste</div>';
           h+='</div>';
           if(!viva && capo && !conclusa){
@@ -7419,9 +7510,10 @@ header .menubtn{min-width:48px; min-height:48px;}
         });
       }
 
-      /* LA CARNE: a giornata conclusa il capo la divide da qui, da qualunque
-         vista sia arrivato (mese o settimana). */
-      if(conclusa){
+      /* LA CARNE: si divide appena c'e' una battuta chiusa (sua regola 12/09),
+         non solo a giornata conclusa. Sta sulla giornata: e' il totale del giorno. */
+      var cChiusa = battuteSvolte.some(function(x){ return !!x.chiusa_il; });
+      if(conclusa || cChiusa){
         var ncG = quantiCarne(b);
         h+='<button class="btn" data-carne="'+b.id+'" style="margin:8px 0 10px; border:1px solid var(--gold)'
           +(ncG?'; background:#2d5a3f; border-color:#3d7a55; color:#fff':'')+'">'
@@ -7459,10 +7551,10 @@ header .menubtn{min-width:48px; min-height:48px;}
         });
         h+='</div>';
 
-        // il comando a se': si sceglie dalla tendina
-        h+='<button class="btn primary" id="gi-iniziabattuta" style="margin-bottom:14px"'
+        // il comando a se': si sceglie dalla tendina. A giornata conclusa non c'e'.
+        if(!conclusa) h+='<button class="btn primary" id="gi-iniziabattuta" style="margin-bottom:14px"'
           +(inCorso0?' disabled':'')+'>\ud83c\udfaf Inizia la battuta</button>';
-        if(inCorso0){
+        if(inCorso0 && !conclusa){
           h+='<div style="font-size:11px; color:var(--gold); margin:-10px 0 14px 2px">'
             +'C\'\u00e8 la battuta su \u00ab'+esc(nomeBattuta(inCorso0))+'\u00bb in corso: chiudila prima di aprirne un\'altra.</div>';
         }
@@ -7483,13 +7575,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     }else{
       h+='<div class="card" style="font-size:12px; color:var(--muted)">Non ancora deciso.</div>';
     }
-    if(capo) h+='<button class="btn line" id="gi-ritrovo" style="margin-bottom:14px">📌 Scegli il punto di ritrovo</button>';
+    if(capo && !conclusa) h+='<button class="btn line" id="gi-ritrovo" style="margin-bottom:14px">📌 Scegli il punto di ritrovo</button>';
 
     // --- LE MAPPE DA TRACCIARE: l'elenco non si ripete ---
     /* Erano scritte due volte: qui e nelle "Mappe di oggi". Sono le stesse.
        Resta il tasto per sceglierle, che quello serve. */
     var areeSeg = b.aree_segnalate || [];
-    if(capo && vistaGiornata==="capo"){
+    if(capo && vistaGiornata==="capo" && !conclusa){
       h+='<button class="btn line" id="gi-aree" style="margin-bottom:14px">\ud83c\udf32 '
        + (areeSeg.length ? "Cambia le mappe da tracciare" : "Scegli le mappe da tracciare")+'</button>';
     }
@@ -18978,14 +19070,28 @@ function fineA(){
       g.fillText(String(st.nome||"sezione").toUpperCase(), cx0, cy0-ry-4);
       g.restore();
     });
-    // le poste, col numero e il colore della loro sezione
+    // le poste, col numero e il colore della loro sezione.
+    // Se su questa mappa e' stata fatta una battuta, accanto alla posta
+    // assegnata c'e' il nome di chi ci stava (sua regola 12/09).
+    var chiSulla = {};
+    (assegnazioni||[]).forEach(function(x){
+      if(x.posta_id && x.area_id===a.id && x.membro_id) chiSulla[x.posta_id] = nomeDi(x.membro_id);
+    });
     (a.poste||[]).forEach(function(p){
       if(!buono(p)) return;
+      var chi = chiSulla[p.id] || "";
+      var r = chi ? 11 : 9;
       /* messa da mappa e non certificata sul terreno: si vede che e' da verificare */
-      g.fillStyle = p.da_verificare ? "#B98CE0" : (colDi[p.id] || "#E8C86A"); g.strokeStyle="#241d13"; g.lineWidth=1.5;
-      g.beginPath(); g.arc(X(p.lng),Y(p.lat),9,0,7); g.fill(); g.stroke();
+      g.fillStyle = p.da_verificare ? "#B98CE0" : (colDi[p.id] || "#E8C86A"); g.strokeStyle=chi?"#F0E2C9":"#241d13"; g.lineWidth=chi?2.2:1.5;
+      g.beginPath(); g.arc(X(p.lng),Y(p.lat),r,0,7); g.fill(); g.stroke();
       g.fillStyle="#241d13"; g.font="700 10px system-ui"; g.textAlign="center"; g.textBaseline="middle";
       g.fillText(String(p.numero||""), X(p.lng), Y(p.lat));
+      if(chi){
+        var nm = String(chi).split(" ")[0];
+        g.font="700 10px system-ui"; g.textAlign="left";
+        g.lineWidth=3; g.strokeStyle="#241d13"; g.strokeText(nm, X(p.lng)+r+3, Y(p.lat));
+        g.fillStyle="#F0E2C9"; g.fillText(nm, X(p.lng)+r+3, Y(p.lat));
+      }
     });
     /* con tornaRiquadro do indietro le due conversioni: servono a chi deve
        trasformare un tocco sullo schermo in coordinate vere (avvistamenti) */
