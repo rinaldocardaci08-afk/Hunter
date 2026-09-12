@@ -5,7 +5,7 @@
      TESSERE  i quadretti della mappa satellitare gia' visti: restano per la prossima volta
      ROBA     le immagini dei giochi e le icone
 */
-var VERSIONE = "hunter-v2.74";
+var VERSIONE = "hunter-v3.06";
 var GUSCIO  = VERSIONE + "-guscio";
 var TESSERE = "hunter-tessere";     // NON porta la versione: le mappe non si buttano a ogni aggiornamento
 var ROBA    = VERSIONE + "-roba";
@@ -21,6 +21,7 @@ var DA_TENERE = [
 var IMMAGINI = [
   "./cinghiale.png", "./cane.png", "./cartuccia.png", "./padella.png",
   "./anatre.png", "./sergente.png", "./cinghiale-rosso.png", "./visore.png",
+  "./cinghiale-icona.png",
   "./sm-sergente.png", "./icona-192.png", "./icona-512.png"
 ];
 
@@ -104,7 +105,12 @@ self.addEventListener("fetch", function(e){
     var dallaRete = fetch(req).then(function(risposta){
       if(risposta && risposta.ok){
         var dove = (req.destination === "image") ? ROBA : GUSCIO;
-        caches.open(dove).then(function(c){ c.put(req, risposta.clone()); });
+        /* BUG 12/09: la copia va fatta SUBITO, prima di consegnare la risposta
+           alla pagina. Farla dentro caches.open().then() arrivava tardi, quando
+           la pagina aveva gia' letto il corpo: "Response body is already used"
+           e il file non finiva in cassa. */
+        var copia = risposta.clone();
+        caches.open(dove).then(function(c){ return c.put(req, copia); }).catch(function(){});
       }
       return risposta;
     }).catch(function(){ return null; });
