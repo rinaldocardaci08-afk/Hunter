@@ -2627,6 +2627,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <button id="menu-gps">🔋 &nbsp;Sospendi GPS</button>
     <button id="menu-ricarica">↻ &nbsp;Ricarica dati</button>
     <button id="menu-aggiorna">⬇️ &nbsp;Aggiorna app</button>
+    <button id="menu-psw">🔑 &nbsp;Cambia password</button>
     <button class="danger" id="menu-esci">⏻ &nbsp;Esci</button>
   </div>
 </div>
@@ -3019,6 +3020,26 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: cambio password del socio (sua richiesta 13/09) -->
+<div class="modal" id="m-psw">
+  <div class="sheet">
+    <h3>Cambia la tua password</h3>
+    <p class="hint">Almeno 6 caratteri. Dalla prossima volta entri con quella nuova.</p>
+    <label>Nuova password</label>
+    <div style="position:relative">
+      <input id="psw-1" type="password" autocomplete="new-password" style="padding-right:48px">
+      <button type="button" id="psw-occhio" aria-label="Mostra" style="position:absolute; right:6px; top:50%; transform:translateY(-50%); width:38px; height:38px; margin:0; padding:0; background:none; border:none; font-size:19px; color:var(--muted)">👁</button>
+    </div>
+    <label>Ripeti la password</label>
+    <input id="psw-2" type="password" autocomplete="new-password">
+    <div class="err" id="psw-err"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="psw-annulla">Annulla</button>
+      <button class="btn primary" id="psw-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE GENERICA DI CONFERMA (al posto di confirm() del sistema) -->
 <div class="modal" id="m-conferma">
   <div class="sheet">
@@ -3384,7 +3405,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.14";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.16";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4186,6 +4207,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       pos={lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy||999,
            alt:(p.coords.altitude!=null ? p.coords.altitude : null)};
       salvaUltimaPos(pos);
+      aggiornaDirezione(p);      // verso dove sto andando (freccia sul pallino)
       aggiungiAlPercorso(pos);   // registro la traccia se sto mappando
       aggiornaGuida();           // aggiorno la guida se sto seguendo un percorso
       setGps(pos.acc<=15?"ok":(pos.acc<=40?"weak":"off"), "±"+Math.round(pos.acc)+"m");
@@ -4222,7 +4244,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       var h=null;
       if(typeof e.webkitCompassHeading==="number") h=e.webkitCompassHeading;
       else if(e.absolute && typeof e.alpha==="number") h=360-e.alpha;
-      if(h!==null){ heading=h; updateNav(); updateBussola(); }
+      if(h!==null){ heading=h; updateNav(); updateBussola(); if(dirMoto===null) disegnaFreccia(); }
     }
     if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
       window.__askCompass=function(){
@@ -4295,9 +4317,42 @@ header .menubtn{min-width:48px; min-height:48px;}
         + (daVerificare ? '<span style="position:absolute;top:-7px;right:-7px;background:#B98CE0;color:#241d13;width:15px;height:15px;border-radius:50%;font:700 10px sans-serif;display:flex;align-items:center;justify-content:center">?</span>' : '')
         + '</div>'});
   }
+  /* IL PALLINO CON LA FRECCIA (sua richiesta 13/09): la freccia davanti al
+     pallino dice verso dove sto andando, come nei navigatori. La direzione e'
+     quella del MOVIMENTO (dal GPS): quando sono fermo, se il telefono ha la
+     bussola uso quella, altrimenti la freccia sparisce. */
+  var dirMoto = null, posPrecDir = null;
   function iconUser(){
-    return L.divIcon({className:"", iconSize:[18,18], iconAnchor:[9,9],
-      html:'<div style="width:18px;height:18px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'});
+    return L.divIcon({className:"", iconSize:[44,44], iconAnchor:[22,22],
+      html:'<div id="udir" style="width:44px;height:44px;position:relative;transform:rotate(0deg);transition:transform .3s">'
+        +'<div id="ufreccia" style="position:absolute;left:14px;top:0;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:12px solid #378ADD;opacity:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))"></div>'
+        +'<div style="position:absolute;left:13px;top:13px;width:18px;height:18px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'
+        +'</div>'});
+  }
+  function aggiornaDirezione(p){
+    /* 1) il GPS la da' direttamente quando mi muovo */
+    if(p && p.coords && typeof p.coords.heading==="number" && isFinite(p.coords.heading) && (p.coords.speed==null || p.coords.speed>0.4)){
+      dirMoto = p.coords.heading; posPrecDir = {lat:pos.lat,lng:pos.lng,quando:Date.now()}; return;
+    }
+    /* 2) altrimenti la ricavo dagli ultimi due punti, se mi sono spostato davvero */
+    if(posPrecDir){
+      var d = distM(posPrecDir, pos);
+      if(d >= 4){
+        dirMoto = bearing(posPrecDir, pos);
+        posPrecDir = {lat:pos.lat,lng:pos.lng,quando:Date.now()};
+      }else if(d < 1.5 && posPrecDir.quando && Date.now()-posPrecDir.quando > 20000){
+        dirMoto = null;   /* fermo da un po': la direzione di prima non vale piu' */
+      }
+      return;
+    }
+    posPrecDir = {lat:pos.lat,lng:pos.lng,quando:Date.now()};
+  }
+  function disegnaFreccia(){
+    var el=document.getElementById("udir"), fr=document.getElementById("ufreccia");
+    if(!el||!fr) return;
+    var dir = (dirMoto!==null) ? dirMoto : ((typeof heading==="number") ? heading : null);
+    if(dir===null){ fr.style.opacity=0; return; }
+    fr.style.opacity=1; el.style.transform="rotate("+Math.round(dir)+"deg)";
   }
   var areaApertaInMappa = false;   // true = ho aperto un'area e ne vedo le poste
   /* La mappa della barra in fondo serve solo a guardare: dove sono io e, per chi
@@ -4455,6 +4510,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!map||!pos) return;
     if(!userMarker) userMarker=L.marker([pos.lat,pos.lng],{icon:iconUser(),zIndexOffset:1000}).addTo(map);
     else userMarker.setLatLng([pos.lat,pos.lng]);
+    disegnaFreccia();
     if(!accCircle) accCircle=L.circle([pos.lat,pos.lng],{radius:pos.acc,color:"#378ADD",weight:1,fillColor:"#378ADD",fillOpacity:.12}).addTo(map);
     else { accCircle.setLatLng([pos.lat,pos.lng]); accCircle.setRadius(pos.acc); }
   }
@@ -16390,6 +16446,34 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("rtbanner-no").onclick=annullaPickRitrovo;
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
+    /* CAMBIA PASSWORD: ognuno la propria, dal menu'. Serve la rete. */
+    document.getElementById("menu-psw").onclick=function(){
+      chiudiMenu();
+      if(!navigator.onLine){ toast("Serve la rete per cambiare la password"); return; }
+      document.getElementById("psw-1").value=""; document.getElementById("psw-2").value="";
+      document.getElementById("psw-1").type="password"; document.getElementById("psw-2").type="password";
+      document.getElementById("psw-err").textContent="";
+      document.getElementById("m-psw").classList.add("show");
+      setTimeout(function(){ document.getElementById("psw-1").focus(); },100);
+    };
+    document.getElementById("psw-occhio").onclick=function(){
+      var a=document.getElementById("psw-1"), b=document.getElementById("psw-2"), vis=(a.type==="password");
+      a.type=b.type= vis?"text":"password"; this.textContent= vis?"\ud83d\ude48":"\ud83d\udc41";
+    };
+    document.getElementById("psw-annulla").onclick=function(){ document.getElementById("m-psw").classList.remove("show"); };
+    document.getElementById("psw-salva").onclick=async function(){
+      var a=document.getElementById("psw-1").value, b=document.getElementById("psw-2").value, err=document.getElementById("psw-err");
+      if(a.length<6){ err.textContent="Almeno 6 caratteri."; return; }
+      if(a!==b){ err.textContent="Le due password non sono uguali."; return; }
+      err.textContent=""; this.disabled=true;
+      try{
+        var r=await sb.auth.updateUser({password:a});
+        if(r.error) throw r.error;
+        document.getElementById("m-psw").classList.remove("show");
+        toast("Password cambiata: dalla prossima volta entri con quella nuova");
+      }catch(e){ err.textContent="Non riesco: "+(e.message||e); }
+      this.disabled=false;
+    };
 
     // HOME: le caselle le disegna renderCaselleHome(); qui restano quelle fisse delle altre viste
     document.querySelectorAll(".tile[data-go]").forEach(function(t){
