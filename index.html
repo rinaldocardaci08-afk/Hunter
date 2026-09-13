@@ -328,6 +328,10 @@
     text-transform:uppercase; letter-spacing:.5px; border-bottom:1px solid var(--dark3);}
 
   /* ---------- BUSSOLA (sempre visibile sulla mappa) ---------- */
+  /* la direzione scritta, in basso sulla mappa, quando mi muovo */
+  #dirtag{position:absolute; left:12px; bottom:14px; z-index:600; display:none; background:rgba(36,29,19,.88);
+    border:1px solid #378ADD; color:#cfe3fa; border-radius:14px; padding:6px 11px; font-size:12.5px; font-weight:600;
+    letter-spacing:.3px; box-shadow:0 2px 8px rgba(0,0,0,.4); pointer-events:none;}
   #compass{position:absolute; left:12px; bottom:92px; z-index:600;
     display:flex; flex-direction:column; align-items:center; gap:3px; pointer-events:auto;}
   #compass .rose{width:56px; height:56px; border-radius:50%;
@@ -2063,6 +2067,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       </div>
 
       <!-- BUSSOLA sempre presente (toccabile: su iPhone attiva il sensore) -->
+      <div id="dirtag">↑ verso nord</div>
       <div id="compass">
         <div class="rose" id="compass-rose">
           <div class="n">N</div>
@@ -2887,6 +2892,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       <button class="btn line" id="mp-modifica">✎ Modifica note</button>
       <button class="btn line" id="mp-vista" style="background:#1d3a5a; border-color:#2a4d6e; color:#9fc8ed;">👁 Vista postaiolo</button>
     </div>
+    <!-- le coordinate GPS in fondo (sua richiesta 13/09): toccando si copiano -->
+    <button id="mp-coord" title="Tocca per copiare" style="width:100%; margin-top:10px; background:#1f1a12; border:1px solid var(--dark3); border-radius:11px; padding:9px 12px; text-align:left; display:flex; align-items:center; gap:10px; color:var(--cream)">
+      <span style="font-size:16px">📍</span>
+      <span style="flex:1; min-width:0"><span id="mp-coord-t" style="font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px; letter-spacing:.3px">—</span>
+      <span id="mp-coord-s" style="display:block; font-size:10px; color:var(--muted); margin-top:2px">coordinate GPS · tocca per copiare</span></span>
+    </button>
   </div>
 </div>
 
@@ -3405,7 +3416,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.16";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.18";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4351,8 +4362,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     var el=document.getElementById("udir"), fr=document.getElementById("ufreccia");
     if(!el||!fr) return;
     var dir = (dirMoto!==null) ? dirMoto : ((typeof heading==="number") ? heading : null);
-    if(dir===null){ fr.style.opacity=0; return; }
+    var tag=document.getElementById("dirtag");
+    if(dir===null){ fr.style.opacity=0; if(tag) tag.style.display="none"; return; }
     fr.style.opacity=1; el.style.transform="rotate("+Math.round(dir)+"deg)";
+    if(tag){
+      tag.textContent = (dirMoto!==null ? "\u2191 verso "+daDove(dir) : "\u29bf punto verso "+daDove(dir))+" \u00b7 "+Math.round(dir)+"\u00b0";
+      tag.style.display="block";
+    }
   }
   var areaApertaInMappa = false;   // true = ho aperto un'area e ne vedo le poste
   /* La mappa della barra in fondo serve solo a guardare: dove sono io e, per chi
@@ -5361,6 +5377,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("mp-note").style.color = note ? "var(--cream)" : "var(--muted)";
     var bv = document.getElementById("mp-verifica");
     bv.style.display = (p.da_verificare && puoMappare()) ? "block" : "none";
+    var ct=document.getElementById("mp-coord-t"), cs=document.getElementById("mp-coord-s");
+    if(isFinite(p.lat) && isFinite(p.lng)){
+      ct.textContent = Number(p.lat).toFixed(6)+", "+Number(p.lng).toFixed(6);
+      cs.textContent = "coordinate GPS"+(p.alt!=null&&isFinite(p.alt)?" \u00b7 "+Math.round(p.alt)+" m slm":"")+" \u00b7 tocca per copiare";
+      document.getElementById("mp-coord").style.display="flex";
+    }else{ document.getElementById("mp-coord").style.display="none"; }
     document.getElementById("m-posta-info").classList.add("show");
     miniReset("mp-schema");
     setTimeout(function(){
@@ -16446,6 +16468,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("rtbanner-no").onclick=annullaPickRitrovo;
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
+    document.getElementById("mp-coord").onclick=function(){
+      var t=document.getElementById("mp-coord-t").textContent;
+      if(!t || t==="\u2014") return;
+      var fatto=function(){ toast("Coordinate copiate: "+t); };
+      if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(fatto, function(){ toast(t); });
+      else toast(t);
+    };
     /* CAMBIA PASSWORD: ognuno la propria, dal menu'. Serve la rete. */
     document.getElementById("menu-psw").onclick=function(){
       chiudiMenu();
