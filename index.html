@@ -329,7 +329,8 @@
 
   /* ---------- BUSSOLA (sempre visibile sulla mappa) ---------- */
   /* la direzione scritta, in basso sulla mappa, quando mi muovo */
-  #dirtag{position:absolute; left:12px; bottom:14px; z-index:600; display:none; background:rgba(36,29,19,.88);
+  /* sta sotto la riga lente/Mappa, centrata: li' non c'e' nessun tasto (13/09) */
+  #dirtag{position:absolute; left:50%; top:62px; transform:translateX(-50%); z-index:600; display:none; background:rgba(36,29,19,.88);
     border:1px solid #378ADD; color:#cfe3fa; border-radius:14px; padding:6px 11px; font-size:12.5px; font-weight:600;
     letter-spacing:.3px; box-shadow:0 2px 8px rgba(0,0,0,.4); pointer-events:none;}
   #compass{position:absolute; left:12px; bottom:92px; z-index:600;
@@ -3416,7 +3417,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.18";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.19";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
