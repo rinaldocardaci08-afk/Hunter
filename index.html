@@ -744,6 +744,28 @@
   .tile.soon .badge{position:absolute; top:9px; right:9px; font-size:9px; color:var(--muted);
     background:var(--dark3); padding:2px 6px; border-radius:5px;}
   .tile.wide{grid-column:1 / -1; flex-direction:row; align-items:center; min-height:0; gap:12px;}
+  /* LA DOMANDA in Home (18/09): "Sabato 3, partecipi?" con Sì e No, una riga per giornata aperta */
+  .domanda{grid-column:1 / -1; background:#3a2e1c; border:1px solid var(--gold); border-radius:15px; padding:11px 13px;}
+  .domanda .q{font-size:15px; color:var(--cream); margin-bottom:8px;}
+  .domanda .q b{color:#fff;}
+  .domanda .r{display:flex; gap:8px;}
+  .domanda .r button{flex:1; padding:11px; border-radius:11px; font-size:15px; font-weight:700; border:1px solid var(--dark3); background:var(--dark2); color:var(--cream);}
+  .domanda .r button.si{background:#2d5a3f; border-color:#3d7a55; color:#fff;}
+  /* LE TUE GIORNATE: la pagina Battute del cacciatore */
+  .tg-card{background:var(--dark2); border:1px solid var(--dark3); border-radius:14px; padding:12px 13px; margin-bottom:9px;}
+  .tg-card.si{border-color:#3d7a55; background:#1d3a2a;}
+  .tg-card.no{opacity:.75;}
+  .tg-card .d{font-size:16px; font-weight:700; color:#fff;}
+  .tg-card .s{font-size:12px; color:var(--muted); margin-top:2px;}
+  .tg-card .st{font-size:13px; font-weight:700;}
+  .tg-card .r{display:flex; gap:8px; margin-top:9px;}
+  .tg-card .r button{flex:1; padding:10px; border-radius:10px; font-size:13.5px; border:1px solid var(--dark3); background:var(--dark3); color:var(--cream);}
+  .tg-card .r button.si{background:#2d5a3f; border-color:#3d7a55; color:#fff; font-weight:700;}
+  .tg-conf{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin:4px 0 14px;}
+  .tg-box{background:var(--dark2); border:1px solid var(--dark3); border-radius:14px; padding:10px 11px; text-align:left;}
+  .tg-box .t{font-size:11px; color:var(--muted); letter-spacing:.5px;}
+  .tg-box .d{font-size:14px; font-weight:700; color:#fff; margin:2px 0 6px;}
+  .tg-box .l{font-size:12.5px; color:var(--cream); line-height:1.55;}
   .tile.wide .ic{font-size:22px;}
   .tile.wide .tx{flex:1;}
   /* LA MEDAGLIA INGRANDITA: sul telefono sul muro e' piccola e il retro
@@ -856,7 +878,7 @@
   align-items:center; gap:13px; padding:26px; text-align:center; color:var(--cream);
   background:#0a1119ee; justify-content:center;}
 #gioco .gc-schermata.gc-off{display:none;}
-#gc-fine{justify-content:flex-start; padding-top:6vh; padding-bottom:150px; overflow-y:auto;}
+#gc-fine{justify-content:flex-start; padding-top:6vh; padding-bottom:150px; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;}
 #gioco .gc-tit{font-family:'Arial Narrow',Impact,sans-serif; font-weight:700; letter-spacing:2px;
   line-height:.92; font-size:clamp(34px,12vw,56px);}
 #gioco .gc-tit small{display:block; font-size:12px; letter-spacing:6px; opacity:.6; font-weight:400; margin-bottom:6px;}
@@ -965,7 +987,7 @@
   align-items:center; gap:13px; padding:26px; text-align:center; color:var(--cream);
   background:#0a1119ee; justify-content:center;}
 #gioco2 .gc-schermata.gc-off{display:none;}
-#ga-fine{justify-content:flex-start; padding-top:6vh; padding-bottom:150px; overflow-y:auto;}
+#ga-fine{justify-content:flex-start; padding-top:6vh; padding-bottom:150px; overflow-y:auto; -webkit-overflow-scrolling:touch; touch-action:pan-y;}
 #gioco2 .gc-tit{font-family:'Arial Narrow',Impact,sans-serif; font-weight:700; letter-spacing:2px;
   line-height:.92; font-size:clamp(32px,11vw,54px);}
 #gioco2 .gc-tit small{display:block; font-size:12px; letter-spacing:6px; opacity:.6; font-weight:400; margin-bottom:6px;}
@@ -2359,12 +2381,14 @@ header .menubtn{min-width:48px; min-height:48px;}
       <div><b id="gc-f-mira">0%</b><span>Mira</span></div>
       <div><b id="gc-f-liv">1</b><span>Livello</span></div>
     </div>
-    <div class="gc-et">Classifica della settimana</div>
-    <div id="gc-f-classifica" class="gc-tabellone"></div>
+    <!-- i tasti PRIMA della classifica (15/09): con la tabella lunga finivano
+         sotto il bordo e non si arrivava a "‹ Giochi" -->
     <div class="gc-scelte">
       <button class="gc-vai" id="gc-ancora">UN'ALTRA</button>
       <button class="gc-vai gc-secondo" id="gc-esci-fine">‹ GIOCHI</button>
     </div>
+    <div class="gc-et">Classifica della settimana</div>
+    <div id="gc-f-classifica" class="gc-tabellone"></div>
   </div>
 </div>
 
@@ -2413,12 +2437,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       <div><b id="ga-f-mira">0%</b><span>Mira</span></div>
       <div><b id="ga-f-liv">1</b><span>Livello</span></div>
     </div>
-    <div class="gc-et">Classifica della settimana</div>
-    <div id="ga-f-classifica" class="gc-tabellone"></div>
     <div class="gc-scelte">
       <button class="gc-vai" id="ga-ancora">UN'ALTRA</button>
       <button class="gc-vai gc-secondo" id="ga-esci-fine">‹ GIOCHI</button>
     </div>
+    <div class="gc-et">Classifica della settimana</div>
+    <div id="ga-f-classifica" class="gc-tabellone"></div>
   </div>
 </div>
 
@@ -3417,7 +3441,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.19";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.21";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6794,7 +6818,116 @@ header .menubtn{min-width:48px; min-height:48px;}
         else battute=[];
       }catch(e2){ battute=[]; }
     }
+    calendarioForzato=false;
     renderCalendario();
+  }
+
+  function giornoCorto(d){
+    var gg=["Dom","Lun","Mar","Mer","Gio","Ven","Sab"], mm=["gen","feb","mar","apr","mag","giu","lug","ago","set","ott","nov","dic"];
+    return gg[d.getDay()]+" "+d.getDate()+" "+mm[d.getMonth()];
+  }
+  function renderTueGiornate(){
+    var root=document.getElementById("battute-scroll");
+    var oggi=iso(new Date());
+    var future=battute.filter(function(b){ return String(b.data).slice(0,10)>=oggi && b.stato!=="annullata"; })
+                      .sort(function(a,b){ return String(a.data)<String(b.data)?-1:1; });
+    var aperte=future.filter(function(b){ return b.stato==="aperta"; });
+    var prossima=future[0]||null;
+    var concluse=battute.filter(function(b){ return b.stato==="conclusa"; })
+                        .sort(function(a,b){ return String(a.data)>String(b.data)?-1:1; });
+    var ultima=concluse[0]||null;
+    var Cap=function(t){ return t.replace(/^./,function(c){return c.toUpperCase();}); };
+    var h='<div class="sechead">Adesioni aperte</div>';
+    if(!aperte.length) h+='<div class="card" style="font-size:13px; color:var(--muted); margin-bottom:12px">Nessuna giornata aperta alle adesioni. Quando il capocaccia ne apre una, la trovi qui e in Home.</div>';
+    aperte.forEach(function(b){
+      var mia=mieAdesioniTG[b.id]||null;
+      var rit=(ritrovi||[]).find(function(x){ return x.id===b.ritrovo_id; });
+      var risposto = mia && (mia.viene===true || mia.viene===false);
+      var cls = !risposto ? "" : (mia.viene ? " si" : " no");
+      h+='<div class="tg-card'+cls+'" data-tg-apri="'+b.id+'">';
+      h+='<div style="display:flex; align-items:center; gap:8px"><div style="flex:1; min-width:0"><div class="d">'+esc(Cap(fmtGiorno(daIso(String(b.data).slice(0,10)))))+'</div>';
+      h+='<div class="s">'+(rit?'ritrovo '+esc(rit.nome):'ritrovo da decidere')+' \u00b7 '+(b.n_si||0)+' hanno detto s\u00ec</div></div>';
+      if(risposto) h+='<div class="st" style="color:'+(mia.viene?'#7be0a8':'var(--muted)')+'">'+(mia.viene?'\u2713 ci sei':'non vieni')+'</div>';
+      h+='</div>';
+      if(!risposto) h+='<div class="r"><button class="si" data-tg-si="'+b.id+'">\u2713 S\u00ec, ci sono</button><button data-tg-no="'+b.id+'">No</button></div>';
+      else h+='<div class="r"><button data-tg-apri2="'+b.id+'">'+(mia.viene?(mia.tracciatore?'\u2713 Tracciatore':'Tracciatore')+' \u00b7 ospiti '+(mia.ospiti||0):'Apri la giornata')+'</button><button data-tg-'+(mia.viene?'no':'si')+'="'+b.id+'">'+(mia.viene?'Non vengo pi\u00f9':'\u2713 Ci sono')+'</button></div>';
+      h+='</div>';
+    });
+    /* il confronto: prossima e ultima */
+    h+='<div class="sechead" style="margin-top:6px">Prossima e ultima</div><div class="tg-conf">';
+    h+='<button class="tg-box" '+(prossima?'data-tg-apri2="'+prossima.id+'"':'')+'><div class="t">PROSSIMA</div>';
+    if(prossima){
+      var nomiA=(prossima.aree_segnalate||[]).map(function(id){ var a=aree.find(function(x){return x.id===id;}); return a?a.nome:null; }).filter(Boolean);
+      h+='<div class="d">'+esc(giornoCorto(daIso(String(prossima.data).slice(0,10))))+'</div><div class="l" id="tg-pross">'+(prossima.n_si||0)+' s\u00ec'+(nomiA.length?'<br>'+esc(nomiA.join(", ")):'<br><span style="color:var(--muted)">mappe da scegliere</span>')+'<br><span id="tg-meteo" style="color:var(--muted)">\u2026</span></div>';
+    }else h+='<div class="l" style="color:var(--muted)">niente in programma</div>';
+    h+='</button>';
+    h+='<button class="tg-box" '+(ultima?'data-tg-apri2="'+ultima.id+'"':'')+'><div class="t">ULTIMA</div>';
+    if(ultima) h+='<div class="d">'+esc(giornoCorto(daIso(String(ultima.data).slice(0,10))))+'</div><div class="l" id="tg-ult"><span style="color:var(--muted)">\u2026</span></div>';
+    else h+='<div class="l" style="color:var(--muted)">nessuna conclusa</div>';
+    h+='</button></div>';
+    h+='<button class="btn line" id="tg-cal">\ud83d\udcc5 Vedi il calendario</button>';
+    root.innerHTML=h;
+    root.querySelectorAll("[data-tg-si]").forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); rispondiTG(b.dataset.tgSi,true); }; });
+    root.querySelectorAll("[data-tg-no]").forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); rispondiTG(b.dataset.tgNo,false); }; });
+    root.querySelectorAll("[data-tg-apri2]").forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); var g=battute.find(function(x){return x.id===b.dataset.tgApri2;}); if(g) apriGiornata(g); }; });
+    root.querySelectorAll("[data-tg-apri]").forEach(function(c){ c.onclick=function(){ var g=battute.find(function(x){return x.id===c.dataset.tgApri;}); if(g) apriGiornata(g); }; });
+    document.getElementById("tg-cal").onclick=function(){ calendarioForzato=true; renderCalendario(); };
+    caricaDatiTueGiornate(aperte, prossima, ultima);
+  }
+  async function rispondiTG(id, viene){
+    await rispondiDaHome(id, viene);
+    try{
+      var q=await sb.from("hn_adesioni").select("*").eq("battuta_id",id).eq("membro_id",me.membro_id).limit(1);
+      if(!q.error && q.data && q.data.length) mieAdesioniTG[id]=q.data[0];
+    }catch(e){}
+    if(document.getElementById("v-battute").classList.contains("active")) renderTueGiornate();
+  }
+  /* i dati che arrivano dopo: le mie adesioni, il meteo della prossima, i numeri dell'ultima */
+  async function caricaDatiTueGiornate(aperte, prossima, ultima){
+    var ids=aperte.map(function(b){return b.id;});
+    var cambiate=false;
+    if(ids.length){
+      try{
+        var rA=await sb.from("hn_adesioni").select("*").eq("membro_id",me.membro_id).in("battuta_id",ids);
+        if(!rA.error){ var nuovo={}; (rA.data||[]).forEach(function(a){ nuovo[a.battuta_id]=a; });
+          if(JSON.stringify(nuovo)!==JSON.stringify(mieAdesioniTG)){ mieAdesioniTG=nuovo; cambiate=true; } }
+      }catch(e){}
+    }
+    if(!(ritrovi&&ritrovi.length)){ try{ await caricaRitrovi(); cambiate=true; }catch(e){} }
+    if(cambiate && document.getElementById("v-battute").classList.contains("active") && !calendarioForzato){ renderTueGiornate(); return; }
+    /* meteo della prossima: sulla prima posta della prima mappa scelta, altrimenti su dove sono */
+    if(prossima){
+      try{
+        var a0=aree.find(function(x){ return x.id===(prossima.aree_segnalate||[])[0]; });
+        var p0=a0?(a0.poste||[]).find(function(p){ return p&&p.lat&&p.lng; }):null;
+        var ll=p0?{lat:p0.lat,lng:p0.lng}:(pos?{lat:pos.lat,lng:pos.lng}:null);
+        var el=document.getElementById("tg-meteo");
+        if(ll && el){
+          var dd=await chiediMeteo(ll.lat,ll.lng);
+          var k=(dd&&dd.daily&&dd.daily.time)?dd.daily.time.indexOf(String(prossima.data).slice(0,10)):-1;
+          el.textContent = (k>=0) ? (Math.round(dd.daily.temperature_2m_max[k])+"\u00b0/"+Math.round(dd.daily.temperature_2m_min[k])+"\u00b0 \u00b7 pioggia "+(dd.daily.precipitation_probability_max?dd.daily.precipitation_probability_max[k]:0)+"%") : "meteo oltre i 7 giorni";
+        }else if(el) el.textContent="";
+      }catch(e){}
+    }
+    if(ultima){
+      try{
+        var el2=document.getElementById("tg-ult"); if(!el2) return;
+        var rF=await sb.from("hn_fatti").select("tipo,quanti,membro_id").eq("battuta_id",ultima.id).eq("tipo","uccisione");
+        var rP=await sb.from("hn_adesioni").select("membro_id,presente").eq("battuta_id",ultima.id).eq("presente",true);
+        var rM=await sb.from("hn_assegnazioni").select("posta_id,area_id").eq("battuta_id",ultima.id).eq("membro_id",me.membro_id).limit(1);
+        var capi=0, perM={};
+        (rF.data||[]).forEach(function(f){ var q=Number(f.quanti)||1; capi+=q; if(f.membro_id) perM[f.membro_id]=(perM[f.membro_id]||0)+q; });
+        var podio=Object.keys(perM).map(function(k){return {id:k,n:perM[k]};}).sort(function(a,b){return b.n-a.n;}).slice(0,2);
+        var t=capi+' cap'+(capi===1?'o':'i')+' \u00b7 '+((rP.data||[]).length)+' presenti';
+        if(podio.length) t+='<br>\ud83c\udfc6 '+podio.map(function(x){ return esc(nomeBreveDi(x.id))+' '+x.n; }).join(' \u00b7 ');
+        var mia=(rM.data||[])[0];
+        if(mia&&mia.posta_id){ var ar=aree.find(function(x){return x.id===mia.area_id;}); var pp=ar?(ar.poste||[]).find(function(x){return x.id===mia.posta_id;}):null;
+          t+='<br>tu: posta '+(pp?(pp.numero||'')+(pp.nome?' '+esc(pp.nome):''):'')+(ar?', '+esc(ar.nome):''); }
+        else if((rP.data||[]).some(function(x){return x.membro_id===me.membro_id;})) t+='<br>tu: presente';
+        else t+='<br><span style="color:var(--muted)">tu: assente</span>';
+        el2.innerHTML=t;
+      }catch(e){}
+    }
   }
 
   var vistaCal = "mese";   // mese | settimana
@@ -6813,7 +6946,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     };
   }
 
+  /* ===== LE TUE GIORNATE (sua regola 18/09) =====
+     Per il cacciatore la pagina Battute e' l'elenco delle giornate aperte con
+     la sua risposta, il confronto prossima/ultima, e il calendario dietro un
+     tasto. Chi ha la vista capo vede il calendario per primo, come prima. */
+  var calendarioForzato = false;
+  var mieAdesioniTG = {};
   function renderCalendario(){
+    if(!vedeComeCapo() && !calendarioForzato){ renderTueGiornate(); return; }
     if(vistaCal === "settimana"){ renderSettimana(); return; }
     var root=document.getElementById("battute-scroll");
     var primo=new Date(calAnno, calMese, 1);
@@ -6823,7 +6963,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     var oggi=iso(new Date());
     var capoMese=puoGestireBattute();
 
-    var h='<div style="display:flex; gap:6px; margin-bottom:12px">';
+    var h='';
+    if(!vedeComeCapo()) h+='<button class="btn line" id="tg-torna" style="margin-bottom:10px">\u2039 Le tue giornate</button>';
+    h+='<div style="display:flex; gap:6px; margin-bottom:12px">';
     h+='<button class="chip on" data-vcal="mese" style="flex:1; justify-content:center">Mese</button>';
     h+='<button class="chip" data-vcal="settimana" style="flex:1; justify-content:center">Settimana</button>';
     h+='</div>';
@@ -6924,6 +7066,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-vcal]").forEach(function(b){
       b.onclick=function(){ vistaCal=b.dataset.vcal; renderCalendario(); };
     });
+    var tgt=root.querySelector("#tg-torna");
+    if(tgt) tgt.onclick=function(){ calendarioForzato=false; renderCalendario(); };
     root.querySelector("#cal-prev").onclick=function(){
       calMese--; if(calMese<0){ calMese=11; calAnno--; }
       if(calAnno<STAGIONE.da.a || (calAnno===STAGIONE.da.a && calMese<STAGIONE.da.m)){
@@ -19128,13 +19272,15 @@ function fineA(){
     var risposto={};
     (rA.data||[]).forEach(function(a){ if(a.viene===true || a.viene===false) risposto[a.battuta_id]=true; });
     var mancanti = aperte.filter(function(b){ return !risposto[b.id]; });
+    DOMANDE_HOME = mancanti.slice(0,3);
     if(!mancanti.length) return;
     var prima = mancanti[0];
     var g = giorniA(prima.data);
     /* oltre la settimana il solo nome del giorno confonde ("giovedì" quale?):
        si mette anche la data */
     var quando = (g===0) ? "oggi" : (g===1 ? "domani" : (g<=6 ? giornoDella(prima.data) : giornoDella(prima.data)+" "+fmtData2(prima.data).slice(0,5)));
-    out.battute = { n:mancanti.length, col:(g<=1?"rosso":"giallo"), testo:quando+": non hai risposto" };
+    out.battute = { n:mancanti.length, col:(g<=1?"rosso":"giallo"),
+      testo:(mancanti.length===1 ? ("Rispondi: "+quando) : ("Rispondi: "+mancanti.length+" giornate, la prima "+quando)) };
   }
 
   /* PRESENZE: solo per gli ospiti, le giornate a cui sono venuto e per le quali
@@ -19374,6 +19520,36 @@ function fineA(){
       }
     }catch(e){ toast("Salvato sul telefono: lo mando appena c'\u00e8 rete"); }
   }
+  /* LE DOMANDE DI ADESIONE IN HOME (sua regola 18/09): per ogni giornata aperta
+     a cui non ho risposto, la domanda diretta con Sì e No. Il Sì vale
+     "ci sono, non tracciatore": tracciatore e ospiti si aggiungono in Battute. */
+  var DOMANDE_HOME = [];
+  function htmlDomandeHome(){
+    if(!DOMANDE_HOME.length) return "";
+    var h="";
+    DOMANDE_HOME.forEach(function(b){
+      h+='<div class="domanda"><div class="q"><b>'+esc(fmtGiorno(daIso(b.data)).replace(/^./,function(c){return c.toUpperCase();}))+'</b>, partecipi alla battuta?</div>'
+        +'<div class="r"><button class="si" data-dom-si="'+b.id+'">\u2713 S\u00ec, ci sono</button><button data-dom-no="'+b.id+'">No</button></div></div>';
+    });
+    return h;
+  }
+  async function rispondiDaHome(battutaId, viene){
+    if(!navigator.onLine){ toast("Serve la rete per rispondere"); return; }
+    try{
+      var q=await sb.from("hn_adesioni").select("id").eq("battuta_id",battutaId).eq("membro_id",me.membro_id).limit(1);
+      var r;
+      if(!q.error && q.data && q.data.length) r=await sb.from("hn_adesioni").update({viene:viene}).eq("id",q.data[0].id);
+      else r=await sb.from("hn_adesioni").insert({battuta_id:battutaId, membro_id:me.membro_id, viene:viene, ospiti:0, tracciatore:false});
+      if(r.error) throw r.error;
+      /* riconto i si' della giornata */
+      var c=await sb.from("hn_adesioni").select("viene").eq("battuta_id",battutaId);
+      if(!c.error){ var n=(c.data||[]).filter(function(a){return a.viene;}).length; await sb.from("hn_battute").update({n_si:n}).eq("id",battutaId);
+        var i=battute.findIndex(function(x){return x.id===battutaId;}); if(i>=0) battute[i].n_si=n; }
+      DOMANDE_HOME = DOMANDE_HOME.filter(function(b){ return b.id!==battutaId; });
+      toast(viene ? "Ci sei!" : "Segnato: non vieni");
+      calcolaSegnali();   /* ridisegna la Home col segnale aggiornato */
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
   function renderCaselleHome(){
     var g=document.getElementById("home-caselle");
     if(!g) return;
@@ -19401,9 +19577,12 @@ function fineA(){
           ? '<div class="ic">'+c.ic+'</div><div class="tx"><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>'+sunto+'</div>'+foto
           : '<div class="ic">'+c.ic+'</div><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>'+sunto)
        + '</button>';
+      if(k==="battute") h+=htmlDomandeHome();
     });
     g.innerHTML=h;
     agganciaCaselleHome(g);
+    g.querySelectorAll("[data-dom-si]").forEach(function(b){ b.onclick=function(){ rispondiDaHome(b.dataset.domSi, true); }; });
+    g.querySelectorAll("[data-dom-no]").forEach(function(b){ b.onclick=function(){ rispondiDaHome(b.dataset.domNo, false); }; });
   }
   function agganciaCaselleHome(g){
     g.querySelectorAll(".tile[data-go]").forEach(function(t){
