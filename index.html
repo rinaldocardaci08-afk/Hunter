@@ -2939,11 +2939,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       <button class="btn line" id="mp-modifica">✎ Modifica note</button>
       <button class="btn line" id="mp-vista" style="background:#1d3a5a; border-color:#2a4d6e; color:#9fc8ed;">👁 Vista postaiolo</button>
     </div>
-    <!-- le coordinate GPS in fondo (sua richiesta 13/09): toccando si copiano -->
+    <button class="btn line" id="mp-dati" style="margin-top:8px; display:none">📊 Dati della posta · stagione in corso</button>
+    <!-- le coordinate GPS in fondo (13/09): tocco lieve = ricentra, tenuto premuto = copia -->
     <button id="mp-coord" title="Tocca per copiare" style="width:100%; margin-top:10px; background:#1f1a12; border:1px solid var(--dark3); border-radius:11px; padding:9px 12px; text-align:left; display:flex; align-items:center; gap:10px; color:var(--cream)">
       <span style="font-size:16px">📍</span>
       <span style="flex:1; min-width:0"><span id="mp-coord-t" style="font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px; letter-spacing:.3px">—</span>
-      <span id="mp-coord-s" style="display:block; font-size:10px; color:var(--muted); margin-top:2px">coordinate GPS · tocca per copiare</span></span>
+      <span id="mp-coord-s" style="display:block; font-size:10px; color:var(--muted); margin-top:2px">coordinate GPS · tocca: centra la mappa · tieni premuto: copia</span></span>
     </button>
   </div>
 </div>
@@ -3095,6 +3096,17 @@ header .menubtn{min-width:48px; min-height:48px;}
       <button class="btn line" id="psw-annulla">Annulla</button>
       <button class="btn primary" id="psw-salva">Salva</button>
     </div>
+  </div>
+</div>
+
+<!-- MODALE: i dati di una posta nella stagione (19/09) -->
+<div class="modal" id="m-postadati">
+  <div class="sheet">
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px">
+      <div style="flex:1; min-width:0"><h3 id="pd-titolo" style="margin:0">Posta</h3><div id="pd-sotto" class="hint" style="margin:2px 0 0"></div></div>
+      <button id="pd-chiudi" style="background:none;border:none;color:var(--muted);font-size:20px;padding:4px 8px;">✕</button>
+    </div>
+    <div id="pd-corpo"><div class="loading">Carico…</div></div>
   </div>
 </div>
 
@@ -3463,7 +3475,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.22";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.23";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5453,9 +5465,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     var ct=document.getElementById("mp-coord-t"), cs=document.getElementById("mp-coord-s");
     if(isFinite(p.lat) && isFinite(p.lng)){
       ct.textContent = Number(p.lat).toFixed(6)+", "+Number(p.lng).toFixed(6);
-      cs.textContent = "coordinate GPS"+(p.alt!=null&&isFinite(p.alt)?" \u00b7 "+Math.round(p.alt)+" m slm":"")+" \u00b7 tocca per copiare";
+      cs.textContent = "coordinate GPS"+(p.alt!=null&&isFinite(p.alt)?" \u00b7 "+Math.round(p.alt)+" m slm":"")+" \u00b7 tocca: centra \u00b7 tieni premuto: copia";
       document.getElementById("mp-coord").style.display="flex";
     }else{ document.getElementById("mp-coord").style.display="none"; }
+    document.getElementById("mp-dati").style.display = vedeComeCapo() ? "block" : "none";
+    var cv0=document.getElementById("mp-schema"); if(cv0) cv0.__posta=p;   /* subito: i tasti Dati e coordinate lo usano */
     document.getElementById("m-posta-info").classList.add("show");
     miniReset("mp-schema");
     setTimeout(function(){
@@ -5464,6 +5478,70 @@ header .menubtn{min-width:48px; min-height:48px;}
       disegnaMiniSchema("mp-schema", p, false);
       initMiniTouch("mp-schema", p, false);
     }, 90);
+  }
+
+  /* I DATI DELLA POSTA nella stagione in corso (sua richiesta 19/09).
+     Uccisioni e padelle non hanno la posta addosso: le ricavo dal cacciatore
+     assegnato a questa posta in quella battuta. Le battute senza assegnazioni
+     in app non risultano: "senza dati", non zero. */
+  async function apriDatiPosta(p){
+    var a=areaAttiva() || aree.find(function(x){ return (x.poste||[]).some(function(q){ return q.id===p.id; }); });
+    document.getElementById("pd-titolo").textContent="Posta "+(p.numero||"?")+(p.nome?" \u00b7 "+p.nome:"");
+    document.getElementById("pd-sotto").textContent=(a?a.nome+" \u00b7 ":"")+"stagione "+stagioneCorrente();
+    var corpo=document.getElementById("pd-corpo"); corpo.innerHTML='<div class="loading">Carico\u2026</div>';
+    document.getElementById("m-postadati").classList.add("show");
+    try{
+      var rA=await sb.from("hn_assegnazioni").select("battuta_id,battuta_svolta_id,membro_id,ospite_id").eq("posta_id", p.id);
+      if(rA.error) throw rA.error;
+      var ass=rA.data||[];
+      var idsG=ass.map(function(x){ return x.battuta_id; }).filter(function(v,i,arr){ return v && arr.indexOf(v)===i; });
+      var gior={};
+      if(idsG.length){
+        var rG=await sb.from("hn_battute").select("id,data,stato").in("id", idsG);
+        (rG.data||[]).forEach(function(g){ gior[g.id]=g; });
+      }
+      var st=stagioneCorrente();
+      ass=ass.filter(function(x){ var g=gior[x.battuta_id]; return g && stagioneDi(g.data)===st && g.stato!=="annullata"; });
+      var idsS=ass.map(function(x){ return x.battuta_svolta_id; }).filter(Boolean);
+      var fatti=[];
+      if(idsS.length){
+        var rF=await sb.from("hn_fatti").select("tipo,quanti,membro_id,battuta_svolta_id").in("battuta_svolta_id", idsS).in("tipo",["uccisione","padella"]);
+        fatti=rF.data||[];
+      }
+      var nome=function(x){ return x.ospite_id ? (nomeOspite ? nomeOspite(x.ospite_id)+" \u00b7 ospite" : "ospite") : nomeDi(x.membro_id); };
+      var righe=[], ucc=0, pad=0, perM={};
+      ass.sort(function(x,y){ return String(gior[x.battuta_id].data)<String(gior[y.battuta_id].data)?1:-1; });
+      ass.forEach(function(x){
+        var u=0, pd=0;
+        fatti.forEach(function(f){ if(f.battuta_svolta_id===x.battuta_svolta_id && f.membro_id && f.membro_id===x.membro_id){ if(f.tipo==="uccisione") u+=Number(f.quanti)||1; else pd+=Number(f.quanti)||1; } });
+        ucc+=u; pad+=pd;
+        var k=x.ospite_id?("o:"+x.ospite_id):("m:"+x.membro_id); perM[k]=(perM[k]||{n:0,x:x}); perM[k].n++;
+        righe.push({data:gior[x.battuta_id].data, chi:nome(x), u:u, p:pd});
+      });
+      var top=Object.keys(perM).map(function(k){ return perM[k]; }).sort(function(a,b){ return b.n-a.n; })[0]||null;
+      var h='';
+      if(!ass.length){
+        h+='<div class="card" style="font-size:13px; color:var(--muted)">Nessuna assegnazione in app per questa posta nella stagione '+st+'. Le battute senza poste assegnate nell\'app non risultano.</div>';
+      }else{
+        h+='<div class="conta">';
+        h+='<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--cream)">'+ass.length+'</div><div class="t" style="color:var(--muted)">battute</div></div>';
+        h+='<div class="box" style="background:#4a3320"><div class="n" style="color:var(--gold)">'+ucc+'</div><div class="t" style="color:var(--gold)">uccisioni</div></div>';
+        h+='<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--cream)">'+pad+'</div><div class="t" style="color:var(--muted)">padelle</div></div>';
+        h+='</div>';
+        h+='<div class="card" style="margin-top:10px; font-size:13px; line-height:1.7">';
+        h+='<div><span style="color:var(--muted)">Ultimo assegnato:</span> <b style="color:var(--cream)">'+esc(righe[0].chi)+'</b> <span style="color:var(--muted)">\u00b7 '+esc(fmtGiorno(daIso(String(righe[0].data).slice(0,10))))+'</span></div>';
+        if(top) h+='<div><span style="color:var(--muted)">Pi\u00f9 presente:</span> <b style="color:var(--cream)">'+esc(nome(top.x))+'</b> <span style="color:var(--muted)">\u00b7 '+top.n+' volt'+(top.n===1?'a':'e')+' su '+ass.length+'</span></div>';
+        h+='</div>';
+        h+='<div class="sechead" style="margin-top:12px">Le battute</div>';
+        righe.forEach(function(r){
+          h+='<div style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--dark3); font-size:13px">'
+            +'<span style="color:var(--muted); width:92px; flex-shrink:0">'+esc(giornoCorto(daIso(String(r.data).slice(0,10))))+'</span>'
+            +'<span style="flex:1; min-width:0; color:var(--cream); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">'+esc(r.chi)+'</span>'
+            +'<span style="color:var(--gold)">'+(r.u?'\ud83d\udc17 '+r.u:'')+'</span><span style="color:var(--muted)">'+(r.p?'\ud83d\udca8 '+r.p:'')+'</span></div>';
+        });
+      }
+      corpo.innerHTML=h;
+    }catch(e){ corpo.innerHTML='<div class="card" style="font-size:13px; color:#e07a6a">Non riesco a leggere i dati: '+esc(e.message||String(e))+'</div>'; }
   }
 
   /* IL NUMERO SI CAMBIA A MANO.
@@ -5570,6 +5648,10 @@ header .menubtn{min-width:48px; min-height:48px;}
       var spanX=Math.max(maxX-minX,25), spanY=Math.max(maxY-minY,25);
       var sc=Math.min((W-2*pad)/spanX,(H-2*pad)/spanY);
       sc=Math.min(sc, grande?3.2:2.4);
+      /* nella scheda della posta (non "grande") si parte VICINI: circa 220 m
+         in larghezza, come nella vista postaiolo. Prima si vedeva tutta la
+         mappa e la posta si perdeva (19/09). */
+      if(!grande) sc=Math.max(sc, Math.min(2.4, W/220));
       var cP=toM(posta);
       miniView[canvasId]={ cx:cP.x, cy:cP.y, scale:sc };
     }
@@ -16693,13 +16775,33 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
     document.getElementById("rt-salva").onclick=salvaRitrovoModifiche;
-    document.getElementById("mp-coord").onclick=function(){
-      var t=document.getElementById("mp-coord-t").textContent;
-      if(!t || t==="\u2014") return;
-      var fatto=function(){ toast("Coordinate copiate: "+t); };
-      if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(fatto, function(){ toast(t); });
-      else toast(t);
+    /* tocco lieve: ricentra la mappa sulla posta; tenuto premuto (mezzo secondo): copia */
+    (function(){
+      var el=document.getElementById("mp-coord"), timer=null, copiato=false;
+      var copia=function(){
+        var t=document.getElementById("mp-coord-t").textContent;
+        if(!t || t==="\u2014") return;
+        var fatto=function(){ toast("Coordinate copiate: "+t); };
+        if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(fatto, function(){ toast(t); });
+        else toast(t);
+      };
+      var ricentra=function(){
+        var cv=document.getElementById("mp-schema"), p=cv?cv.__posta:null;
+        if(!p) return;
+        miniReset("mp-schema"); disegnaMiniSchema("mp-schema", p, false);
+        toast("Mappa centrata sulla posta");
+      };
+      el.addEventListener("pointerdown", function(){ copiato=false; clearTimeout(timer); timer=setTimeout(function(){ copiato=true; copia(); }, 500); });
+      var fine=function(){ clearTimeout(timer); };
+      el.addEventListener("pointerup", fine); el.addEventListener("pointercancel", fine); el.addEventListener("pointerleave", fine);
+      el.addEventListener("contextmenu", function(ev){ ev.preventDefault(); });
+      el.onclick=function(){ if(copiato){ copiato=false; return; } ricentra(); };
+    })();
+    document.getElementById("mp-dati").onclick=function(){
+      var cv=document.getElementById("mp-schema"), p=cv?cv.__posta:null;
+      if(p) apriDatiPosta(p);
     };
+    document.getElementById("pd-chiudi").onclick=function(){ document.getElementById("m-postadati").classList.remove("show"); };
     /* CAMBIA PASSWORD: ognuno la propria, dal menu'. Serve la rete. */
     document.getElementById("menu-psw").onclick=function(){
       chiudiMenu();
