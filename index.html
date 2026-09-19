@@ -3512,7 +3512,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.25";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.27";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5693,6 +5693,18 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<div><span style="color:var(--muted)">Ultimo assegnato:</span> <b style="color:var(--cream)">'+esc(righe[0].chi)+'</b> <span style="color:var(--muted)">\u00b7 '+esc(fmtGiorno(daIso(String(righe[0].data).slice(0,10))))+'</span></div>';
         if(top) h+='<div><span style="color:var(--muted)">Pi\u00f9 presente:</span> <b style="color:var(--cream)">'+esc(nome(top.x))+'</b> <span style="color:var(--muted)">\u00b7 '+top.n+' volt'+(top.n===1?'a':'e')+' su '+ass.length+'</span></div>';
         h+='</div>';
+        /* RIASSEGNA (sua regola 19/09): mentre distribuisco le poste di questa mappa,
+           un tocco rimette l'ultimo o il piu' presente, se e' fra i candidati di oggi */
+        var bsQ = bsAperta ? battutaSvoltaDi(bsAperta) : null;
+        if(bsQ && !bsQ.chiusa_il && a && bsQ.area_id===a.id && puoGestireBattute()){
+          var cand = daMettereInPosta();
+          var eCand = function(x){ return x && !x.ospite_id && x.membro_id && cand.some(function(c){ return c.tipo==="membro" && c.id===x.membro_id; }); };
+          var ultimoX = ass[0], topX = top ? top.x : null;
+          var btns = '';
+          if(eCand(ultimoX)) btns += '<button class="btn line" data-riass="'+ultimoX.membro_id+'" style="margin-top:8px">\u21a9 Riassegna a '+esc(nomeBreveDi(ultimoX.membro_id))+' (ultimo)</button>';
+          if(eCand(topX) && (!ultimoX || topX.membro_id!==ultimoX.membro_id)) btns += '<button class="btn line" data-riass="'+topX.membro_id+'" style="margin-top:8px">\u2605 Riassegna a '+esc(nomeBreveDi(topX.membro_id))+' (pi\u00f9 presente)</button>';
+          if(btns) h+=btns; else h+='<div class="hint" style="margin-top:8px">N\u00e9 l\'ultimo n\u00e9 il pi\u00f9 presente sono fra '+(giornataPrima()?'i prenotati':'i presenti')+' di oggi.</div>';
+        }
         h+='<div class="sechead" style="margin-top:12px">Le battute</div>';
         righe.forEach(function(r){
           h+='<div style="display:flex; align-items:center; gap:8px; padding:7px 4px; border-bottom:1px solid var(--dark3); font-size:13px">'
@@ -5702,6 +5714,14 @@ header .menubtn{min-width:48px; min-height:48px;}
         });
       }
       corpo.innerHTML=h;
+      corpo.querySelectorAll("[data-riass]").forEach(function(b){
+        b.onclick=async function(){
+          await assegnaPosta(p.id, b.dataset.riass, "membro");
+          document.getElementById("m-postadati").classList.remove("show");
+          document.getElementById("m-posta-info").classList.remove("show");
+          if(document.getElementById("v-poste").classList.contains("active")) renderAssegnazioni();
+        };
+      });
     }catch(e){ corpo.innerHTML='<div class="card" style="font-size:13px; color:#e07a6a">Non riesco a leggere i dati: '+esc(e.message||String(e))+'</div>'; }
   }
 
@@ -5812,7 +5832,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       /* nella scheda della posta (non "grande") si parte VICINI: circa 220 m
          in larghezza, come nella vista postaiolo. Prima si vedeva tutta la
          mappa e la posta si perdeva (19/09). */
-      if(!grande) sc=Math.max(sc, Math.min(2.4, W/220));
+      /* anche la vista postaiolo (grande) parte vicina: ~200 m in larghezza (19/09) */
+      sc=Math.max(sc, Math.min(grande?3.2:2.4, W/(grande?200:220)));
       var cP=toM(posta);
       miniView[canvasId]={ cx:cP.x, cy:cP.y, scale:sc };
     }
@@ -8115,12 +8136,25 @@ header .menubtn{min-width:48px; min-height:48px;}
         var minQ = daQ ? Math.round((Date.now() - new Date(daQ))/60000) : 0;
         var capiQ = capiDiSvolta(inCorsoQ, gioUccisioni());
         var trIn = tracciate.filter(function(x){ return x.area_id===inCorsoQ.area_id && !x.chiusa_il; }).length;
-        h+='<div class="sechead" style="color:var(--gold)">Battuta in corso</div>';
+        var preparata = !inCorsoQ.aperta_il;
+        /* chi era in posta ma non e' presente (o non e' piu' prenotato) */
+        var mancanti = (assegnazioni||[]).filter(function(x){ return x.battuta_svolta_id===inCorsoQ.id && x.posta_id && !presenteOra(x.membro_id, x.ospite_id); });
+        h+='<div class="sechead" style="color:var(--gold)">'+(preparata?(prima?'Battuta preparata':'Battuta preparata \u00b7 da far partire'):'Battuta in corso')+'</div>';
         h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:10px">';
         h+='<div style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:28px; letter-spacing:1px; color:#fff; line-height:1">'+esc(arQ?arQ.nome:"mappa").toUpperCase()+'</div>';
         h+='<div style="font-size:11.5px; color:var(--muted); margin:4px 0 10px">'
           +(inCorsoQ.numero?inCorsoQ.numero+'\u00aa battuta \u00b7 ':'')
-          +(daQ?'dalle '+oraCorta(daQ):'')+(minQ>0?' \u00b7 '+durataTesto(minQ):'')+'</div>';
+          +(preparata ? (prima?'poste sui prenotati':'ancora ferma') : ((daQ?'dalle '+oraCorta(daQ):'')+(minQ>0?' \u00b7 '+durataTesto(minQ):'')))+'</div>';
+        if(mancanti.length){
+          h+='<div style="background:linear-gradient(100deg,#6E1F14,#3E120C); border:1px solid #C0392B66; border-left:6px solid #E04A34; border-radius:11px; padding:9px 11px; margin-bottom:10px">';
+          h+='<div style="font-size:11px; color:#E8BDB5; letter-spacing:.5px; margin-bottom:4px">\u26a0\ufe0f '+(prima?'NON PI\u00d9 PRENOTAT'+(mancanti.length===1?'O':'I'):'PRENOTAT'+(mancanti.length===1?'O':'I')+' MA NON PRESENT'+(mancanti.length===1?'E':'I'))+'</div>';
+          mancanti.forEach(function(x){
+            var pn = (arQ&&arQ.poste?arQ.poste.find(function(q){return q.id===x.posta_id;}):null);
+            h+='<div style="font-size:13.5px; color:var(--cream)"><b>'+esc(nomeIncarico(x))+'</b> \u00b7 posta '+(pn?(pn.numero||"?"):"?")+' <span style="color:#E8BDB5">scoperta</span></div>';
+          });
+          h+='<button class="btn line" data-bsapri="'+inCorsoQ.id+'" style="margin-top:8px; border-color:#E04A34; color:#fff; font-size:12.5px; padding:8px">Rimetti qualcuno in posta</button>';
+          h+='</div>';
+        }
         h+='<div class="conta" style="margin-bottom:10px">';
         h+='<div class="box" style="background:#2f2818"><div class="n" style="color:var(--gold)">'+capiQ+'</div><div class="t" style="color:var(--muted)">capi finora</div></div>';
         h+='<div class="box" style="background:#2f2818"><div class="n" style="color:var(--cream)">'+cpQ.assegnate+'<span style="font-size:12px; color:var(--muted)">/'+cpQ.poste+'</span></div><div class="t" style="color:var(--muted)">poste coperte</div></div>';
@@ -8130,7 +8164,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<button class="btn line" data-bsapri="'+inCorsoQ.id+'">\ud83c\udfaf Poste e incarichi</button>';
         h+='<button class="btn line" data-giomap="'+inCorsoQ.area_id+'">\ud83d\uddfa\ufe0f Mappa</button>';
         h+='</div>';
-        if(agisce) h+='<button class="btn primary" data-bschiudi="'+inCorsoQ.id+'" style="width:100%">Chiudi la battuta</button>';
+        if(agisce && !prima && preparata) h+='<button class="btn primary" data-bsparte="'+inCorsoQ.id+'" style="width:100%; margin-bottom:8px">\u25b6 Parte la battuta</button>';
+        if(agisce && !prima) h+='<button class="btn '+(preparata?'line':'primary')+'" data-bschiudi="'+inCorsoQ.id+'" style="width:100%">Chiudi la battuta</button>';
         h+='</div>';
       }
 
@@ -8158,7 +8193,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='<div style="font-size:10.5px; color:var(--muted)">'
             +(viva?'in corso':('chiusa'+(bs.chiusa_il?' alle '+oraCorta(bs.chiusa_il):'')+(minBs?' \u00b7 '+durataTesto(minBs):'')))
             +(viva?'':' \u00b7 <span style="color:var(--gold)">'+capiBs+' cap'+(capiBs===1?'o':'i')+'</span>')
-            +' \u00b7 '+inc+' incarich'+(inc===1?'o':'i')
+            +' \u00b7 '+inc+' incaric'+(inc===1?'o':'hi')
             +' \u00b7 '+cp.perc+'% delle poste</div>';
           h+='</div>';
           if(!viva && agisce && !conclusa){
@@ -8214,8 +8249,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='</div>';
 
         // il comando a se': si sceglie dalla tendina. A giornata conclusa non c'e'.
-        if(agisce && !conclusa && !prima && !inCorso0) h+='<button class="btn primary" id="gi-iniziabattuta" style="margin-bottom:14px">\ud83c\udfaf Inizia la battuta</button>';
-        if(agisce && prima) h+='<div style="font-size:11px; color:var(--muted); margin:-4px 0 14px 2px">La battuta si apre il giorno stesso, da qui.</div>';
+        if(agisce && !conclusa && !inCorso0) h+='<button class="btn primary" id="gi-iniziabattuta" style="margin-bottom:14px">'+(prima?'\ud83d\udcdd Prepara la battuta (poste sui prenotati)':'\ud83c\udfaf Inizia la battuta')+'</button>';
         if(inCorso0 && !conclusa){
           h+='<div style="font-size:11px; color:var(--gold); margin:-10px 0 14px 2px">'
             +'C\'\u00e8 la battuta su \u00ab'+esc(nomeBattuta(inCorso0))+'\u00bb in corso: chiudila prima di aprirne un\'altra.</div>';
@@ -8634,6 +8668,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(bib) bib.onclick=apriSceltaBattuta;
     root.querySelectorAll("[data-bschiudi]").forEach(function(b){
       b.onclick=function(){ chiudiBattutaSvolta(b.dataset.bschiudi); };
+    });
+    root.querySelectorAll("[data-bsparte]").forEach(function(b){
+      b.onclick=function(){ partaBattuta(b.dataset.bsparte); };
     });
     root.querySelectorAll("[data-viceapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.viceapri); };
@@ -9767,6 +9804,11 @@ header .menubtn{min-width:48px; min-height:48px;}
   function battutaInCorso(){
     return battuteSvolte.find(function(x){ return !x.chiusa_il; }) || null;
   }
+  /* PRIMA DEL GIORNO la battuta si PREPARA (sua regola 19/09): si mettono in
+     posta i prenotati, e la mattina l'app dice chi manca. */
+  function giornataPrima(){
+    return !!(giornataAperta && String(giornataAperta.data||"").slice(0,10) > iso(new Date()));
+  }
   function battutaSuArea(areaId){
     return battuteSvolte.find(function(x){ return x.area_id === areaId && !x.chiusa_il; }) || null;
   }
@@ -9813,17 +9855,35 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     var a = aree.find(function(x){ return x.id === areaId; });
     if(!a) return;
-    if(!confirm("Aprire la battuta su \u00ab" + a.nome + "\u00bb?\n\nDa qui assegni le poste e i ruoli. Le altre mappe restano candidate per una battuta successiva.")) return;
+    var prima = giornataPrima();
+    chiediConferma(prima ? "Preparare la battuta?" : "Aprire la battuta?",
+      a.nome+"\n"+(prima ? "Metti in posta chi ha detto s\u00ec. La mattina, segnate le presenze, l'app ti dice chi manca." : "Da qui assegni le poste e i ruoli. Le altre mappe restano candidate per una battuta successiva."),
+      prima ? "Prepara" : "Apri",
+      async function(){
+        if(!navigator.onLine){ toast("Serve la rete"); return; }
+        try{
+          var dati = { squadra_id:me.squadra_id, giornata_id:giornataAperta.id, area_id:areaId,
+                       numero:(battuteSvolte.length + 1), aperta_da:me.membro_id };
+          if(!prima) dati.aperta_il = new Date().toISOString();
+          var r = await sb.from("hn_battute_svolte").insert(dati).select().single();
+          if(r.error) throw r.error;
+          battuteSvolte.push(r.data);
+          renderGiornata();
+          apriAssegnazioni(r.data.id);
+        }catch(e){ avvisaErroreAssegnazione(e); }
+      });
+  }
+  /* la mattina: la battuta preparata PARTE (da qui si conta la durata) */
+  async function partaBattuta(id){
+    var bs = battuteSvolte.find(function(x){ return x.id===id; });
+    if(!bs || bs.chiusa_il || !puoGestireBattute()) return;
     if(!navigator.onLine){ toast("Serve la rete"); return; }
     try{
-      var r = await sb.from("hn_battute_svolte").insert({
-        squadra_id:me.squadra_id, giornata_id:giornataAperta.id, area_id:areaId,
-        numero:(battuteSvolte.length + 1), aperta_da:me.membro_id
-      }).select().single();
+      var r = await sb.from("hn_battute_svolte").update({aperta_il:new Date().toISOString()}).eq("id", id).select().single();
       if(r.error) throw r.error;
-      battuteSvolte.push(r.data);
+      Object.assign(bs, r.data);
+      toast("Battuta partita");
       renderGiornata();
-      apriAssegnazioni(r.data.id);
     }catch(e){ avvisaErroreAssegnazione(e); }
   }
 
@@ -9865,8 +9925,10 @@ header .menubtn{min-width:48px; min-height:48px;}
         + ".\nPotrai aprirne un'altra su un'altra mappa.")) return;
     if(!navigator.onLine){ toast("Serve la rete"); return; }
     try{
+      var chiusura = {chiusa_il:new Date().toISOString()};
+      if(!bs.aperta_il) chiusura.aperta_il = chiusura.chiusa_il;
       var r = await sb.from("hn_battute_svolte")
-                .update({chiusa_il:new Date().toISOString()}).eq("id", id).select().single();
+                .update(chiusura).eq("id", id).select().single();
       if(r.error) throw r.error;
       var k = battuteSvolte.findIndex(function(x){ return x.id === id; });
       if(k>=0) battuteSvolte[k] = r.data;
@@ -9938,10 +10000,11 @@ header .menubtn{min-width:48px; min-height:48px;}
   function daMettereInPosta(){
     /* Gli OSPITI presenti si mettono in posta come gli altri: senza di loro
        la mappa non si chiude, ed e' il motivo per cui li registriamo. */
-    var v = adesioni.filter(function(a){ return a.presente; })
+    var prima = giornataPrima();
+    var v = adesioni.filter(function(a){ return prima ? (a.viene===true) : a.presente; })
               .map(function(a){ return {tipo:"membro", id:a.membro_id}; });
     (ospiti||[]).forEach(function(o){
-      if(o.presente) v.push({tipo:"ospite", id:o.id});
+      if(prima ? (o.viene!==false) : o.presente) v.push({tipo:"ospite", id:o.id});
     });
     return v;
   }
@@ -10273,11 +10336,13 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* una posta assegnata a chi non risulta piu' presente e' un BUCO:
      nessuno ci sta, ma sulla carta risulta coperta. Quella deve gridare. */
   function presenteOra(membroId, ospiteId){
+    /* prima del giorno "presente" vuol dire prenotato */
     if(ospiteId){
       var o = (ospiti||[]).find(function(x){ return x.id === ospiteId; });
-      return !!(o && o.presente);
+      return !!(o && (giornataPrima() ? (o.viene!==false) : o.presente));
     }
     var a = adesioni.find(function(x){ return x.membro_id === membroId; });
+    if(giornataPrima()) return !!(a && a.viene === true);
     return !!(a && a.presente === true);
   }
   function posteScoperte(){
