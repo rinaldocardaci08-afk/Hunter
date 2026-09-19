@@ -2233,6 +2233,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 
       <div class="actionbar">
         <button class="bigbtn mark" id="btn-mark">⊕ Segna posta qui</button>
+        <button class="bigbtn ghost" id="btn-poi" title="Punto di interesse" style="display:none">🐾</button>
         <button class="bigbtn ghost" id="btn-territorio" title="Vedi tutte le aree">🌍</button>
         <button class="bigbtn ghost" id="btn-center">◎</button>
       </div>
@@ -2763,6 +2764,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       <div id="pc-recupero" style="display:none; margin-top:9px; padding-top:9px; border-top:1px solid #6b4a28; color:#F2C230">
         Questa traccia era rimasta aperta: l'app l'aveva salvata sul telefono.
       </div>
+      <!-- il giro di mappatura puo' diventare anche una linea di tracciamento (19/09) -->
+      <label style="display:flex; align-items:center; gap:10px; margin:10px 0 0; padding-top:9px; border-top:1px solid #6b4a28; cursor:pointer; font-size:13px; color:var(--cream)">
+        <input type="checkbox" id="pc-anche-linea" style="width:20px; height:20px; accent-color:var(--gold)">
+        <span>Salva anche come <b>linea di tracciamento</b><span id="pc-linea-hint" style="display:block; font-size:11px; color:var(--muted)"></span></span>
+      </label>
     </div>
 
     <button class="btn" id="pc-riprendi" style="background:#7B5EA7; color:#fff; width:100%; margin-bottom:10px; display:none">
@@ -3026,6 +3032,11 @@ header .menubtn{min-width:48px; min-height:48px;}
         </div>
       </div>
 
+      <button id="mv-coord" style="width:100%; margin-bottom:10px; background:#1f1a12; border:1px solid var(--dark3); border-radius:11px; padding:9px 12px; text-align:left; display:flex; align-items:center; gap:10px; color:var(--cream)">
+        <span style="font-size:16px">📍</span>
+        <span style="flex:1; min-width:0"><span id="mv-coord-t" style="font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px">—</span>
+        <span style="display:block; font-size:10px; color:var(--muted); margin-top:2px">tocca: centra la mappa · tieni premuto: copia</span></span>
+      </button>
       <div id="mv-notebox" style="background:#4a3320; border:1px solid #6b4a28; border-radius:12px; padding:12px 13px;">
         <div style="font-size:11px; color:var(--gold); margin-bottom:5px;">⚠ La tua nota di sicurezza</div>
         <div id="mv-note" style="font-size:13px; color:var(--cream); line-height:1.55;">—</div>
@@ -3041,6 +3052,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     <p class="hint" id="m-posta-area">—</p>
     <label>Nome della posta</label>
     <input id="m-posta-nome" type="text" autocomplete="off">
+    <label>Numero</label>
+    <div style="display:flex; align-items:center; gap:10px">
+      <input id="m-posta-numero" type="number" inputmode="numeric" min="1" style="width:90px; text-align:center; font-size:20px; font-weight:700">
+      <span class="hint" id="m-posta-numero-hint" style="flex:1; margin:0"></span>
+    </div>
     <label>Tipo</label>
     <select id="m-posta-tipo">
       <option value="fissa">Fissa (parte del cerchio)</option>
@@ -3095,6 +3111,27 @@ header .menubtn{min-width:48px; min-height:48px;}
     <div class="btnrow" style="margin-top:14px">
       <button class="btn line" id="psw-annulla">Annulla</button>
       <button class="btn primary" id="psw-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: punto di interesse (19/09): passaggio, acqua, permanenza -->
+<div class="modal" id="m-poi">
+  <div class="sheet">
+    <h3 id="poi-titolo">Punto di interesse</h3>
+    <p class="hint" id="poi-sotto">—</p>
+    <div class="chips" id="poi-tipi" style="margin:6px 0 10px">
+      <button class="chip on" data-poitipo="passaggio">🐾 Passaggio</button>
+      <button class="chip" data-poitipo="acqua">💧 Punto acqua</button>
+      <button class="chip" data-poitipo="permanenza">🌿 Permanenza</button>
+    </div>
+    <label>Nome</label>
+    <input id="poi-nome" type="text" autocomplete="off" placeholder="es. Passaggio del fosso">
+    <label>Note (facoltative)</label>
+    <input id="poi-note" type="text" autocomplete="off" placeholder="cosa si vede, quando passano">
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="poi-annulla">Annulla</button>
+      <button class="btn primary" id="poi-salva">Salva</button>
     </div>
   </div>
 </div>
@@ -3475,7 +3512,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.24";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.25";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3755,6 +3792,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(!document.hidden) controllaUrgenti();
     });
     await caricaRitrovi();
+    caricaPoi();              // passaggi, punti acqua, permanenze
     caricaTracce();           // le linee dei tracciatori
     caricaSettori();          // i rettangoli dei settori
     setTimeout(recuperaTracciata, 1200);   // avevo una tracciata aperta?
@@ -4028,12 +4066,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     // dopo una cancellazione ne' se due mappano la stessa area insieme
     // col GPS o col tocco, il numero segue il giro: se la metto in mezzo,
     // prende il posto che le spetta e le altre scalano
-    var numero = prossimoNumeroPosta(a);
-    var vaInMezzo = false;
-    if(navigator.onLine && String(a.id).indexOf("coda_area_") !== 0){
-      var n2 = numeroPerPosizione(a, punto);
-      if(n2 < numero){ numero = n2; vaInMezzo = true; }
-    }
+    /* il numero e' quello scritto nella finestra (proposto o cambiato a mano).
+       Se e' gia' usato da un'altra posta, si fa spazio: le altre scalano. */
+    var numero = parseInt(document.getElementById("m-posta-numero").value,10);
+    if(!(numero>0)) numero = prossimoNumeroPosta(a);
+    var vaInMezzo = (a.poste||[]).some(function(p){ return parseInt(p.numero,10)===numero; });
 
     var dati={
       area_id:a.id, nome:nome, numero:numero,
@@ -4561,6 +4598,12 @@ header .menubtn{min-width:48px; min-height:48px;}
         }
       }
     }
+    /* i punti di interesse della mappa aperta */
+    poiDiArea(a.id).forEach(function(q){
+      if(!isFinite(q.lat)||!isFinite(q.lng)) return;
+      L.marker([q.lat,q.lng],{icon:iconPoi(q.tipo), zIndexOffset:500}).addTo(posteLayer)
+        .bindTooltip(esc(q.nome),{direction:"top", offset:[0,-14]});
+    });
     a.poste.forEach(function(p,i){
       if(soloMie && !soloMie[p.id]) return;
       // in anteprima di sezione le altre poste non si disegnano
@@ -5369,9 +5412,127 @@ header .menubtn{min-width:48px; min-height:48px;}
     apriModalePosta(a, {lat:lat, lng:lng, acc:null}, true);
   }
 
+  /* ===== PUNTI DI INTERESSE (19/09): passaggio, punto acqua, luogo di permanenza.
+     Si segnano stando sul posto (mappatura o scheda mappa), si vedono sulla mappa
+     con l'emoji, si modificano (nome e note) e si cancellano come i ritrovi. */
+  var poi = [];
+  var POI_TIPI = { passaggio:{em:"\ud83d\udc3e", nome:"Passaggio"}, acqua:{em:"\ud83d\udca7", nome:"Punto acqua"}, permanenza:{em:"\ud83c\udf3f", nome:"Permanenza"} };
+  var poiEdit = null, poiTipo = "passaggio", poiPunto = null, poiArea = null;
+  async function caricaPoi(){
+    if(!me || !me.squadra_id) return;
+    try{
+      var r = await sb.from("hn_punti_interesse").select("*").eq("squadra_id", me.squadra_id).order("nome");
+      if(!r.error){ poi = r.data||[]; try{ localStorage.setItem("hunter_cache_poi", JSON.stringify(poi)); }catch(e){} }
+    }catch(e){ try{ var c=JSON.parse(localStorage.getItem("hunter_cache_poi")); if(c) poi=c; }catch(e2){} }
+  }
+  function poiDiArea(idA){ return poi.filter(function(p){ return p.area_id===idA; }); }
+  function puoGestirePoi(){ return !!(puoMappare() || puoGestireBattute()); }
+  function apriPoi(areaId, punto, esistente){
+    var a = aree.find(function(x){ return x.id===areaId; }); if(!a) return;
+    poiArea = areaId; poiPunto = punto; poiEdit = esistente||null;
+    poiTipo = esistente ? esistente.tipo : "passaggio";
+    document.getElementById("poi-titolo").textContent = esistente ? "Modifica punto" : "Punto di interesse";
+    document.getElementById("poi-sotto").textContent = a.nome + (punto ? " \u00b7 "+Number(punto.lat).toFixed(5)+", "+Number(punto.lng).toFixed(5) : "") + (esistente ? " \u00b7 la posizione non si modifica" : "");
+    document.getElementById("poi-nome").value = esistente ? (esistente.nome||"") : "";
+    document.getElementById("poi-note").value = esistente ? (esistente.note||"") : "";
+    document.querySelectorAll("[data-poitipo]").forEach(function(b){ b.classList.toggle("on", b.dataset.poitipo===poiTipo); });
+    document.getElementById("m-poi").classList.add("show");
+    setTimeout(function(){ document.getElementById("poi-nome").focus(); }, 100);
+  }
+  async function salvaPoi(){
+    var nome = String(document.getElementById("poi-nome").value||"").trim();
+    var note = String(document.getElementById("poi-note").value||"").trim();
+    if(!nome){ toast("Serve un nome"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per salvare il punto"); return; }
+    try{
+      var r;
+      if(poiEdit){
+        r = await sb.from("hn_punti_interesse").update({nome:nome, note:(note||null), tipo:poiTipo}).eq("id", poiEdit.id).select().single();
+        if(r.error) throw r.error;
+        Object.assign(poiEdit, {nome:nome, note:(note||null), tipo:poiTipo}, r.data||{});
+      }else{
+        r = await sb.from("hn_punti_interesse").insert({
+          squadra_id:me.squadra_id, area_id:poiArea, tipo:poiTipo, nome:nome, note:(note||null),
+          lat:poiPunto.lat, lng:poiPunto.lng, accuratezza:(poiPunto.acc!=null?Math.round(poiPunto.acc):null), creato_da:me.membro_id
+        }).select().single();
+        if(r.error) throw r.error;
+        poi.push(r.data);
+      }
+      try{ localStorage.setItem("hunter_cache_poi", JSON.stringify(poi)); }catch(e){}
+      document.getElementById("m-poi").classList.remove("show");
+      toast((poiEdit?"Punto aggiornato: ":"Punto segnato: ")+nome);
+      poiEdit=null;
+      if(typeof renderPoste==="function") renderPoste();
+      if(document.getElementById("v-areadett").classList.contains("active")) renderSchedaArea();
+    }catch(e){
+      var m = String(e && e.message || e);
+      toast(/hn_punti_interesse|schema cache|does not exist/.test(m) ? "Manca la tabella dei punti di interesse: lancia l'SQL su Supabase" : "Non riesco: "+m);
+    }
+  }
+  function cancellaPoi(id){
+    var p = poi.find(function(x){ return x.id===id; }); if(!p || !puoGestirePoi()) return;
+    chiediConferma("Cancellare il punto?", (POI_TIPI[p.tipo]||POI_TIPI.passaggio).em+" "+p.nome, "\ud83d\uddd1 Cancella", async function(){
+      try{
+        var r = await sb.from("hn_punti_interesse").delete().eq("id", id);
+        if(r.error) throw r.error;
+        poi = poi.filter(function(x){ return x.id!==id; });
+        try{ localStorage.setItem("hunter_cache_poi", JSON.stringify(poi)); }catch(e){}
+        toast("Punto cancellato");
+        if(typeof renderPoste==="function") renderPoste();
+        if(document.getElementById("v-areadett").classList.contains("active")) renderSchedaArea();
+      }catch(e){ toast("Non riesco: "+(e.message||e)); }
+    });
+  }
+  function nuovoPoiQui(areaId){
+    if(!puoGestirePoi()){ toast("Non hai il permesso"); return; }
+    if(!pos){ toast("Aspetto il segnale GPS: il punto si segna dove sei"); serveGPS("poi"); return; }
+    apriPoi(areaId, {lat:pos.lat, lng:pos.lng, acc:pos.acc}, null);
+  }
+  function iconPoi(tipo){
+    var t = POI_TIPI[tipo]||POI_TIPI.passaggio;
+    return L.divIcon({className:"", iconSize:[30,30], iconAnchor:[15,15],
+      html:'<div style="width:30px;height:30px;border-radius:50%;background:#1f2a1a;border:2px solid #7BA05B;display:flex;align-items:center;justify-content:center;font-size:16px;box-shadow:0 1px 4px rgba(0,0,0,.5)">'+t.em+'</div>'});
+  }
+  function htmlPoiScheda(a){
+    var pp = poiDiArea(a.id), gest = puoGestirePoi(), h='';
+    if(pp.length || gest){
+      h += '<div class="sechead">Punti di interesse</div>';
+      pp.forEach(function(p){
+        var t = POI_TIPI[p.tipo]||POI_TIPI.passaggio;
+        h += '<div class="rt-row"><div class="ic" style="background:#1f2a1a; border:1px solid #7BA05B">'+t.em+'</div>'
+          +  '<div class="meta"><div class="n">'+esc(p.nome)+'</div><div class="c">'+t.nome+(p.note?' \u00b7 '+esc(p.note):'')+'</div></div>'
+          +  (gest ? '<div class="az"><button data-poimod="'+p.id+'" title="Modifica">\u270e</button><button data-poidel="'+p.id+'" title="Cancella">\ud83d\uddd1</button></div>' : '')
+          +  '</div>';
+      });
+      if(gest) h += '<button class="btn line" id="ad-poinuovo" style="margin-top:4px; border-color:#7BA05B">\ud83d\udc3e Nuovo punto di interesse \u00b7 dove sono ora</button>';
+    }
+    return h;
+  }
+  function agganciaPoiScheda(root, a){
+    var bn = root.querySelector("#ad-poinuovo"); if(bn) bn.onclick = function(){ nuovoPoiQui(a.id); };
+    root.querySelectorAll("[data-poimod]").forEach(function(b){ b.onclick=function(){ var p=poi.find(function(x){return x.id===b.dataset.poimod;}); if(p) apriPoi(p.area_id, {lat:p.lat,lng:p.lng}, p); }; });
+    root.querySelectorAll("[data-poidel]").forEach(function(b){ b.onclick=function(){ cancellaPoi(b.dataset.poidel); }; });
+  }
+
+  /* IL NUMERO PROPOSTO (sua regola 19/09): in MAPPATURA e' sempre il successivo,
+     perche' il giro lo stai facendo tu coi piedi. Fuori dalla mappatura la posta
+     si infila nel giro (fra la 3 e la 4 diventa la 4, le altre scalano). In
+     tutti e due i casi il numero si vede e si puo' cambiare prima di salvare. */
+  function numeroProposto(a, punto){
+    var seq = prossimoNumeroPosta(a);
+    if(mappatura) return {numero:seq, inMezzo:false, testo:"segue il tuo giro"};
+    if(navigator.onLine && String(a.id).indexOf("coda_area_")!==0){
+      var n2 = numeroPerPosizione(a, punto);
+      if(n2 < seq) return {numero:n2, inMezzo:true, testo:"si infila nel giro dopo la "+(n2-1)+": le altre scalano"};
+    }
+    return {numero:seq, inMezzo:false, testo:"in coda al giro"};
+  }
   function apriModalePosta(a, punto, daRemoto){
     document.getElementById("m-posta-area").textContent="In: "+a.nome+(daRemoto ? " \u00b7 da verificare" : "");
-    document.getElementById("m-posta-nome").value="Posta "+(((a.poste||[]).length)+1);
+    var np = numeroProposto(a, punto);
+    document.getElementById("m-posta-numero").value = np.numero;
+    document.getElementById("m-posta-numero-hint").textContent = "proposto: "+np.numero+" \u00b7 "+np.testo;
+    document.getElementById("m-posta-nome").value="Posta "+np.numero;
     document.getElementById("m-posta-tipo").value="fissa";
     document.getElementById("m-posta-note").value="";
     document.getElementById("m-posta-coord").textContent=punto.lat.toFixed(5)+", "+punto.lng.toFixed(5);
@@ -5833,6 +5994,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!postaAperta) return;
     var p=postaAperta;
     document.getElementById("mv-nome").textContent=p.nome||"Posta";
+    var mvc=document.getElementById("mv-coord-t"); if(mvc) mvc.textContent=(isFinite(p.lat)&&isFinite(p.lng))?(Number(p.lat).toFixed(6)+", "+Number(p.lng).toFixed(6)):"\u2014";
     var note=(p.note||"").trim();
     document.getElementById("mv-note").textContent = note || "Nessuna avvertenza per questa posta.";
     if(pos){
@@ -5899,8 +6061,10 @@ header .menubtn{min-width:48px; min-height:48px;}
        vedere la posta e chi ha accanto, alla distanza ci pensa la freccia */
     var lontano = pos ? (distM(pos, p) > 300) : true;
     if(pos && !lontano) punti.push([pos.lat,pos.lng]);
+    /* vicino: circa 100 m (sua regola 19/09), non tutta la mappa */
     if(punti.length>1) mvMap.fitBounds(L.latLngBounds(punti).pad(0.30), {maxZoom:19});
     else mvMap.setView([p.lat,p.lng], 19);
+    if(mvMap.getZoom() < 18) mvMap.setView([p.lat,p.lng], 18);
   }
 
   /* SCHEMA: la posta al centro, zoomata sui vicini */
@@ -5983,6 +6147,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!btn) return;
     // in campo il tasto per segnare una posta non esiste proprio
     btn.style.display = (mappatura && inLaboratorio()) ? "flex" : "none";
+    var bp=document.getElementById("btn-poi");
+    if(bp) bp.style.display = (mappatura && inLaboratorio()) ? "flex" : "none";
     var terr=document.getElementById("btn-territorio");
     if(terr) terr.style.display = (puoVedereAree() && !mappatura) ? "flex" : "none";
     var center=document.getElementById("btn-center");
@@ -10763,6 +10929,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       });
     }
 
+    h += htmlPoiScheda(a);
+
     // --- SEZIONI ---
     h += '<div class="sechead">Sezioni</div>';
     if(!sez.length){
@@ -10864,6 +11032,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-zonarifai]").forEach(function(b){
       b.onclick = function(){ salvaZona(b.dataset.zonarifai, true); };
     });
+    var aPoi = aree.find(function(x){ return x.id === areaDett; }); if(aPoi) agganciaPoiScheda(root, aPoi);
     var bon = root.querySelector("#ad-ossnuovo");
     if(bon) bon.onclick = function(){ nuovoPuntoOss(areaDett); };
     root.querySelectorAll("[data-ossapri]").forEach(function(b){
@@ -16081,7 +16250,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
   function cerchioChiuso(){
     var d = mancaAllaChiusura();
-    return d !== null && d <= 35;
+    return d !== null && d <= 50;   /* 50 m (sua regola 19/09) */
   }
 
   function durataPercorso(){
@@ -16197,6 +16366,17 @@ header .menubtn{min-width:48px; min-height:48px;}
     var i = aree.findIndex(function(x){ return x.id === a.id; });
     if(i >= 0){ aree[i].percorso = dati; }
     salvaCacheAree();
+    /* e, se l'ha chiesto, anche come linea di tracciamento col nome della mappa */
+    var cbl2 = document.getElementById("pc-anche-linea");
+    if(cbl2 && cbl2.checked && navigator.onLine && String(a.id).indexOf("coda_area_")!==0){
+      try{
+        var rl = await sb.from("hn_tracce").insert({
+          squadra_id:me.squadra_id, area_id:a.id, nome:"Giro di mappatura "+fmtData2(iso(new Date())),
+          origine:"camminata", punti:dati.punti, distanza:Math.round(dati.distanza||0), creata_da:me.membro_id
+        }).select().single();
+        if(!rl.error){ tracce.push(rl.data); toast("Salvata anche come linea"); }
+      }catch(e){}
+    }
 
     var suSupabase=false;
     try{
@@ -16224,6 +16404,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     var ti=document.getElementById("pc-recupero");
     if(ti) ti.style.display = recupero ? "block" : "none";
     var chiuso = cerchioChiuso();
+    /* la spunta "anche linea": accesa da sola se il giro e' chiuso */
+    var cbl = document.getElementById("pc-anche-linea");
+    if(cbl && !registroTraccia){ cbl.checked = !!chiuso; cbl.parentNode.style.display="flex";
+      document.getElementById("pc-linea-hint").textContent = chiuso ? "giro chiuso: la linea e' completa" : "giro aperto: la linea resta aperta"; }
+    else if(cbl) cbl.parentNode.style.display="none";
     var box = document.getElementById("pc-esito");
     if(chiuso){
       box.style.background = "linear-gradient(135deg,#1d3a2a,#2d5a3f)";
@@ -16775,6 +16960,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("btn-aggiorna").onclick=aggiornaApp;
     document.getElementById("menu-esci").onclick=function(){ chiudiMenu(); doLogout(); };
     document.getElementById("rt-salva").onclick=salvaRitrovoModifiche;
+    document.getElementById("poi-salva").onclick=salvaPoi;
+    document.getElementById("poi-annulla").onclick=function(){ document.getElementById("m-poi").classList.remove("show"); poiEdit=null; };
+    document.querySelectorAll("[data-poitipo]").forEach(function(b){ b.onclick=function(){ poiTipo=b.dataset.poitipo; document.querySelectorAll("[data-poitipo]").forEach(function(x){ x.classList.toggle("on", x===b); }); }; });
+    var bpoi=document.getElementById("btn-poi"); if(bpoi) bpoi.onclick=function(){ var a=areaAttiva(); if(a) nuovoPoiQui(a.id); };
     /* tocco lieve: ricentra la mappa sulla posta; tenuto premuto (mezzo secondo): copia */
     (function(){
       var el=document.getElementById("mp-coord"), timer=null, copiato=false;
@@ -16796,6 +16985,21 @@ header .menubtn{min-width:48px; min-height:48px;}
       el.addEventListener("pointerup", fine); el.addEventListener("pointercancel", fine); el.addEventListener("pointerleave", fine);
       el.addEventListener("contextmenu", function(ev){ ev.preventDefault(); });
       el.onclick=function(){ if(copiato){ copiato=false; return; } ricentra(); };
+    })();
+    (function(){
+      var el=document.getElementById("mv-coord"); if(!el) return;
+      var timer=null, copiato=false;
+      el.addEventListener("pointerdown", function(){ copiato=false; clearTimeout(timer); timer=setTimeout(function(){ copiato=true;
+        var t=document.getElementById("mv-coord-t").textContent; if(!t||t==="\u2014") return;
+        if(navigator.clipboard&&navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(function(){ toast("Coordinate copiate: "+t); }, function(){ toast(t); }); else toast(t); }, 500); });
+      var fine=function(){ clearTimeout(timer); };
+      el.addEventListener("pointerup", fine); el.addEventListener("pointercancel", fine); el.addEventListener("pointerleave", fine);
+      el.addEventListener("contextmenu", function(ev){ ev.preventDefault(); });
+      el.onclick=function(){ if(copiato){ copiato=false; return; }
+        var p=postaAperta; if(!p) return;
+        if(mvMap && document.getElementById("mv-map").style.display!=="none") mvMap.setView([p.lat,p.lng], Math.max(mvMap.getZoom(),18));
+        miniReset("mv-schema"); disegnaMiniSchema("mv-schema", p, true);
+        toast("Centrata sulla posta"); };
     })();
     document.getElementById("mp-dati").onclick=function(){
       var cv=document.getElementById("mp-schema"), p=cv?cv.__posta:null;
