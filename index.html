@@ -3512,7 +3512,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.27";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.28";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -8128,7 +8128,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(conclusa) h += htmlRiepilogoGiornata(b);
 
       /* LA BATTUTA APERTA sta in cima, con i suoi numeri e i suoi tasti */
-      var inCorsoQ = battutaInCorso();
+      var inCorsoQ = battutaInCorso() || battutaPreparata();
       if(inCorsoQ && !conclusa){
         var arQ = aree.find(function(x){ return x.id === inCorsoQ.area_id; });
         var cpQ = coperturaBattuta(inCorsoQ);
@@ -8172,7 +8172,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       /* LE BATTUTE DI OGGI.
          Le mappe candidate restano tutte disponibili: se la prima battuta
          finisce presto o non si trova niente, la seconda si fa su un'altra. */
-      var inCorso0 = battutaInCorso();
+      var inCorso0 = battutaInCorso() || battutaPreparata();
       var mieAree = (b.aree_segnalate || []);
 
       if(battuteSvolte.length){
@@ -8185,13 +8185,13 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='<div class="card" data-bsapri="'+bs.id+'" style="margin-bottom:7px; cursor:pointer'
             +(viva?'; border:1px solid var(--gold)':'')+'">';
           h+='<div style="display:flex; align-items:center; gap:10px">';
-          h+='<span style="font-size:17px">'+(viva?'\u23f1':'\u2713')+'</span>';
+          h+='<span style="font-size:17px">'+(viva?(bs.aperta_il?'\u23f1':'\ud83d\udcdd'):'\u2713')+'</span>';
           h+='<div style="flex:1; min-width:0">';
           h+='<div style="font-size:13.5px; color:var(--cream); font-weight:600">'
             +(bs.numero?bs.numero+'ª · ':'')+esc(arB?arB.nome:'mappa')+'</div>';
           var capiBs = capiDiSvolta(bs, gioUccisioni()), minBs = minutiSvolta(bs);
           h+='<div style="font-size:10.5px; color:var(--muted)">'
-            +(viva?'in corso':('chiusa'+(bs.chiusa_il?' alle '+oraCorta(bs.chiusa_il):'')+(minBs?' \u00b7 '+durataTesto(minBs):'')))
+            +(viva?(bs.aperta_il?'in corso':'preparata, non ancora partita'):('chiusa'+(bs.chiusa_il?' alle '+oraCorta(bs.chiusa_il):'')+(minBs?' \u00b7 '+durataTesto(minBs):'')))
             +(viva?'':' \u00b7 <span style="color:var(--gold)">'+capiBs+' cap'+(capiBs===1?'o':'i')+'</span>')
             +' \u00b7 '+inc+' incaric'+(inc===1?'o':'hi')
             +' \u00b7 '+cp.perc+'% delle poste</div>';
@@ -9801,8 +9801,14 @@ header .menubtn{min-width:48px; min-height:48px;}
   function battutaSvoltaDi(id){
     return battuteSvolte.find(function(x){ return x.id === id; }) || null;
   }
+  /* IN CORSO = partita e non chiusa. Una battuta PREPARATA (poste messe la sera
+     prima, mai partita) NON e' in corso: i giochi restano aperti, i cacciatori
+     non vedono la posta, niente registrazioni. Parte con "Parte la battuta". */
   function battutaInCorso(){
-    return battuteSvolte.find(function(x){ return !x.chiusa_il; }) || null;
+    return battuteSvolte.find(function(x){ return !x.chiusa_il && x.aperta_il; }) || null;
+  }
+  function battutaPreparata(){
+    return battuteSvolte.find(function(x){ return !x.chiusa_il && !x.aperta_il; }) || null;
   }
   /* PRIMA DEL GIORNO la battuta si PREPARA (sua regola 19/09): si mettono in
      posta i prenotati, e la mattina l'app dice chi manca. */
@@ -9822,9 +9828,9 @@ header .menubtn{min-width:48px; min-height:48px;}
      serve a guardarla, non a far partire la caccia */
   function apriSceltaBattuta(){
     if(!giornataAperta || !puoGestireBattute()) return;
-    var inCorso = battutaInCorso();
+    var inCorso = battutaInCorso() || battutaPreparata();
     if(inCorso){
-      alert("C'\u00e8 gi\u00e0 la battuta su \u00ab" + nomeBattuta(inCorso) + "\u00bb in corso.\n\nChiudila prima di aprirne un'altra.");
+      toast("C'\u00e8 gi\u00e0 la battuta su "+nomeBattuta(inCorso)+(inCorso.aperta_il?" in corso":" preparata")+": chiudila prima di aprirne un'altra");
       return;
     }
     var cand = (giornataAperta.aree_segnalate || []);
@@ -9848,9 +9854,9 @@ header .menubtn{min-width:48px; min-height:48px;}
   async function apriBattutaSuMappa(areaId){
     if(!giornataAperta){ toast("Serve una giornata aperta"); return; }
     if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
-    var gia = battutaInCorso();
+    var gia = battutaInCorso() || battutaPreparata();
     if(gia){
-      toast("C'\u00e8 gi\u00e0 una battuta aperta: chiudila prima");
+      toast("C'\u00e8 gi\u00e0 una battuta "+(gia.aperta_il?"aperta":"preparata")+": chiudila prima");
       return;
     }
     var a = aree.find(function(x){ return x.id === areaId; });
@@ -10762,7 +10768,13 @@ header .menubtn{min-width:48px; min-height:48px;}
      prendo l'ultima, cosi' a fine battuta resta scritto dov'ero */
   function laMiaPosta(){
     if(!me || !assegnazioni.length) return null;
-    var mie = assegnazioni.filter(function(x){ return x.membro_id === me.membro_id; });
+    /* le poste di una battuta PREPARATA (mai partita) non si mostrano: la
+       posta si vede quando la battuta parte (sua regola 19/09) */
+    var mie = assegnazioni.filter(function(x){
+      if(x.membro_id !== me.membro_id) return false;
+      var bs = battuteSvolte.find(function(b){ return b.id === x.battuta_svolta_id; });
+      return !(bs && !bs.chiusa_il && !bs.aperta_il);
+    });
     if(!mie.length) return null;
     var inCorso = battutaInCorso();
     if(inCorso){
@@ -20095,7 +20107,7 @@ function fineA(){
     if(!me || !me.squadra_id) return;
     try{
       var r = await sb.from("hn_battute_svolte").select("id,numero")
-                .eq("squadra_id", me.squadra_id).is("chiusa_il", null).limit(1);
+                .eq("squadra_id", me.squadra_id).is("chiusa_il", null).not("aperta_il", "is", null).limit(1);
       if(r.error) throw r.error;
       battutaPerGiochi = (r.data && r.data.length) ? r.data[0] : null;
       try{ localStorage.setItem("hunter_battuta_giochi", JSON.stringify(battutaPerGiochi)); }catch(e){}
