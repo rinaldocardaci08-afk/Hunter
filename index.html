@@ -146,6 +146,7 @@
   .memrow .av.carica{border-radius:9px; transform:rotate(45deg);}
   .memrow .av.carica svg{transform:rotate(-45deg);}
   .memrow .nm{flex:1; min-width:0;}
+.posta-lab{background:#241d13; color:#F0E2C9; border:1px solid #E8C86A; border-radius:9px; padding:1px 6px; font:700 11px system-ui; white-space:nowrap;}
   .memrow .pallino{min-width:20px; height:20px; border-radius:10px; padding:0 6px; display:inline-flex; align-items:center; justify-content:center;
     font-size:11px; font-weight:700; margin-left:4px; flex-shrink:0;}
   .memrow .pallino.rosso{background:#C0392B; color:#fff;}
@@ -3512,7 +3513,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.28";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.29";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4616,8 +4617,22 @@ header .menubtn{min-width:48px; min-height:48px;}
         if(disegnoTraccia){ aggiungiPuntoTraccia(p.lat, p.lng); return; }
         if(segnRemota){ toccatoPuntoRemoto(p.lat, p.lng); return; }
         if(pickRitrovo){ segnaPuntoRitrovo(p.lat, p.lng); return; }
+        /* mentre distribuisco le poste di QUESTA mappa, il tocco sulla posta
+           assegna (sua regola 19/09): la stessa finestra dell'elenco */
+        var bsM = bsAperta ? battutaSvoltaDi(bsAperta) : null;
+        if(bsM && !bsM.chiusa_il && bsM.area_id===a.id && puoGestireBattute()){
+          apAreaId = a.id;
+          apriSceltaCacciatore(p, assegnazioneDi(p.id, bsAperta));
+          return;
+        }
         apriSchedaPosta(p);
       });
+      /* il nome di chi sta sulla posta, accanto al numero, mentre si distribuisce */
+      var bsT = bsAperta ? battutaSvoltaDi(bsAperta) : null;
+      if(bsT && bsT.area_id===a.id){
+        var asT = assegnazioneDi(p.id, bsAperta);
+        if(asT) m.bindTooltip(esc(nomeIncarico(asT).split(" ")[0]), {permanent:true, direction:"right", offset:[10,0], className:"posta-lab"});
+      }
     });
     disegnaSegnalazioni();
     disegnaSettori();
@@ -8165,7 +8180,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<button class="btn line" data-giomap="'+inCorsoQ.area_id+'">\ud83d\uddfa\ufe0f Mappa</button>';
         h+='</div>';
         if(agisce && !prima && preparata) h+='<button class="btn primary" data-bsparte="'+inCorsoQ.id+'" style="width:100%; margin-bottom:8px">\u25b6 Parte la battuta</button>';
-        if(agisce && !prima) h+='<button class="btn '+(preparata?'line':'primary')+'" data-bschiudi="'+inCorsoQ.id+'" style="width:100%">Chiudi la battuta</button>';
+        if(agisce && !preparata) h+='<button class="btn primary" data-bschiudi="'+inCorsoQ.id+'" style="width:100%">Chiudi la battuta</button>';
+        if(agisce && preparata) h+='<button class="btn line" data-bsannulla="'+inCorsoQ.id+'" style="width:100%; border-color:#C0392B; color:#e07a6a">\ud83d\uddd1 Annulla la programmazione</button>';
         h+='</div>';
       }
 
@@ -8671,6 +8687,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     root.querySelectorAll("[data-bsparte]").forEach(function(b){
       b.onclick=function(){ partaBattuta(b.dataset.bsparte); };
+    });
+    root.querySelectorAll("[data-bsannulla]").forEach(function(b){
+      b.onclick=function(){ eliminaBattutaSvolta(b.dataset.bsannulla); };
     });
     root.querySelectorAll("[data-viceapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.viceapri); };
@@ -9889,6 +9908,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(r.error) throw r.error;
       Object.assign(bs, r.data);
       toast("Battuta partita");
+      controllaBattutaGiochi();
       renderGiornata();
     }catch(e){ avvisaErroreAssegnazione(e); }
   }
@@ -9939,25 +9959,36 @@ header .menubtn{min-width:48px; min-height:48px;}
       var k = battuteSvolte.findIndex(function(x){ return x.id === id; });
       if(k>=0) battuteSvolte[k] = r.data;
       if(bsAperta === id) bsAperta = null;
+      controllaBattutaGiochi();
       showView("giornata");
       renderGiornata();
       toast("Battuta chiusa");
     }catch(e){ avvisaErroreAssegnazione(e); }
   }
 
-  async function eliminaBattutaSvolta(id){
+  function eliminaBattutaSvolta(id){
     var bs = battutaSvoltaDi(id);
     if(!bs || !puoGestireBattute()) return;
-    if(!confirm("Eliminare questa battuta?\n\nSpariscono anche le sue assegnazioni. Serve solo se l'hai aperta per sbaglio.")) return;
-    if(!navigator.onLine){ toast("Serve la rete"); return; }
-    try{
-      var r = await sb.from("hn_battute_svolte").delete().eq("id", id);
-      if(r.error) throw r.error;
-      battuteSvolte = battuteSvolte.filter(function(x){ return x.id !== id; });
-      assegnazioni = assegnazioni.filter(function(x){ return x.battuta_svolta_id !== id; });
-      renderGiornata();
-      toast("Battuta eliminata");
-    }catch(e){ avvisaErroreAssegnazione(e); }
+    var prep = !bs.aperta_il;
+    var na = assegnazioni.filter(function(x){ return x.battuta_svolta_id === id; }).length;
+    chiediConferma(prep ? "Annullare la programmazione?" : "Eliminare questa battuta?",
+      (prep ? "Le poste preparate (" + na + ") si cancellano. La mappa resta candidata: potrai ripreparare o aprire la battuta quando vuoi." : "Spariscono anche le sue assegnazioni. Serve solo se l'hai aperta per sbaglio."),
+      prep ? "\ud83d\uddd1 Annulla la programmazione" : "\ud83d\uddd1 Elimina",
+      async function(){
+        if(!navigator.onLine){ toast("Serve la rete"); return; }
+        try{
+          await sb.from("hn_assegnazioni").delete().eq("battuta_svolta_id", id);
+          var r = await sb.from("hn_battute_svolte").delete().eq("id", id);
+          if(r.error) throw r.error;
+          battuteSvolte = battuteSvolte.filter(function(x){ return x.id !== id; });
+          assegnazioni = assegnazioni.filter(function(x){ return x.battuta_svolta_id !== id; });
+          if(bsAperta === id) bsAperta = null;
+          controllaBattutaGiochi();
+          if(document.getElementById("v-poste").classList.contains("active")) showView("giornata");
+          renderGiornata();
+          toast(prep ? "Programmazione annullata" : "Battuta eliminata");
+        }catch(e){ avvisaErroreAssegnazione(e); }
+      });
   }
 
   var assegnazioni = [];        // quelle della giornata aperta
@@ -10527,6 +10558,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       }
       document.getElementById("m-chiposta").classList.remove("show");
       renderAssegnazioni();
+      if(document.getElementById("v-mappa").classList.contains("active")) renderPoste();
       toast((ospite ? nomeOspite(chiId) : nomeDi(chiId)) + " in " + nomePosta(postaId));
     }catch(e){ avvisaErroreAssegnazione(e); }
   }
@@ -19672,6 +19704,7 @@ function fineA(){
     try{ await segnaleBattute(nuovi);  }catch(e){}
     try{ await segnalePresenze(nuovi); }catch(e){}
     try{ await segnaleCassa(nuovi);    }catch(e){}
+    try{ controllaBattutaGiochi(); }catch(e){}   /* i giochi seguono la battuta in corso, anche dopo un annullamento */
     SEGNALI = nuovi;
     salvaSegnali();
     renderCaselleHome();
