@@ -3475,7 +3475,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.23";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.24";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -20520,13 +20520,21 @@ function fineA(){
          + '</div></span>';
       /* qui NON si creano punti: si crea dalla scheda della mappa, stando sul posto */
       h += '</div>';
+      /* ogni punto: si apre, e chi mappa o gestisce le battute lo modifica (✎)
+         o lo cancella (🗑), come per i punti di ritrovo (sua regola 19/09) */
+      var gestOss = puoMappare() || puoGestireBattute();
       pp.forEach(function(p){
-        h += '<button class="ossriga" data-osspunto="'+p.id+'">'
+        h += '<div class="ossriga" style="padding:0; margin-top:7px; background:none; border:none">'
+           + '<button class="ossriga" data-osspunto="'+p.id+'" style="margin:0; flex:1; min-width:0">'
            + '<span class="em"><img src="'+IMG_VISORE+'" style="width:26px; vertical-align:-6px" alt=""></span>'
            + '<span class="mid"><div class="nm">'+esc(p.nome)+'</div>'
            + '<div class="ds">'+(p.note ? esc(p.note) : "punto di osservazione")
            + (pos && p.lat ? (' \u00b7 '+fmtDist(distM(pos, p))) : '')+'</div></span>'
-           + '<span style="color:var(--muted)">\u203a</span></button>';
+           + (gestOss ? '' : '<span style="color:var(--muted)">\u203a</span>')+'</button>';
+        if(gestOss) h += '<div class="az" style="display:flex; gap:6px; margin-left:6px; flex-shrink:0">'
+           + '<button data-ossmod="'+p.id+'" title="Modifica" style="width:36px; height:36px; border-radius:9px; border:1px solid var(--dark3); background:transparent; color:var(--cream); font-size:15px">\u270e</button>'
+           + '<button data-ossdel="'+p.id+'" title="Cancella" style="width:36px; height:36px; border-radius:9px; border:1px solid var(--dark3); background:transparent; color:var(--cream); font-size:15px">\ud83d\uddd1</button></div>';
+        h += '</div>';
       });
       h += '</div>';
     });
@@ -20553,6 +20561,12 @@ function fineA(){
     root.querySelectorAll("[data-osspunto]").forEach(function(b){
       b.onclick = function(){ apriPuntoOss(b.dataset.osspunto); };
     });
+    root.querySelectorAll("[data-ossmod]").forEach(function(b){
+      b.onclick = function(ev){ ev.stopPropagation(); modificaPuntoOss(b.dataset.ossmod); };
+    });
+    root.querySelectorAll("[data-ossdel]").forEach(function(b){
+      b.onclick = function(ev){ ev.stopPropagation(); cancellaPuntoOss(b.dataset.ossdel); };
+    });
     root.querySelectorAll("[data-avvapri]").forEach(function(b){
       b.onclick = function(){ apriAvvistamento(b.dataset.avvapri); };
     });
@@ -20567,20 +20581,47 @@ function fineA(){
          + " alle "+String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   }
 
-  async function cancellaPuntoOss(id){
+  function puoGestirePuntiOss(){ return !!(puoMappare() || puoGestireBattute()); }
+  /* dopo una modifica si ridisegna la pagina che e' aperta: la sezione
+     Osservazione oppure la scheda della mappa */
+  function ridisegnaDopoPuntoOss(){
+    if(document.getElementById("v-ossnott") && document.getElementById("v-ossnott").classList.contains("active")) renderOsservazioni();
+    else if(document.getElementById("v-areadett").classList.contains("active")) renderSchedaArea();
+  }
+  function modificaPuntoOss(id){
     var p = ossPunti.find(function(x){ return x.id===id; });
-    if(!p || !puoMappare()) return;
+    if(!p || !puoGestirePuntiOss()) return;
+    chiediInSerie([
+      {titolo:"Nome del punto", aiuto:"Come lo chiamate.", tipo:"text", valore:p.nome||""},
+      {titolo:"Cosa si vede da qui", aiuto:"Facoltativo. La posizione non si modifica: se il punto e' da spostare, si cancella e si rifa'.", tipo:"text", valore:p.note||""}
+    ], async function(v){
+      var nome=String(v[0]||"").trim(), note=String(v[1]||"").trim();
+      if(!nome){ toast("Serve un nome"); return; }
+      try{
+        var r = await sb.from("hn_oss_punti").update({nome:nome, note:(note||null)}).eq("id", id).select().single();
+        if(r.error) throw r.error;
+        p.nome=nome; p.note=(note||null); if(r.data) Object.assign(p, r.data);
+        toast("Punto aggiornato");
+      }catch(e){ toast("Non riesco: "+(e.message||e)); return; }
+      ridisegnaDopoPuntoOss();
+    });
+  }
+  function cancellaPuntoOss(id){
+    var p = ossPunti.find(function(x){ return x.id===id; });
+    if(!p || !puoGestirePuntiOss()) return;
     var quanti = avvistamenti.filter(function(a){ return a.punto_id===id; }).length;
-    if(!confirm("Cancellare il punto \u00ab"+p.nome+"\u00bb?\n\n"
+    chiediConferma("Cancellare il punto di osservazione?", p.nome+"\n"
       + (quanti ? ("I "+quanti+" avvistamenti fatti da qui restano nel registro, senza il nome del punto.")
-                : "Non ci sono avvistamenti legati a questo punto."))) return;
-    try{
-      var r = await sb.from("hn_oss_punti").delete().eq("id", id);
-      if(r && r.error) throw r.error;
-      ossPunti = ossPunti.filter(function(x){ return x.id!==id; });
-      toast("Punto cancellato");
-    }catch(e){ toast("Non riesco a cancellarlo"); return; }
-    renderSchedaArea();
+                : "Non ci sono avvistamenti legati a questo punto."), "\ud83d\uddd1 Cancella",
+      async function(){
+        try{
+          var r = await sb.from("hn_oss_punti").delete().eq("id", id);
+          if(r && r.error) throw r.error;
+          ossPunti = ossPunti.filter(function(x){ return x.id!==id; });
+          toast("Punto cancellato");
+        }catch(e){ toast("Non riesco a cancellarlo"); return; }
+        ridisegnaDopoPuntoOss();
+      });
   }
 
   async function nuovoPuntoOss(areaId){
