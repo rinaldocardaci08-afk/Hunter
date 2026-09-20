@@ -407,6 +407,10 @@
     background:rgba(44,36,24,.92); color:var(--cream); font-size:16px; line-height:1;
     backdrop-filter:blur(4px); display:flex; align-items:center; justify-content:center;
     box-shadow:0 2px 6px rgba(0,0,0,.4); padding:0;}
+  #maptools button#mt-indietro{width:48px; height:48px; border-radius:50%;
+    background:var(--gold); border:none; color:#241d13; font-size:22px; font-weight:700;
+    box-shadow:0 2px 7px rgba(0,0,0,.4);}
+  #maptools button#mt-indietro:active{transform:scale(.93);}
   #maptools button.on{background:#4a3320; border-color:var(--gold); color:var(--gold);}
   #maptools button.off{color:#6f665a;}
   #maptools button.azione{background:#4a3560; border-color:#7B5EA7; color:#c9b3e0;}
@@ -662,14 +666,14 @@
   #stbanner #st-annulla{font-size:19px; line-height:1; padding:7px 11px;}
   #stbanner #st-esci{font-size:15px; line-height:1; padding:8px 10px;}
 
-  #srbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
+  #srbanner, #spbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
     background:rgba(58,49,34,.96); border-radius:12px; padding:10px 12px;
     display:none; align-items:center; gap:8px; backdrop-filter:blur(4px);}
-  #srbanner.show{display:flex;}
-  #srbanner .tx{flex:1; min-width:0;}
-  #srbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
-  #srbanner .tx .b{font-size:11px; color:#d9c9a8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
-  #srbanner button{background:rgba(255,255,255,.92); border:none; color:#3a3122;
+  #srbanner.show, #spbanner.show{display:flex;}
+  #srbanner .tx, #spbanner .tx{flex:1; min-width:0;}
+  #srbanner .tx .a, #spbanner .tx .a{font-size:13px; font-weight:600; color:#fff;}
+  #srbanner .tx .b, #spbanner .tx .b{font-size:11px; color:#d9c9a8; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  #srbanner button, #spbanner button{background:rgba(255,255,255,.92); border:none; color:#3a3122;
     border-radius:8px; padding:8px 13px; font-size:13px; font-weight:600; flex-shrink:0;}
 
   #tcbanner{position:absolute; left:10px; right:10px; top:56px; z-index:660;
@@ -821,8 +825,15 @@
   /* barra "torna" nelle sezioni */
   .backbar{flex-shrink:0; display:flex; align-items:center; gap:10px; padding:10px 14px;
     background:var(--dark); border-bottom:1px solid var(--dark2);}
-  .backbar button{background:var(--dark2); border:1px solid var(--dark3); color:var(--cream);
-    border-radius:9px; padding:8px 12px; font-size:14px;}
+  /* TASTO INDIETRO (sua scelta 20/09, variante B): tondo oro da 48 px con la
+     sola freccia dentro, uguale in tutte le pagine. Dove si torna lo dice il
+     titolo accanto: nel tasto non serve ripeterlo. */
+  .backbar button{background:var(--gold); border:none; color:#241d13;
+    width:48px; height:48px; min-width:48px; flex-shrink:0;
+    border-radius:50%; padding:0; font-size:22px; font-weight:700; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 7px rgba(0,0,0,.35);}
+  .backbar button:active{transform:scale(.93);}
   .backbar .ttl{font-size:15px; font-weight:600; color:var(--cream);}
 
   nav.tabs{flex-shrink:0; background:var(--dark); border-top:1px solid var(--dark2);
@@ -1837,7 +1848,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- BACHECA -->
     <section class="view" id="v-bacheca">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Bacheca</div>
       </div>
       <div class="scroll" id="bacheca-scroll"><div class="loading">Carico…</div></div>
@@ -1846,7 +1857,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- LE MIE SCADENZE -->
     <section class="view" id="v-scadenze">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="sc-titolo">Le mie scadenze</div>
       </div>
       <div class="scroll" id="scadenze-scroll"><div class="loading">Carico…</div></div>
@@ -1855,7 +1866,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- LE MIE PRESENZE -->
     <section class="view" id="v-presenze">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="pr-titolo">Le mie presenze</div>
       </div>
       <div class="scroll" id="presenze-scroll"><div class="loading">Carico…</div></div>
@@ -1864,7 +1875,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- SERGENTE MARIO -->
     <section class="view" id="v-sergente">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Sergente Mario</div>
       </div>
       <div class="scroll" id="sergente-scroll"><div class="loading">Carico…</div></div>
@@ -1873,7 +1884,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- CASSA -->
     <section class="view" id="v-cassa">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="cassa-titolo">Cassa</div>
       </div>
       <div class="scroll" id="cassa-scroll"><div class="loading">Carico…</div></div>
@@ -1882,7 +1893,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- IL MURO DELLE MEDAGLIE -->
     <section class="view" id="v-medagliere">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="md-titolo">Medagliere</div>
       </div>
       <div class="scroll" id="medagliere-scroll"><div class="loading">Carico…</div></div>
@@ -1891,7 +1902,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- ASSEGNAZIONE DELLE POSTE -->
     <section class="view" id="v-poste">
       <div class="backbar">
-        <button id="ap-indietro">‹ Giornata</button>
+        <button id="ap-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="ap-titolo">Poste</div>
       </div>
       <div class="scroll" id="poste-scroll"><div class="loading">Carico…</div></div>
@@ -1900,7 +1911,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- SCHEDA DELLA MAPPA -->
     <section class="view" id="v-areadett">
       <div class="backbar">
-        <button id="ad-indietro">‹ Mappe</button>
+        <button id="ad-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="ad-titolo">Mappa</div>
       </div>
       <div class="scroll" id="areadett-scroll"><div class="loading">Carico…</div></div>
@@ -1909,7 +1920,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- AMMINISTRAZIONE -->
     <section class="view" id="v-admin">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Amministrazione</div>
       </div>
       <div class="scroll" id="admin-scroll"><div class="loading">Carico…</div></div>
@@ -1918,7 +1929,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- CLASSIFICA -->
     <section class="view" id="v-classifica">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="cl-titolo">Classifica</div>
       </div>
       <div class="scroll" id="classifica-scroll"><div class="loading">Carico…</div></div>
@@ -1927,7 +1938,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- CASSA · sottosezioni -->
     <section class="view" id="v-cassasub">
       <div class="backbar">
-        <button id="cs-indietro">‹ Cassa</button>
+        <button id="cs-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="cs-titolo">—</div>
       </div>
       <div class="scroll" id="cassasub-scroll"><div class="loading">Carico…</div></div>
@@ -1936,7 +1947,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- BATTUTE · calendario -->
     <section class="view" id="v-battute">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Battute</div>
       </div>
       <div class="scroll" id="battute-scroll"><div class="loading">Carico…</div></div>
@@ -1945,7 +1956,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- GIORNATA · pagina piena -->
     <section class="view" id="v-giornata">
       <div class="backbar">
-        <button id="gi-indietro">‹ Battute</button>
+        <button id="gi-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="gi-titolo">Giornata</div>
       </div>
       <div class="scroll" id="giornata-scroll"><div class="loading">Carico…</div></div>
@@ -1954,7 +1965,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- SQUADRA -->
     <section class="view" id="v-squadra">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Squadra</div>
       </div>
       <div class="scroll" id="squadra-scroll"><div class="loading">Carico…</div></div>
@@ -1963,7 +1974,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- NUOVO / MODIFICA MEMBRO (pagina piena) -->
     <section class="view" id="v-membro">
       <div class="backbar">
-        <button id="mb-indietro">‹ Squadra</button>
+        <button id="mb-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="mb-titolo">Nuovo componente</div>
       </div>
       <div class="scroll">
@@ -2126,7 +2137,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       <!-- comandi della mappa: indietro, modifica, sezioni, linee -->
       <div id="miapostabar"></div>
       <div id="maptools">
-        <button id="mt-indietro" title="Indietro" aria-label="Indietro">‹</button>
+        <button id="mt-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <button id="mt-modifica" title="Modifica la mappa" aria-label="Modifica">✎</button>
         <div class="sep"></div>
         <button id="mt-sez" title="Sezioni" aria-label="Mostra o nascondi le sezioni">▦</button>
@@ -2164,6 +2175,15 @@ header .menubtn{min-width:48px; min-height:48px;}
       </div>
 
       <!-- barra SEGNO A MEMORIA DOVE HO VISTO -->
+      <!-- barra SPOSTA LA POSTA: tocca sulla mappa il punto giusto -->
+      <div id="spbanner">
+        <div class="tx">
+          <div class="a" id="sp-ban-a">Dove va spostata?</div>
+          <div class="b">tocca sulla mappa il punto giusto</div>
+        </div>
+        <button id="sp-ban-no">Annulla</button>
+      </div>
+
       <div id="srbanner">
         <div class="tx">
           <div class="a">Dove hai visto passare?</div>
@@ -2243,7 +2263,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- AREE -->
     <section class="view" id="v-aree">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Mappe e poste</div>
       </div>
       <div class="scroll" id="aree-scroll"><div class="loading">Carico le aree…</div></div>
@@ -2254,7 +2274,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- GIOCHI -->
     <section class="view" id="v-giochi">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Giochi</div>
       </div>
       <div class="scroll">
@@ -2280,7 +2300,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- LA MAPPA DELLA GIORNATA: anteprima e tracciate solo di questa mappa -->
     <section class="view" id="v-giomappa">
       <div class="backbar">
-        <button id="gm-indietro">‹ Giornata</button>
+        <button id="gm-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="gm-titolo">Mappa</div>
       </div>
       <div class="scroll" id="giomappa-scroll"></div>
@@ -2290,7 +2310,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <!-- OSSERVAZIONI NOTTURNE -->
     <section class="view" id="v-ossnott">
       <div class="backbar">
-        <button data-home>&lsaquo; Indietro</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Osservazioni notturne</div>
       </div>
       <div class="scroll" id="oss-scroll"><div class="loading">Carico…</div></div>
@@ -2298,7 +2318,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     <section class="view" id="v-info">
       <div class="backbar">
-        <button data-home>‹ Home</button>
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Guida</div>
       </div>
       <div class="scroll">
@@ -2942,6 +2962,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     <div class="btnrow" style="margin-bottom:8px">
       <button class="btn line" id="mp-numero">🔢 Cambia numero</button>
     </div>
+    <!-- spostare e togliere una posta: solo chi puo' mappare (20/09) -->
+    <div class="btnrow" id="mp-riga-mod" style="margin-bottom:8px; display:none">
+      <button class="btn line" id="mp-sposta">↔️ Sposta la posta</button>
+      <button class="btn line" id="mp-cancella" style="border-color:#C0392B; color:#e07a6a">🗑 Cancella</button>
+    </div>
     <div class="btnrow">
       <button class="btn line" id="mp-modifica">✎ Modifica note</button>
       <button class="btn line" id="mp-vista" style="background:#1d3a5a; border-color:#2a4d6e; color:#9fc8ed;">👁 Vista postaiolo</button>
@@ -2981,6 +3006,34 @@ header .menubtn{min-width:48px; min-height:48px;}
       <button class="btn primary" id="m-np-salva">Salva</button>
     </div>
     <button class="btn line" id="m-np-togli" style="margin-top:8px">Lascia senza numero</button>
+  </div>
+</div>
+
+<!-- MODALE: sposta la posta (tre modi) -->
+<div class="modal" id="m-spostaposta">
+  <div class="sheet">
+    <h3 id="sp-titolo">Sposta la posta</h3>
+    <p class="hint" id="sp-sotto">—</p>
+
+    <button class="btn line" id="sp-mappa" style="text-align:left; line-height:1.4">
+      🗺️ <b>Tocca il punto sulla mappa</b>
+      <span style="display:block; font-size:11px; color:var(--muted)">la sposti dal satellite: resta « da verificare » finché qualcuno non ci passa</span>
+    </button>
+    <button class="btn line" id="sp-gps" style="margin-top:8px; text-align:left; line-height:1.4">
+      📍 <b>Sono qui: prendi il mio GPS</b>
+      <span style="display:block; font-size:11px; color:var(--muted)" id="sp-gps-sub">la posizione vera del terreno</span>
+    </button>
+
+    <label>Coordinate mandate da chi è sul posto</label>
+    <input id="sp-coord" type="text" autocomplete="off" placeholder="38.610841, 16.096708">
+    <div id="sp-coord-msg" style="font-size:11.5px; color:var(--muted); line-height:1.5; margin-top:6px">
+      Vanno bene anche un link di Google Maps o i gradi (38°36‹45.4″N 16°05‹48.1″E).
+    </div>
+    <button class="btn primary" id="sp-coord-ok" style="margin-top:9px">Sposta su queste coordinate</button>
+
+    <div class="btnrow" style="margin-top:13px">
+      <button class="btn line" id="sp-annulla">Annulla</button>
+    </div>
   </div>
 </div>
 
@@ -3513,7 +3566,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.29";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.31";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3906,7 +3959,9 @@ header .menubtn{min-width:48px; min-height:48px;}
       try{
         rp=await sb.from("hn_poste").select("*").in("area_id",ids).order("numero",{ascending:true});
         if(rp.error) throw rp.error;
-        var poste=rp.data||[];
+        /* le poste archiviate restano nel database per lo storico, ma
+           spariscono da mappa ed elenchi */
+        var poste=(rp.data||[]).filter(function(p){ return !p.archiviata_il; });
         aree.forEach(function(a){ a.poste=poste.filter(function(p){return p.area_id===a.id;}); });
       }catch(e2){
         toast("Errore nel caricare le poste");
@@ -4127,36 +4182,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     else
       toast("Salvata sul telefono: "+nome+" · il database non l'ha accettata, riproverò");
   }
-  async function eliminaPosta(areaId, postaId){
-    if(!puoMappare()){ toast("Non hai il permesso"); return; }
-    var a=aree.find(function(x){return x.id===areaId;}); if(!a) return;
-    var p=a.poste.find(function(x){return x.id===postaId;});
-    if(!confirm('Eliminare "'+(p?p.nome:"la posta")+'"?')) return;
-
-    // se è ancora in coda (non caricata), la tolgo solo dalla coda
-    if(p && p.in_coda){
-      var c=leggiCoda().filter(function(x){return x.id!==postaId;});
-      scriviCoda(c);
-      a.poste=a.poste.filter(function(x){return x.id!==postaId;});
-      salvaCacheAree();
-      schemaReset(); schemaGeo=null;
-      renderAree(); refreshMapArea();
-      toast("Posta eliminata");
-      return;
-    }
-
-    try{
-      var r=await sb.from("hn_poste").delete().eq("id",postaId);
-      if(r.error) throw r.error;
-    }catch(e){
-      toast("Serve la rete per eliminare una posta salvata");
-      return;
-    }
-    a.poste=a.poste.filter(function(x){return x.id!==postaId;});
-    salvaCacheAree();
-    schemaReset(); schemaGeo=null;
-    renderAree(); refreshMapArea();
-    toast("Posta eliminata");
+  /* la vecchia eliminaPosta passa dalla finestra nuova: niente confirm() */
+  function eliminaPosta(areaId, postaId){
+    var a = aree.find(function(x){ return x.id===areaId; });
+    var p = a ? (a.poste||[]).find(function(x){ return x.id===postaId; }) : null;
+    if(!p) return;
+    postaAperta = p;
+    chiediCancellaPosta();
   }
   /* CANCELLAZIONE DI UNA MAPPA: solo dall'elenco Mappe, solo admin e capocaccia,
      sempre con la finestra di conferma (chiediCancellaMappa) e mai con confirm(). */
@@ -4405,6 +4437,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     // il tocco sulla mappa serve SOLO mentre si sceglie un punto di ritrovo:
     // fuori da quella modalita' non fa assolutamente nulla
     map.on("click", function(e){
+      if(spostaSel){ toccatoSpostaPosta(e.latlng.lat, e.latlng.lng); return; }
       if(disegnoSettore){ toccatoAngoloSettore(e.latlng.lat, e.latlng.lng); return; }
       if(disegnoTraccia){ aggiungiPuntoTraccia(e.latlng.lat, e.latlng.lng); return; }
       if(segnRemota){ toccatoPuntoRemoto(e.latlng.lat, e.latlng.lng); return; }
@@ -4613,6 +4646,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       m.on("click", function(){
         // mentre sto lavorando sulla mappa la scheda della posta non deve
         // saltare fuori: intralcia il lavoro
+        if(spostaSel){ toccatoSpostaPosta(p.lat, p.lng); return; }
         if(disegnoSettore){ toccataPostaPerSettore(p); return; }
         if(disegnoTraccia){ aggiungiPuntoTraccia(p.lat, p.lng); return; }
         if(segnRemota){ toccatoPuntoRemoto(p.lat, p.lng); return; }
@@ -5323,6 +5357,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
     if(typeof disegnoTraccia!=="undefined" && disegnoTraccia && v!=="mappa") chiudiDisegnoTraccia();
     if(typeof segnRemota!=="undefined" && segnRemota && v!=="mappa") chiudiSegnRemota();
+    if(typeof spostaSel!=="undefined" && spostaSel && v!=="mappa") chiudiSposta();
     if(typeof sezioneAnteprima!=="undefined" && sezioneAnteprima && v!=="mappa"){
       sezioneAnteprima = null;
       var szb = document.getElementById("szbanner");
@@ -5616,6 +5651,278 @@ header .menubtn{min-width:48px; min-height:48px;}
     renderPoste(); renderSchedaArea();
   }
 
+
+  /* ================= SPOSTARE E TOGLIERE UNA POSTA (20/09) =================
+     Tre modi per spostarla: toccando la mappa, col GPS stando sul posto, o
+     incollando le coordinate che manda un cacciatore arrivato sul terreno.
+     Il cestino: se la posta non e' mai stata usata in una battuta la cancello
+     davvero; se e' gia' stata assegnata la ARCHIVIO (sparisce da mappa ed
+     elenchi, i dati delle battute passate restano). I numeri successivi
+     scalano di uno, cosi' il giro resta in sequenza. */
+
+  var spostaSel = null;      // la posta che sto spostando toccando la mappa
+
+  function areaDellaPosta(p){
+    if(!p) return null;
+    return aree.find(function(a){ return (a.poste||[]).some(function(q){ return q.id===p.id; }); }) || areaAttiva();
+  }
+
+  /* legge le coordinate scritte in qualunque modo: decimali col punto o con la
+     virgola, link di Google Maps, gradi-primi-secondi. Nome diverso da
+     leggiCoordinate(), che gia' esiste e serve alla ricerca di un luogo. */
+  function leggiCoordPosta(txt){
+    var s = String(txt||"").trim();
+    if(!s) return null;
+    if(/goo\.gl|maps\.app/i.test(s) && !/-?\d+\.\d{3}/.test(s)) return {corto:true};
+    var g = s.match(/@(-?\d+\.\d+),\s*(-?\d+\.\d+)/);
+    if(g) return coordValide(parseFloat(g[1]), parseFloat(g[2]));
+    var q = s.match(/[?&](?:q|ll|daddr|destination)=(-?\d+\.\d+),\s*(-?\d+\.\d+)/i);
+    if(q) return coordValide(parseFloat(q[1]), parseFloat(q[2]));
+    var d = s.match(/(\d+)\s*[\u00b0d]\s*(\d+)\s*['\u2019\u2032]\s*([\d.,]+)\s*["\u201d\u2033]?\s*([NSns])[\s,;]+(\d+)\s*[\u00b0d]\s*(\d+)\s*['\u2019\u2032]\s*([\d.,]+)\s*["\u201d\u2033]?\s*([EWOewo])/);
+    if(d){
+      var la = (+d[1]) + (+d[2])/60 + parseFloat(String(d[3]).replace(",","."))/3600;
+      var lo = (+d[5]) + (+d[6])/60 + parseFloat(String(d[7]).replace(",","."))/3600;
+      if(/[Ss]/.test(d[4])) la = -la;
+      if(/[Ww]/.test(d[8])) lo = -lo;
+      return coordValide(la, lo);
+    }
+    var n = s.replace(/[^\d.,\-\s]/g, " ");
+    var m = n.match(/(-?\d+\.\d+)[^\d\-]+(-?\d+\.\d+)/);
+    if(m) return coordValide(parseFloat(m[1]), parseFloat(m[2]));
+    var m2 = n.match(/(-?\d+,\d+)[^\d\-]+(-?\d+,\d+)/);
+    if(m2) return coordValide(parseFloat(m2[1].replace(",",".")), parseFloat(m2[2].replace(",",".")));
+    var v = leggiCoordinate(s);            /* ultima spiaggia: quella della ricerca */
+    return v ? coordValide(v.lat, v.lng) : null;
+  }
+  function coordValide(lat,lng){
+    if(!isFinite(lat) || !isFinite(lng)) return null;
+    if(Math.abs(lat)>90 || Math.abs(lng)>180) return null;
+    return {lat:lat, lng:lng};
+  }
+
+  function apriSpostaPosta(){
+    var p = postaAperta;
+    if(!p){ return; }
+    if(!puoMappare()){ toast("Non hai il permesso di modificare le mappe"); return; }
+    var a = areaDellaPosta(p);
+    document.getElementById("sp-titolo").textContent = "Sposta la posta " + (p.numero||"?");
+    document.getElementById("sp-sotto").textContent =
+      (p.nome||"Posta") + (a ? " \u00b7 " + a.nome : "") + " \u00b7 adesso a " + Number(p.lat).toFixed(6) + ", " + Number(p.lng).toFixed(6);
+    document.getElementById("sp-gps-sub").textContent = pos
+      ? ("la tua posizione adesso \u00b7 \u00b1" + Math.round(pos.acc) + " m \u00b7 a " + Math.round(distM(pos, p)) + " m da questa posta")
+      : "aspetto il segnale GPS\u2026";
+    var inp = document.getElementById("sp-coord");
+    inp.value = "";
+    mostraAnteprimaCoord();
+    document.getElementById("m-spostaposta").classList.add("show");
+  }
+
+  function mostraAnteprimaCoord(){
+    var p = postaAperta;
+    var box = document.getElementById("sp-coord-msg");
+    var v = document.getElementById("sp-coord").value;
+    if(!String(v).trim()){
+      box.style.color = "var(--muted)";
+      box.innerHTML = "Vanno bene anche un link di Google Maps o i gradi (38\u00b036\u203945.4\u2033N 16\u00b005\u203948.1\u2033E).";
+      return;
+    }
+    var c = leggiCoordPosta(v);
+    if(c && c.corto){
+      box.style.color = "#e0a96a";
+      box.textContent = "Questo \u00e8 un link corto: non contiene i numeri. Aprilo, poi copia le coordinate.";
+      return;
+    }
+    if(!c){
+      box.style.color = "#e0a96a";
+      box.textContent = "Non ci leggo delle coordinate.";
+      return;
+    }
+    var d = p ? Math.round(distM(p, c)) : null;
+    box.style.color = (d!==null && d>3000) ? "#e07a6a" : "#7be0a8";
+    box.textContent = c.lat.toFixed(6) + ", " + c.lng.toFixed(6)
+      + (d!==null ? (" \u00b7 " + (d>=1000 ? (d/1000).toFixed(1)+" km" : d+" m") + " da dov'\u00e8 adesso") : "")
+      + ((d!==null && d>3000) ? " \u2014 sicuro? \u00e8 un altro terreno" : "");
+  }
+
+  /* 1) toccando la mappa */
+  function iniziaSpostaSuMappa(){
+    var p = postaAperta;
+    if(!p) return;
+    document.getElementById("m-spostaposta").classList.remove("show");
+    document.getElementById("m-posta-info").classList.remove("show");
+    spostaSel = p;
+    var a = areaDellaPosta(p);
+    document.getElementById("sp-ban-a").textContent = "Dove va la posta " + (p.numero||"?") + "?";
+    document.getElementById("spbanner").classList.add("show");
+    if(a) apriAreaInLaboratorio(a.id);
+    else showView("mappa");
+    setTimeout(function(){
+      try{ if(map && isFinite(p.lat) && isFinite(p.lng)) map.setView([p.lat, p.lng], 19); }catch(e){}
+    }, 300);
+    toast("Tocca sulla mappa il punto giusto");
+  }
+  function chiudiSposta(){
+    spostaSel = null;
+    var b = document.getElementById("spbanner");
+    if(b) b.classList.remove("show");
+  }
+  function toccatoSpostaPosta(lat, lng){
+    var p = spostaSel;
+    if(!p) return;
+    var d = Math.round(distM(p, {lat:lat, lng:lng}));
+    chiediConferma("Sposto la posta " + (p.numero||"?") + "?",
+      (p.nome||"Posta") + "\n" + (d>=1000 ? (d/1000).toFixed(1)+" km" : d+" m") + " pi\u00f9 in l\u00e0.\nMessa da mappa: resta \u00abda verificare\u00bb finch\u00e9 qualcuno non ci passa sopra.",
+      "Sposta qui",
+      function(){ salvaSpostaPosta(p, lat, lng, "mappa"); chiudiSposta(); });
+  }
+
+  /* 2) col GPS, stando sul posto */
+  function spostaColGps(){
+    var p = postaAperta;
+    if(!p) return;
+    if(!pos){ toast("Aspetto il segnale GPS\u2026"); serveGPS("posta"); return; }
+    var d = Math.round(distM(p, pos));
+    chiediConferma("Sposto la posta " + (p.numero||"?") + " dove sei?",
+      (p.nome||"Posta") + "\n" + d + " m da dov'\u00e8 segnata adesso \u00b7 GPS \u00b1" + Math.round(pos.acc) + " m"
+      + (pos.acc > 25 ? "\n\nIl segnale \u00e8 debole: aspetta che scenda sotto i 25 m se puoi." : ""),
+      "\ud83d\udccd Sposta qui",
+      function(){
+        document.getElementById("m-spostaposta").classList.remove("show");
+        salvaSpostaPosta(p, pos.lat, pos.lng, "gps");
+      });
+  }
+
+  /* 3) con le coordinate mandate da chi e' sul posto */
+  function spostaDaIncollate(){
+    var p = postaAperta;
+    if(!p) return;
+    var c = leggiCoordPosta(document.getElementById("sp-coord").value);
+    if(!c || c.corto){ toast(c && c.corto ? "Il link corto non contiene le coordinate" : "Non ci leggo delle coordinate"); return; }
+    var d = Math.round(distM(p, c));
+    chiediConferma("Sposto la posta " + (p.numero||"?") + "?",
+      (p.nome||"Posta") + "\n" + c.lat.toFixed(6) + ", " + c.lng.toFixed(6) + "\n"
+      + (d>=1000 ? (d/1000).toFixed(1)+" km" : d+" m") + " da dov'\u00e8 adesso."
+      + (d>3000 ? "\n\n\u00c8 lontanissima: controlla di aver copiato le coordinate giuste." : ""),
+      "Sposta qui",
+      function(){
+        document.getElementById("m-spostaposta").classList.remove("show");
+        salvaSpostaPosta(p, c.lat, c.lng, "incollate");
+      });
+  }
+
+  async function salvaSpostaPosta(p, lat, lng, modo){
+    if(!p) return;
+    if(String(p.id).indexOf("coda_") === 0){ toast("Questa posta non \u00e8 ancora salita sul database: aspetta la rete"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per spostare una posta"); return; }
+    var d = Math.round(distM(p, {lat:lat, lng:lng}));
+    var dati = {lat:lat, lng:lng};
+    if(modo === "gps"){ dati.accuratezza = Math.round(pos.acc); dati.da_verificare = false; }
+    else if(modo === "incollate"){ dati.accuratezza = null; dati.da_verificare = false; }
+    else { dati.accuratezza = null; dati.da_verificare = true; }
+    try{
+      var r = await sb.from("hn_poste").update(dati).eq("id", p.id).select().single();
+      if(r.error) throw r.error;
+      var a = areaDellaPosta(p);
+      if(a){
+        var k = (a.poste||[]).findIndex(function(x){ return x.id===p.id; });
+        if(k>=0) a.poste[k] = r.data;
+      }
+      postaAperta = r.data;
+      salvaCacheAree();
+      schemaReset(); schemaGeo = null;
+      renderPoste(); renderAree(); renderSchedaArea(); refreshMapArea();
+      var cv = document.getElementById("mp-schema");
+      if(cv) cv.__posta = r.data;
+      toast("Posta spostata di " + (d>=1000 ? (d/1000).toFixed(1)+" km" : d+" m"));
+    }catch(e){ toast("Non riesco a salvare: " + (e.message||e)); }
+  }
+
+  /* IL CESTINO: cancella o archivia, decide l'app guardando lo storico */
+  async function chiediCancellaPosta(){
+    var p = postaAperta;
+    if(!p) return;
+    if(!puoMappare()){ toast("Non hai il permesso di modificare le mappe"); return; }
+    var a = areaDellaPosta(p);
+    var nome = (p.nome || ("Posta " + (p.numero||"?")));
+    /* non ancora salita sul database: la tolgo solo dalla coda del telefono */
+    if(p.in_coda || String(p.id).indexOf("coda_") === 0){
+      chiediConferma("Cancellare la posta?", nome + "\n\u00c8 ancora sul telefono, non \u00e8 mai salita sul database.", "\ud83d\uddd1 Cancella",
+        function(){
+          scriviCoda(leggiCoda().filter(function(x){ return x.id !== p.id; }));
+          if(a) a.poste = a.poste.filter(function(x){ return x.id !== p.id; });
+          salvaCacheAree(); schemaReset(); schemaGeo = null;
+          document.getElementById("m-posta-info").classList.remove("show");
+          renderPoste(); renderAree(); renderSchedaArea(); refreshMapArea();
+          toast("Posta cancellata");
+        });
+      return;
+    }
+    if(!navigator.onLine){ toast("Serve la rete per togliere una posta"); return; }
+    var usi = 0;
+    try{
+      var r = await sb.from("hn_assegnazioni").select("id").eq("posta_id", p.id);
+      if(r.error) throw r.error;
+      usi = (r.data||[]).length;
+    }catch(e){ toast("Non riesco a controllare lo storico: riprova"); return; }
+    var num = parseInt(p.numero,10);
+    var dopo = a ? (a.poste||[]).filter(function(x){ return parseInt(x.numero,10) > num; }).length : 0;
+    var coda = dopo ? ("\n\nLe " + dopo + " poste con un numero pi\u00f9 alto scalano di uno.") : "";
+    if(usi > 0){
+      chiediConferma("Archiviare la posta " + (p.numero||"?") + "?",
+        nome + "\n\u00c8 gi\u00e0 stata assegnata " + usi + " volt" + (usi===1?"a":"e") + " in battute fatte.\n"
+        + "La tolgo dalla mappa e dagli elenchi, ma resta nei dati dello storico." + coda,
+        "\ud83d\udce6 Archivia",
+        function(){ eseguiTogliPosta(p, a, num, true); });
+    }else{
+      chiediConferma("Cancellare la posta " + (p.numero||"?") + "?",
+        nome + "\nNon \u00e8 mai stata usata in una battuta: la cancello del tutto." + coda,
+        "\ud83d\uddd1 Cancella",
+        function(){ eseguiTogliPosta(p, a, num, false); });
+    }
+  }
+
+  async function eseguiTogliPosta(p, a, num, archivia){
+    try{
+      if(archivia){
+        var r = await sb.from("hn_poste").update({archiviata_il: new Date().toISOString()}).eq("id", p.id);
+        if(r.error) throw r.error;
+      }else{
+        var r2 = await sb.from("hn_poste").delete().eq("id", p.id);
+        if(r2.error) throw r2.error;
+      }
+    }catch(e){
+      var m = String(e.message||e);
+      if(/archiviata_il/.test(m)) toast("Manca la colonna archiviata_il: lancia l'SQL su Supabase");
+      else toast("Non riesco: " + m);
+      return;
+    }
+    if(a) a.poste = a.poste.filter(function(x){ return x.id !== p.id; });
+    document.getElementById("m-posta-info").classList.remove("show");
+    postaAperta = null;
+    toast(archivia ? "Posta archiviata \u00b7 lo storico resta" : "Posta cancellata");
+    if(a && !isNaN(num)) await rinumeraDopoRimozione(a, num);
+    salvaCacheAree();
+    schemaReset(); schemaGeo = null;
+    renderPoste(); renderAree(); renderSchedaArea(); refreshMapArea();
+  }
+
+  /* chiude il buco: chi veniva dopo scala di uno, il giro resta in fila */
+  async function rinumeraDopoRimozione(a, num){
+    var da = (a.poste||[]).filter(function(p){
+      return parseInt(p.numero,10) > num && String(p.id).indexOf("coda_") !== 0;
+    }).sort(function(x,y){ return parseInt(x.numero,10) - parseInt(y.numero,10); });
+    if(!da.length) return;
+    for(var i=0; i<da.length; i++){
+      var q = da[i], n = parseInt(q.numero,10) - 1;
+      try{
+        var r = await sb.from("hn_poste").update({numero:n}).eq("id", q.id);
+        if(r.error) throw r.error;
+        q.numero = n;
+      }catch(e){ toast("Rinumerazione interrotta: controlla i numeri della mappa"); return; }
+    }
+    toast(da.length + (da.length===1 ? " posta rinumerata" : " poste rinumerate"));
+  }
+
   function apriSchedaPosta(p){
     var a=areaAttiva(); if(!a) return;
     postaAperta=p;
@@ -5645,6 +5952,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("mp-coord").style.display="flex";
     }else{ document.getElementById("mp-coord").style.display="none"; }
     document.getElementById("mp-dati").style.display = vedeComeCapo() ? "block" : "none";
+    document.getElementById("mp-riga-mod").style.display = puoMappare() ? "flex" : "none";
     var cv0=document.getElementById("mp-schema"); if(cv0) cv0.__posta=p;   /* subito: i tasti Dati e coordinate lo usano */
     document.getElementById("m-posta-info").classList.add("show");
     miniReset("mp-schema");
@@ -8147,11 +8455,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(inCorsoQ && !conclusa){
         var arQ = aree.find(function(x){ return x.id === inCorsoQ.area_id; });
         var cpQ = coperturaBattuta(inCorsoQ);
-        var daQ = inCorsoQ.aperta_il || inCorsoQ.creata_il || inCorsoQ.created_at;
+        var partitaQ = svoltaPartita(inCorsoQ);
+        var daQ = partitaQ ? inCorsoQ.aperta_il : (inCorsoQ.creata_il || inCorsoQ.created_at);
         var minQ = daQ ? Math.round((Date.now() - new Date(daQ))/60000) : 0;
         var capiQ = capiDiSvolta(inCorsoQ, gioUccisioni());
         var trIn = tracciate.filter(function(x){ return x.area_id===inCorsoQ.area_id && !x.chiusa_il; }).length;
-        var preparata = !inCorsoQ.aperta_il;
+        var preparata = !partitaQ;
         /* chi era in posta ma non e' presente (o non e' piu' prenotato) */
         var mancanti = (assegnazioni||[]).filter(function(x){ return x.battuta_svolta_id===inCorsoQ.id && x.posta_id && !presenteOra(x.membro_id, x.ospite_id); });
         h+='<div class="sechead" style="color:var(--gold)">'+(preparata?(prima?'Battuta preparata':'Battuta preparata \u00b7 da far partire'):'Battuta in corso')+'</div>';
@@ -8160,6 +8469,11 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<div style="font-size:11.5px; color:var(--muted); margin:4px 0 10px">'
           +(inCorsoQ.numero?inCorsoQ.numero+'\u00aa battuta \u00b7 ':'')
           +(preparata ? (prima?'poste sui prenotati':'ancora ferma') : ((daQ?'dalle '+oraCorta(daQ):'')+(minQ>0?' \u00b7 '+durataTesto(minQ):'')))+'</div>';
+        /* sua regola 20/09: dire chiaro che la programmazione e' gia' salvata */
+        if(preparata){
+          h+='<div style="background:#2f2818; border-radius:10px; padding:8px 10px; margin-bottom:10px; font-size:12px; color:#d9c9a8; line-height:1.5">'
+            +'\u2713 Le poste restano salvate: la mattina premi <b>\u25b6 Parte la battuta</b>.</div>';
+        }
         if(mancanti.length){
           h+='<div style="background:linear-gradient(100deg,#6E1F14,#3E120C); border:1px solid #C0392B66; border-left:6px solid #E04A34; border-radius:11px; padding:9px 11px; margin-bottom:10px">';
           h+='<div style="font-size:11px; color:#E8BDB5; letter-spacing:.5px; margin-bottom:4px">\u26a0\ufe0f '+(prima?'NON PI\u00d9 PRENOTAT'+(mancanti.length===1?'O':'I'):'PRENOTAT'+(mancanti.length===1?'O':'I')+' MA NON PRESENT'+(mancanti.length===1?'E':'I'))+'</div>';
@@ -8201,13 +8515,13 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='<div class="card" data-bsapri="'+bs.id+'" style="margin-bottom:7px; cursor:pointer'
             +(viva?'; border:1px solid var(--gold)':'')+'">';
           h+='<div style="display:flex; align-items:center; gap:10px">';
-          h+='<span style="font-size:17px">'+(viva?(bs.aperta_il?'\u23f1':'\ud83d\udcdd'):'\u2713')+'</span>';
+          h+='<span style="font-size:17px">'+(viva?(svoltaPartita(bs)?'\u23f1':'\ud83d\udcdd'):'\u2713')+'</span>';
           h+='<div style="flex:1; min-width:0">';
           h+='<div style="font-size:13.5px; color:var(--cream); font-weight:600">'
             +(bs.numero?bs.numero+'ª · ':'')+esc(arB?arB.nome:'mappa')+'</div>';
           var capiBs = capiDiSvolta(bs, gioUccisioni()), minBs = minutiSvolta(bs);
           h+='<div style="font-size:10.5px; color:var(--muted)">'
-            +(viva?(bs.aperta_il?'in corso':'preparata, non ancora partita'):('chiusa'+(bs.chiusa_il?' alle '+oraCorta(bs.chiusa_il):'')+(minBs?' \u00b7 '+durataTesto(minBs):'')))
+            +(viva?(svoltaPartita(bs)?'in corso':'preparata, non ancora partita'):('chiusa'+(bs.chiusa_il?' alle '+oraCorta(bs.chiusa_il):'')+(minBs?' \u00b7 '+durataTesto(minBs):'')))
             +(viva?'':' \u00b7 <span style="color:var(--gold)">'+capiBs+' cap'+(capiBs===1?'o':'i')+'</span>')
             +' \u00b7 '+inc+' incaric'+(inc===1?'o':'hi')
             +' \u00b7 '+cp.perc+'% delle poste</div>';
@@ -9823,11 +10137,22 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* IN CORSO = partita e non chiusa. Una battuta PREPARATA (poste messe la sera
      prima, mai partita) NON e' in corso: i giochi restano aperti, i cacciatori
      non vedono la posta, niente registrazioni. Parte con "Parte la battuta". */
+  /* PARTITA DAVVERO: non basta che aperta_il sia valorizzato. Una battuta
+     "aperta" la sera prima (o nata aperta prima che esistesse Prepara) vale
+     come PREPARATA: conta solo se e' partita nel giorno della sua giornata. */
+  function svoltaPartita(x){
+    if(!x || !x.aperta_il) return false;
+    var g = giornataAperta && giornataAperta.data ? String(giornataAperta.data).slice(0,10) : null;
+    if(!g) return true;
+    var d;
+    try{ d = iso(new Date(x.aperta_il)); }catch(e){ return true; }
+    return d >= g;
+  }
   function battutaInCorso(){
-    return battuteSvolte.find(function(x){ return !x.chiusa_il && x.aperta_il; }) || null;
+    return battuteSvolte.find(function(x){ return !x.chiusa_il && svoltaPartita(x); }) || null;
   }
   function battutaPreparata(){
-    return battuteSvolte.find(function(x){ return !x.chiusa_il && !x.aperta_il; }) || null;
+    return battuteSvolte.find(function(x){ return !x.chiusa_il && !svoltaPartita(x); }) || null;
   }
   /* PRIMA DEL GIORNO la battuta si PREPARA (sua regola 19/09): si mettono in
      posta i prenotati, e la mattina l'app dice chi manca. */
@@ -9849,7 +10174,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!giornataAperta || !puoGestireBattute()) return;
     var inCorso = battutaInCorso() || battutaPreparata();
     if(inCorso){
-      toast("C'\u00e8 gi\u00e0 la battuta su "+nomeBattuta(inCorso)+(inCorso.aperta_il?" in corso":" preparata")+": chiudila prima di aprirne un'altra");
+      toast("C'\u00e8 gi\u00e0 la battuta su "+nomeBattuta(inCorso)+(svoltaPartita(inCorso)?" in corso":" preparata")+": chiudila prima di aprirne un'altra");
       return;
     }
     var cand = (giornataAperta.aree_segnalate || []);
@@ -9875,7 +10200,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
     var gia = battutaInCorso() || battutaPreparata();
     if(gia){
-      toast("C'\u00e8 gi\u00e0 una battuta "+(gia.aperta_il?"aperta":"preparata")+": chiudila prima");
+      toast("C'\u00e8 gi\u00e0 una battuta "+(svoltaPartita(gia)?"aperta":"preparata")+": chiudila prima");
       return;
     }
     var a = aree.find(function(x){ return x.id === areaId; });
@@ -9952,7 +10277,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!navigator.onLine){ toast("Serve la rete"); return; }
     try{
       var chiusura = {chiusa_il:new Date().toISOString()};
-      if(!bs.aperta_il) chiusura.aperta_il = chiusura.chiusa_il;
+      if(!svoltaPartita(bs)) chiusura.aperta_il = chiusura.chiusa_il;
       var r = await sb.from("hn_battute_svolte")
                 .update(chiusura).eq("id", id).select().single();
       if(r.error) throw r.error;
@@ -9969,7 +10294,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   function eliminaBattutaSvolta(id){
     var bs = battutaSvoltaDi(id);
     if(!bs || !puoGestireBattute()) return;
-    var prep = !bs.aperta_il;
+    var prep = !svoltaPartita(bs);
     var na = assegnazioni.filter(function(x){ return x.battuta_svolta_id === id; }).length;
     chiediConferma(prep ? "Annullare la programmazione?" : "Eliminare questa battuta?",
       (prep ? "Le poste preparate (" + na + ") si cancellano. La mappa resta candidata: potrai ripreparare o aprire la battuta quando vuoi." : "Spariscono anche le sue assegnazioni. Serve solo se l'hai aperta per sbaglio."),
@@ -10251,13 +10576,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     var senza = daMettereInPosta().filter(function(x){
       return !mieAss.some(function(y){ return y.membro_id === x.membro_id; }); });
     var chiusa = !!bs.chiusa_il;
+    var prepQ = !chiusa && !svoltaPartita(bs);   /* solo programmata: non e' partita */
     var h = "";
 
     var soloVice = !puoGestireBattute();
     h += '<div class="card" style="margin-bottom:12px">';
     h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">'
        + (bs.numero ? bs.numero+'ª battuta di oggi' : 'battuta')
-       + (chiusa ? ' \u00b7 <span style="color:#7be0a8">chiusa</span>' : ' \u00b7 in corso')
+       + (chiusa ? ' \u00b7 <span style="color:#7be0a8">chiusa</span>' : (prepQ ? ' \u00b7 <span style="color:var(--gold)">preparata</span>' : ' \u00b7 in corso'))
        + (soloVice ? ' \u00b7 <span style="color:#c9b3e0">il tuo tratto</span>' : '')+'</div>';
     h += '<div style="display:flex; align-items:baseline; gap:9px">';
     h += '<span style="font-size:26px; font-weight:700; color:'+coloreCopertura(cop.perc)+'">'+cop.perc+'%</span>';
@@ -10285,7 +10611,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<button class="btn line" id="ap-ruoli" style="font-size:12px; padding:9px">🐕 Battitori e canai</button>';
     }
     h += '</div>';
-    if(!chiusa && puoGestireBattute()){
+    if(!chiusa && puoGestireBattute() && prepQ){
+      /* sua regola 20/09: la programmazione si salva da sola a ogni tocco,
+         non c'e' niente da chiudere. Qui si torna indietro e basta. */
+      h += '<button class="btn primary" id="ap-fineprog" style="margin-top:8px">\u2713 Programmazione salvata \u00b7 torna alla giornata</button>';
+    }else if(!chiusa && puoGestireBattute()){
       h += '<button class="btn primary" id="ap-chiudi" style="margin-top:8px">🏁 Chiudi questa battuta</button>';
     }else if(!chiusa && soloVice){
       h += '<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">'
@@ -10435,6 +10765,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     var bc = document.getElementById("ap-chiudi");
     if(bc) bc.onclick = function(){ chiudiBattutaSvolta(bsAperta); };
+    var bf = document.getElementById("ap-fineprog");
+    if(bf) bf.onclick = function(){ showView("giornata"); renderGiornata(); toast("Programmazione salvata"); };
     var br = document.getElementById("ap-ruoli");
     if(br) br.onclick = apriRuoliSenzaPosta;
     root.querySelectorAll("[data-ruolo]").forEach(function(el){
@@ -10805,7 +11137,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var mie = assegnazioni.filter(function(x){
       if(x.membro_id !== me.membro_id) return false;
       var bs = battuteSvolte.find(function(b){ return b.id === x.battuta_svolta_id; });
-      return !(bs && !bs.chiusa_il && !bs.aperta_il);
+      return !(bs && !bs.chiusa_il && !svoltaPartita(bs));
     });
     if(!mie.length) return null;
     var inCorso = battutaInCorso();
@@ -17055,6 +17387,14 @@ header .menubtn{min-width:48px; min-height:48px;}
       toast(vistaMappa.linee ? "Linee accese" : "Linee spente");
     };
     document.getElementById("mp-numero").onclick=apriNumeroPosta;
+    document.getElementById("mp-sposta").onclick=apriSpostaPosta;
+    document.getElementById("mp-cancella").onclick=chiediCancellaPosta;
+    document.getElementById("sp-annulla").onclick=function(){ document.getElementById("m-spostaposta").classList.remove("show"); };
+    document.getElementById("sp-mappa").onclick=iniziaSpostaSuMappa;
+    document.getElementById("sp-gps").onclick=spostaColGps;
+    document.getElementById("sp-coord-ok").onclick=spostaDaIncollate;
+    document.getElementById("sp-coord").addEventListener("input", mostraAnteprimaCoord);
+    document.getElementById("sp-ban-no").onclick=function(){ chiudiSposta(); toast("Spostamento annullato"); };
     document.getElementById("m-np-annulla").onclick=function(){ document.getElementById("m-numposta").classList.remove("show"); };
     document.getElementById("m-np-salva").onclick=function(){ salvaNumeroPosta(document.getElementById("m-np-val").value); };
     document.getElementById("m-np-togli").onclick=function(){ salvaNumeroPosta(null); };
@@ -20139,10 +20479,27 @@ function fineA(){
   async function controllaBattutaGiochi(){
     if(!me || !me.squadra_id) return;
     try{
-      var r = await sb.from("hn_battute_svolte").select("id,numero")
-                .eq("squadra_id", me.squadra_id).is("chiusa_il", null).not("aperta_il", "is", null).limit(1);
+      var r = await sb.from("hn_battute_svolte").select("id,numero,aperta_il,giornata_id")
+                .eq("squadra_id", me.squadra_id).is("chiusa_il", null).not("aperta_il", "is", null).limit(10);
       if(r.error) throw r.error;
-      battutaPerGiochi = (r.data && r.data.length) ? r.data[0] : null;
+      var vive = r.data || [];
+      /* una battuta aperta ieri e mai chiusa non deve tenere chiusi i giochi:
+         conta solo se e' partita nel giorno della sua giornata (regola 20/09) */
+      if(vive.length){
+        var idsG = vive.map(function(x){ return x.giornata_id; }).filter(function(v,i,arr){ return v && arr.indexOf(v)===i; });
+        var dateG = {};
+        if(idsG.length){
+          var rg = await sb.from("hn_battute").select("id,data").in("id", idsG);
+          (rg.data||[]).forEach(function(g){ dateG[g.id] = String(g.data||"").slice(0,10); });
+        }
+        vive = vive.filter(function(x){
+          var g = dateG[x.giornata_id];
+          if(!g) return true;
+          var d; try{ d = iso(new Date(x.aperta_il)); }catch(e){ return true; }
+          return d >= g;
+        });
+      }
+      battutaPerGiochi = vive.length ? vive[0] : null;
       try{ localStorage.setItem("hunter_battuta_giochi", JSON.stringify(battutaPerGiochi)); }catch(e){}
     }catch(e){
       // senza rete tengo l'ultimo stato conosciuto: meglio bloccare per sbaglio che il contrario
