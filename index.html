@@ -282,6 +282,16 @@
 
   /* ---------- MAPPA ---------- */
   #map{flex:1; background:#3d4a2a;}
+  /* PERCORSO DEI CANI: mappa sopra, pannello dei numeri sotto */
+  #canimap{flex:1; min-height:170px; background:#3d4a2a;}
+  #cani-scroll{flex:0 0 46%; padding-bottom:20px;}
+  .cn-num{display:flex; gap:7px; margin-bottom:10px;}
+  .cn-num .b{flex:1; background:var(--dark2); border-radius:12px; padding:9px 6px; text-align:center;}
+  .cn-num .b .n{font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; color:var(--gold); line-height:1.1;}
+  .cn-num .b .t{font-size:9.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;}
+  .cn-riga{display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--dark3); font-size:12.5px;}
+  .cn-riga .pt{width:12px; height:12px; border-radius:50%; flex-shrink:0;}
+  .cn-riga .s{font-size:10.5px; color:var(--muted);}
   /* il canvas NON può usare flex:1 (non riceve altezza reale): lo ancoro al contenitore */
   #schema{position:absolute; top:0; left:0; right:0; bottom:0; width:100%; height:100%;
     display:block; background:#34401f;}
@@ -1915,6 +1925,17 @@ header .menubtn{min-width:48px; min-height:48px;}
         <div class="ttl" id="ad-titolo">Mappa</div>
       </div>
       <div class="scroll" id="areadett-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
+    <!-- PERCORSO DEI CANI di una battuta chiusa -->
+    <section class="view" id="v-cani">
+      <div class="backbar">
+        <button id="cn-indietro" title="Indietro" aria-label="Indietro">❮</button>
+        <div class="ttl" id="cn-titolo">Percorso dei cani</div>
+      </div>
+      <div id="canimap"></div>
+      <div class="scroll" id="cani-scroll"><div class="loading">Carico…</div></div>
+      <input type="file" id="cn-file" style="display:none">
     </section>
 
     <!-- AMMINISTRAZIONE -->
@@ -3566,7 +3587,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.32";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.33";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7601,6 +7622,488 @@ header .menubtn{min-width:48px; min-height:48px;}
   var mieAdesioniTG = {};
   var tgRitroviChiesti = false;   /* i ritrovi si chiedono una volta sola */
 
+
+  /* ================= PERCORSO DEI CANI (21/09) =================
+     Si apre da una battuta CHIUSA: si carica il file .dogtracerecord
+     esportato da Dogtrace (e' uno zip: lo apriamo qui, senza librerie) e si
+     vede dove sono passati i cani, quanta mappa hanno battuto e quali poste
+     hanno sfiorato. Il quadretto si sceglie (10/20/30/50 m) e la percentuale
+     cambia con lui: per questo il quadretto viene salvato dentro la traccia e
+     i confronti fra battute o fra annate si fanno solo a parita' di quadretto.
+     Tabella: hn_percorsi_cani (un percorso per battuta svolta). */
+
+  var cnBs = null;          // la battuta svolta aperta
+  var cnArea = null;        // la mappa della battuta
+  var cnCani = [];          // [{nome,colore,palmare,punti:[{lat,lng,t}],visibile}]
+  var cnInfo = null;        // quello che dice il file
+  var cnQuadretto = 30, cnBuffer = 60;
+  var cnMap = null, cnStrati = null, cnC0 = null;
+  var cnSalvato = null;     // la riga gia' sul database
+  var cnCalc = null;        // ultimi numeri calcolati
+  var cnColori = ["#FF6B35","#7F77DD","#1D9E75","#E24B4A","#378ADD","#EF9F27","#D4537E","#5DCAA5"];
+
+  function cnXY(p){ var kx=111320*Math.cos(cnC0.lat*Math.PI/180), ky=110540;
+    return {x:(p.lng-cnC0.lng)*kx, y:(p.lat-cnC0.lat)*ky}; }
+  function cnLL(x,y){ var kx=111320*Math.cos(cnC0.lat*Math.PI/180), ky=110540;
+    return {lat:cnC0.lat+y/ky, lng:cnC0.lng+x/kx}; }
+  function cnDist(a,b){ var A=cnXY(a),B=cnXY(b); return Math.hypot(A.x-B.x,A.y-B.y); }
+
+  /* ---- lettura dello zip Dogtrace, senza librerie esterne ---- */
+  async function cnLeggiZip(buf){
+    var dv=new DataView(buf), files={};
+    var eocd=-1;
+    for(var i=buf.byteLength-22; i>=0 && i>buf.byteLength-66000; i--){
+      if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; }
+    }
+    if(eocd<0) throw new Error("non \u00e8 un file Dogtrace");
+    var n=dv.getUint16(eocd+10,true), off=dv.getUint32(eocd+16,true);
+    for(var k=0;k<n;k++){
+      if(dv.getUint32(off,true)!==0x02014b50) break;
+      var metodo=dv.getUint16(off+10,true), csize=dv.getUint32(off+20,true);
+      var nlen=dv.getUint16(off+28,true), elen=dv.getUint16(off+30,true), clen=dv.getUint16(off+32,true);
+      var lho=dv.getUint32(off+42,true);
+      var nome=new TextDecoder().decode(new Uint8Array(buf,off+46,nlen));
+      var lnlen=dv.getUint16(lho+26,true), lelen=dv.getUint16(lho+28,true);
+      var dati=new Uint8Array(buf, lho+30+lnlen+lelen, csize);
+      if(metodo===0) files[nome]=new TextDecoder().decode(dati);
+      else{
+        if(typeof DecompressionStream==="undefined") throw new Error("questo telefono non sa aprire il file compresso: provalo da un altro telefono o dal PC");
+        var ds=new DecompressionStream("deflate-raw");
+        files[nome]=await new Response(new Blob([dati]).stream().pipeThrough(ds)).text();
+      }
+      off += 46+nlen+elen+clen;
+    }
+    return files;
+  }
+  async function cnLeggiDogtrace(buf){
+    var files = await cnLeggiZip(buf);
+    var infoNome = Object.keys(files).find(function(k){ return /info\.json$/i.test(k); });
+    if(!infoNome) throw new Error("dentro il file manca info.json");
+    var info = JSON.parse(files[infoNome]);
+    var nomi={}, colori={};
+    Object.keys(info.devicesConfig||{}).forEach(function(id){
+      var d=info.devicesConfig[id];
+      nomi[id]=d.name||("Collare "+id);
+      colori[id]="#"+((d.color>>>0)&0xFFFFFF).toString(16).padStart(6,"0").toUpperCase();
+    });
+    var righe=[];
+    Object.keys(files).filter(function(k){ return /entries/i.test(k); }).sort().forEach(function(k){
+      righe = righe.concat(files[k].split("\n"));
+    });
+    var tracce={};
+    righe.forEach(function(l){
+      l=l.trim(); if(!l) return;
+      var p=l.split("|"); var ts=parseFloat(p[0]); if(!isFinite(ts)) return;
+      for(var i=1;i<p.length;i++){
+        var seg=p[i]; if(seg.indexOf(">>RT<<")!==0) continue;
+        var parti=seg.substring(6).split(";");
+        var dev=parti[0].split(",")[0];
+        var ll=(parti[1]||"").split(",");
+        var lat=parseFloat(ll[0]), lng=parseFloat(ll[1]);
+        if(!isFinite(lat)||!isFinite(lng)) continue;
+        (tracce[dev]=tracce[dev]||[]).push({lat:lat,lng:lng,t:ts});
+      }
+    });
+    var out=[];
+    Object.keys(tracce).forEach(function(dev){
+      if(tracce[dev].length<2) return;
+      out.push({ nome:(dev==="0"?"Palmare":(nomi[dev]||("Collare "+dev))),
+                 colore:(dev==="0"?"#F0E2C9":(colori[dev]||null)),
+                 palmare:(dev==="0"), punti:tracce[dev] });
+    });
+    if(!out.length) throw new Error("nel file non ci sono posizioni");
+    return {cani:out, info:info};
+  }
+
+  /* ---- geometria ---- */
+  function cnDentro(p, poly){
+    var x=p.lng,y=p.lat,c=false;
+    for(var i=0,j=poly.length-1;i<poly.length;j=i++){
+      var xi=poly[i].lng,yi=poly[i].lat,xj=poly[j].lng,yj=poly[j].lat;
+      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) c=!c;
+    }
+    return c;
+  }
+  function cnInvolucro(pts){
+    if(pts.length<3) return pts.slice();
+    var P=pts.map(function(p){ var q=cnXY(p); return {x:q.x,y:q.y}; })
+             .sort(function(a,b){ return a.x-b.x||a.y-b.y; });
+    var cross=function(o,a,b){ return (a.x-o.x)*(b.y-o.y)-(a.y-o.y)*(b.x-o.x); };
+    var lo=[],up=[];
+    P.forEach(function(p){ while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); });
+    for(var i=P.length-1;i>=0;i--){ var p=P[i]; while(up.length>=2&&cross(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+    lo.pop(); up.pop();
+    return lo.concat(up).map(function(q){ return cnLL(q.x,q.y); });
+  }
+  function cnSemplifica(punti, minM){
+    if(!minM || punti.length<3) return punti.slice();
+    var out=[punti[0]];
+    for(var i=1;i<punti.length;i++){ if(cnDist(out[out.length-1],punti[i])>=minM) out.push(punti[i]); }
+    var ult=punti[punti.length-1];
+    if(out[out.length-1]!==ult) out.push(ult);
+    return out;
+  }
+  function cnKm(p){ var d=0; for(var i=1;i<p.length;i++) d+=cnDist(p[i-1],p[i]); return d/1000; }
+  function cnDurata(p){
+    var a=p.find(function(q){ return q.t; });
+    var b=p.slice().reverse().find(function(q){ return q.t; });
+    if(!a||!b) return "";
+    var s=Math.round((b.t-a.t)/1000);
+    if(s<60) return s+" s";
+    var m=Math.round(s/60);
+    return m>=60 ? (Math.floor(m/60)+" h "+(m%60)) : (m+" min");
+  }
+
+  /* dall'archivio: la battuta non sta in battuteSvolte, la prendo dai dati
+     della stagione gia' caricati */
+  function apriCaniDaArchivio(bsId){
+    var bs = (arcDati && arcDati.svolte || []).find(function(x){ return x.id===bsId; });
+    if(!bs){ toast("Battuta non trovata"); return; }
+    if(!battuteSvolte.some(function(x){ return x.id===bs.id; })) battuteSvolte = battuteSvolte.concat([bs]);
+    apriCaniBattuta(bs.id);
+  }
+
+  /* ---- apertura ---- */
+  async function apriCaniBattuta(bsId, giornataId){
+    var bs = battuteSvolte.find(function(x){ return x.id===bsId; });
+    if(!bs && arcDati) bs = (arcDati.svolte||[]).find(function(x){ return x.id===bsId; });
+    if(!bs){ toast("Battuta non trovata"); return; }
+    if(!bs.chiusa_il){ toast("Il percorso dei cani si carica a battuta chiusa"); return; }
+    cnBs = bs;
+    cnArea = aree.find(function(a){ return a.id===bs.area_id; }) || null;
+    cnCani = []; cnInfo = null; cnSalvato = null; cnCalc = null;
+    cnQuadretto = 30; cnBuffer = 60;
+    document.getElementById("cn-titolo").textContent =
+      "Cani \u00b7 " + (bs.numero ? bs.numero+"\u00aa \u00b7 " : "") + (cnArea ? cnArea.nome : "battuta");
+    document.getElementById("cani-scroll").innerHTML = '<div class="loading">Carico\u2026</div>';
+    showView("cani");
+    if(!aree.length){
+      try{
+        var ra = await sb.from("hn_aree").select("*").eq("squadra_id", me.squadra_id);
+        var rp = await sb.from("hn_poste").select("*").in("area_id", (ra.data||[]).map(function(a){ return a.id; }));
+        if(!ra.error){
+          aree = (ra.data||[]).map(function(a){
+            a.poste = (rp.data||[]).filter(function(p){ return p.area_id===a.id && !p.archiviata_il; });
+            return a;
+          });
+          cnArea = aree.find(function(a){ return a.id===bs.area_id; }) || null;
+        }
+      }catch(e){}
+    }
+    await cnCarica();
+    cnPrepara();
+    renderCani();
+  }
+  async function cnCarica(){
+    try{
+      var r = await sb.from("hn_percorsi_cani").select("*").eq("battuta_svolta_id", cnBs.id).limit(1);
+      if(r.error) throw r.error;
+      if(r.data && r.data.length){
+        cnSalvato = r.data[0];
+        cnQuadretto = Number(cnSalvato.quadretto)||30;
+        cnBuffer = Number(cnSalvato.buffer_posta)||60;
+        cnCani = (cnSalvato.cani||[]).map(function(c){
+          return {nome:c.nome, colore:c.colore, palmare:!!c.palmare,
+                  punti:(c.punti||[]).map(function(q){ return {lat:q[0], lng:q[1], t:q[2]||null}; })};
+        });
+        cnInfo = cnSalvato.nome_file ? {file:cnSalvato.nome_file} : null;
+      }
+    }catch(e){ /* tabella non ancora creata o rete assente: si carica a mano */ }
+  }
+
+  function cnPrepara(){
+    var poste = cnPoste();
+    if(poste.length){
+      cnC0 = {lat: poste.reduce(function(s,p){ return s+Number(p.lat); },0)/poste.length,
+              lng: poste.reduce(function(s,p){ return s+Number(p.lng); },0)/poste.length};
+    }else{
+      var tutti = cnTuttiPunti();
+      cnC0 = tutti.length ? {lat:tutti[0].lat, lng:tutti[0].lng} : {lat:38.61, lng:16.09};
+    }
+    if(!cnMap){
+      try{
+        cnMap = L.map("canimap", {zoomControl:true}).setView([cnC0.lat, cnC0.lng], 16);
+        L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+          {maxZoom:19, maxNativeZoom:19, attribution:"Esri"}).addTo(cnMap);
+        cnStrati = {griglia:L.layerGroup().addTo(cnMap), perimetro:L.layerGroup().addTo(cnMap),
+                    linee:L.layerGroup().addTo(cnMap), poste:L.layerGroup().addTo(cnMap)};
+      }catch(e){ cnMap=null; }
+    }
+    if(cnMap) setTimeout(function(){ try{ cnMap.invalidateSize(); }catch(e){} }, 120);
+  }
+  function cnPoste(){
+    return cnArea ? (cnArea.poste||[]).filter(function(p){ return p && p.lat && p.lng; }) : [];
+  }
+  function cnTuttiPunti(){
+    var t=[]; cnCani.forEach(function(c){ if(!c.palmare) t=t.concat(c.punti); });
+    return t;
+  }
+
+  /* ---- il conto: quadretti battuti, poste sfiorate, km ---- */
+  function cnCalcola(){
+    if(cnStrati) Object.keys(cnStrati).forEach(function(k){ cnStrati[k].clearLayers(); });
+    var poste = cnPoste();
+    var res = {perc:null, celleB:0, celleT:0, sfiorate:0, posteTot:poste.length, mai:[], km:0, durata:""};
+    if(!cnCani.length){ cnCalc=res; return res; }
+    var iCol=0;
+    var pts30 = [];
+    cnCani.forEach(function(c){
+      c.colUsato = c.colore || cnColori[(iCol++)%cnColori.length];
+      var pts = cnSemplifica(c.punti, 8);
+      c.disegno = pts;
+      if(!c.palmare) res.km += cnKm(c.punti);
+      if(cnStrati && c.visibile!==false){
+        L.polyline(pts.map(function(p){ return [p.lat,p.lng]; }),
+          {color:c.colUsato, weight:c.palmare?2:2.6, opacity:.95, dashArray:c.palmare?"5 4":null})
+          .addTo(cnStrati.linee);
+      }
+      if(!c.palmare && c.visibile!==false) pts30 = pts30.concat(pts);
+    });
+    var conT = cnCani.filter(function(c){ return !c.palmare; });
+    res.durata = conT.length ? cnDurata(conT[0].punti) : "";
+
+    if(poste.length >= 3){
+      var poly = cnInvolucro(poste.map(function(p){ return {lat:Number(p.lat), lng:Number(p.lng)}; }));
+      if(cnStrati) L.polygon(poly.map(function(p){ return [p.lat,p.lng]; }),
+        {color:"#E8C86A", weight:2, fill:false, dashArray:"6 6"}).addTo(cnStrati.perimetro);
+      var XY=poly.map(cnXY);
+      var minX=Math.min.apply(null,XY.map(function(q){return q.x;})), maxX=Math.max.apply(null,XY.map(function(q){return q.x;}));
+      var minY=Math.min.apply(null,XY.map(function(q){return q.y;})), maxY=Math.max.apply(null,XY.map(function(q){return q.y;}));
+      var cella=cnQuadretto;
+      var nx=Math.ceil((maxX-minX)/cella), ny=Math.ceil((maxY-minY)/cella);
+      var dentroCelle={}, battute={};
+      for(var i=0;i<nx;i++) for(var j=0;j<ny;j++){
+        var cx=minX+(i+0.5)*cella, cy=minY+(j+0.5)*cella;
+        if(cnDentro(cnLL(cx,cy), poly)){ dentroCelle[i+"_"+j]=true; res.celleT++; }
+      }
+      for(var k=1;k<pts30.length;k++){
+        var A=cnXY(pts30[k-1]), B=cnXY(pts30[k]);
+        var L2=Math.hypot(B.x-A.x,B.y-A.y);
+        if(L2 > 300) continue;                 /* salto fra un cane e l'altro */
+        var passi=Math.max(1,Math.ceil(L2/(cella/2)));
+        for(var s=0;s<=passi;s++){
+          var x=A.x+(B.x-A.x)*s/passi, y=A.y+(B.y-A.y)*s/passi;
+          var key=Math.floor((x-minX)/cella)+"_"+Math.floor((y-minY)/cella);
+          if(dentroCelle[key]) battute[key]=true;
+        }
+      }
+      res.celleB = Object.keys(battute).length;
+      res.perc = res.celleT ? Math.round(100*res.celleB/res.celleT) : null;
+      if(cnStrati){
+        Object.keys(dentroCelle).forEach(function(key){
+          var ij=key.split("_"), x0=minX+(+ij[0])*cella, y0=minY+(+ij[1])*cella;
+          var a=cnLL(x0,y0), b=cnLL(x0+cella,y0+cella);
+          L.rectangle([[a.lat,a.lng],[b.lat,b.lng]],
+            {color:battute[key]?"#7FD948":"#ffffff", weight:0.4,
+             opacity:battute[key]?0.6:0.22, fillColor:"#7FD948", fillOpacity:battute[key]?0.35:0})
+            .addTo(cnStrati.griglia);
+        });
+      }
+    }
+    poste.forEach(function(p){
+      var ll={lat:Number(p.lat), lng:Number(p.lng)};
+      var vicina = pts30.some(function(q){ return cnDist(ll,q) <= cnBuffer; });
+      if(vicina) res.sfiorate++; else res.mai.push(p.numero||"?");
+      if(cnStrati){
+        L.circleMarker([ll.lat,ll.lng], {radius:9, color:vicina?"#241d13":"#8a7350", weight:1.5,
+          fillColor:vicina?"#E8C86A":"#5a5a5a", fillOpacity:1}).addTo(cnStrati.poste)
+         .bindTooltip(String(p.numero||""), {permanent:true, direction:"center", className:"posta-lab"});
+      }
+    });
+    cnCalc = res;
+    return res;
+  }
+
+  /* ---- a quale mappa appartiene questa registrazione? ---- */
+  function cnControllaTerreno(){
+    var tutti = cnTuttiPunti();
+    if(!tutti.length) return null;
+    var vicine = [];
+    aree.forEach(function(a){
+      var poste=(a.poste||[]).filter(function(p){ return p && p.lat && p.lng; });
+      if(!poste.length) return;
+      var minD=1e9;
+      poste.forEach(function(p){
+        var ll={lat:Number(p.lat), lng:Number(p.lng)};
+        for(var i=0;i<tutti.length;i+=5){ var d=cnDist(ll,tutti[i]); if(d<minD) minD=d; }
+      });
+      vicine.push({area:a, d:minD});
+    });
+    vicine.sort(function(x,y){ return x.d-y.d; });
+    return vicine.length ? vicine : null;
+  }
+
+  /* ---- il pannello ---- */
+  function renderCani(){
+    var root = document.getElementById("cani-scroll");
+    var agisce = puoGestireBattute();
+    var h = "";
+    if(!cnCani.length){
+      h += '<div class="card" style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:10px">'
+        + 'Nessun percorso su questa battuta. Carica il file <b>.dogtracerecord</b> esportato da Dogtrace: '
+        + 'si vedono i giri dei cani, quanta mappa hanno battuto e quali poste hanno sfiorato.</div>';
+      if(agisce) h += '<button class="btn primary" id="cn-apri">\ud83d\udc15 Carica il file dei collari</button>';
+      else h += '<div style="font-size:12px; color:var(--muted)">Lo carica il capocaccia.</div>';
+      root.innerHTML = h;
+      var ba=document.getElementById("cn-apri");
+      if(ba) ba.onclick=function(){ document.getElementById("cn-file").click(); };
+      return;
+    }
+    var r = cnCalcola();
+    var conT = cnCani.filter(function(c){ return !c.palmare; });
+    h += '<div class="cn-num">';
+    h += '<div class="b"><div class="n">'+(r.perc===null?"\u2014":r.perc+"%")+'</div><div class="t">mappa battuta</div></div>';
+    h += '<div class="b"><div class="n">'+r.sfiorate+'/'+r.posteTot+'</div><div class="t">poste sfiorate</div></div>';
+    h += '<div class="b"><div class="n">'+r.km.toFixed(1)+'</div><div class="t">km dei cani</div></div>';
+    h += '</div>';
+    h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:10px">'
+      + (r.celleT ? (r.celleB+' quadretti su '+r.celleT+' da '+cnQuadretto+' m') : 'la mappa ha meno di 3 poste: niente griglia')
+      + (r.durata ? (' \u00b7 registrazione di '+r.durata) : '')
+      + (r.mai.length ? ('<br><span style="color:#e0a96a">Poste mai raggiunte: '+r.mai.join(", ")+'</span>') : (r.posteTot?'<br><span style="color:#7be0a8">I cani sono passati vicino a tutte le poste.</span>':''))
+      + '</div>';
+    h += '<div style="font-size:11px; color:var(--muted); margin-bottom:5px">Quadretto della griglia</div>';
+    h += '<div style="display:flex; gap:6px; margin-bottom:10px">';
+    [10,20,30,50].forEach(function(q){
+      h += '<button class="chip'+(cnQuadretto===q?" on":"")+'" data-cnq="'+q+'" style="flex:1; justify-content:center">'+q+' m</button>';
+    });
+    h += '</div>';
+    h += '<div style="font-size:11px; color:var(--muted); margin-bottom:5px">Posta sfiorata entro <b style="color:var(--cream)">'+cnBuffer+' m</b></div>';
+    h += '<input type="range" id="cn-buf" min="20" max="120" step="10" value="'+cnBuffer+'" style="width:100%; margin-bottom:12px">';
+    h += '<div class="sechead">Collari</div>';
+    cnCani.forEach(function(c,i){
+      h += '<div class="cn-riga"><span class="pt" style="background:'+(c.colUsato||"#888")+'"></span>'
+        + '<span style="flex:1; min-width:0"><span style="color:var(--cream)">'+esc(c.nome)+(c.palmare?' <span style="color:var(--muted)">(palmare)</span>':'')+'</span>'
+        + '<div class="s">'+cnKm(c.punti).toFixed(2)+' km \u00b7 '+(cnDurata(c.punti)||"senza orari")+'</div></span>'
+        + '<button class="chip'+(c.visibile!==false?" on":"")+'" data-cnv="'+i+'" style="width:auto; padding:5px 10px; font-size:11px">'+(c.visibile!==false?"visibile":"nascosto")+'</button></div>';
+    });
+    if(agisce){
+      h += '<button class="btn primary" id="cn-salva" style="margin-top:12px">'+(cnSalvato?'\ud83d\udcbe Aggiorna il percorso salvato':'\ud83d\udcbe Salva sulla battuta')+'</button>';
+      h += '<button class="btn line" id="cn-apri" style="margin-top:8px">\ud83d\udc15 Carica un altro file</button>';
+      if(cnSalvato) h += '<button class="btn line" id="cn-canc" style="margin-top:8px; border-color:#C0392B; color:#e07a6a">\ud83d\uddd1 Togli il percorso</button>';
+    }
+    if(cnSalvato) h += '<div style="font-size:10.5px; color:var(--muted); margin-top:9px">Salvato'
+      + (cnSalvato.nome_file?(' \u00b7 '+esc(cnSalvato.nome_file)):'')
+      + (cnSalvato.creato_il?(' \u00b7 '+String(cnSalvato.creato_il).slice(8,10)+'/'+String(cnSalvato.creato_il).slice(5,7)):'')+'</div>';
+    root.innerHTML = h;
+
+    root.querySelectorAll("[data-cnq]").forEach(function(b){
+      b.onclick=function(){ cnQuadretto = +b.dataset.cnq; renderCani(); };
+    });
+    root.querySelectorAll("[data-cnv]").forEach(function(b){
+      b.onclick=function(){ var c=cnCani[+b.dataset.cnv]; c.visibile = (c.visibile===false); renderCani(); };
+    });
+    var sl=document.getElementById("cn-buf");
+    if(sl) sl.onchange=function(){ cnBuffer = +sl.value; renderCani(); };
+    var ba=document.getElementById("cn-apri");
+    if(ba) ba.onclick=function(){ document.getElementById("cn-file").click(); };
+    var bs=document.getElementById("cn-salva");
+    if(bs) bs.onclick=salvaPercorsoCani;
+    var bc=document.getElementById("cn-canc");
+    if(bc) bc.onclick=function(){
+      chiediConferma("Togliere il percorso?", "Il file dei collari resta tuo: qui si cancella solo quello che ho salvato su questa battuta.", "\ud83d\uddd1 Togli", cancellaPercorsoCani);
+    };
+    cnInquadra();
+  }
+  function cnInquadra(){
+    if(!cnMap) return;
+    var pts = cnPoste().map(function(p){ return [Number(p.lat), Number(p.lng)]; });
+    cnTuttiPunti().forEach(function(q){ pts.push([q.lat,q.lng]); });
+    if(!pts.length) return;
+    try{ cnMap.fitBounds(L.latLngBounds(pts).pad(0.15)); }catch(e){}
+  }
+
+  /* ---- caricamento del file ---- */
+  async function cnFileScelto(file){
+    if(!file) return;
+    var root=document.getElementById("cani-scroll");
+    root.innerHTML='<div class="loading">Leggo il file\u2026</div>';
+    try{
+      var buf = await file.arrayBuffer();
+      var r = await cnLeggiDogtrace(buf);
+      cnCani = r.cani; cnInfo = r.info; cnInfo.file = file.name;
+      cnPrepara();
+      renderCani();
+      cnAvvisaTerreno();
+    }catch(e){
+      cnCani=[];
+      renderCani();
+      toast("Non riesco a leggerlo: "+(e.message||e));
+    }
+  }
+  function cnAvvisaTerreno(){
+    var vicine = cnControllaTerreno();
+    if(!vicine || !vicine.length) return;
+    var qui = vicine.find(function(v){ return cnArea && v.area.id===cnArea.id; });
+    var prima = vicine[0];
+    if(qui && qui.d <= 200) return;                       /* tutto a posto */
+    if(prima.d > 200){
+      chiediConferma("Registrazione fuori da ogni mappa",
+        "I punti dei collari sono a "+Math.round(prima.d)+" m dalla posta pi\u00f9 vicina (\u00ab"+prima.area.nome+"\u00bb).\n"
+        +"\u00c8 un terreno ancora da mappare: puoi salvare lo stesso, la traccia resta legata a questa battuta.",
+        "Ho capito", function(){});
+      return;
+    }
+    chiediConferma("\u00c8 un'altra mappa?",
+      "I punti cadono su \u00ab"+prima.area.nome+"\u00bb (a "+Math.round(prima.d)+" m)"
+      + (cnArea ? (", non su \u00ab"+cnArea.nome+"\u00bb"+(qui?(" che \u00e8 a "+Math.round(qui.d)+" m"):"")) : "")
+      + ".\nUso le poste di \u00ab"+prima.area.nome+"\u00bb per i conti?",
+      "S\u00ec, usa quella",
+      function(){ cnArea = prima.area; cnPrepara(); renderCani(); });
+  }
+
+  /* ---- salvataggio ---- */
+  async function salvaPercorsoCani(){
+    if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
+    if(!cnCani.length) return;
+    if(!navigator.onLine){ toast("Serve la rete per salvare"); return; }
+    var r = cnCalc || cnCalcola();
+    var cani = cnCani.map(function(c){
+      var p = cnSemplifica(c.punti, 15);
+      return {nome:c.nome, colore:c.colore||c.colUsato||null, palmare:!!c.palmare,
+              punti:p.map(function(q){ return [ +q.lat.toFixed(6), +q.lng.toFixed(6), q.t||null ]; })};
+    });
+    var tutti = cnTuttiPunti();
+    var t0 = tutti.length ? tutti[0].t : null, t1 = tutti.length ? tutti[tutti.length-1].t : null;
+    var dati = {
+      squadra_id: me.squadra_id,
+      giornata_id: cnBs.giornata_id || null,
+      battuta_svolta_id: cnBs.id,
+      area_id: cnArea ? cnArea.id : null,
+      nome_file: (cnInfo && cnInfo.file) ? String(cnInfo.file).slice(0,120) : null,
+      inizio: t0 ? new Date(t0).toISOString() : null,
+      fine: t1 ? new Date(t1).toISOString() : null,
+      quadretto: cnQuadretto, buffer_posta: cnBuffer,
+      perc_battuta: r.perc, celle_battute: r.celleB, celle_totali: r.celleT,
+      poste_sfiorate: r.sfiorate, poste_totali: r.posteTot,
+      km: Number(r.km.toFixed(2)),
+      cani: cani, creato_da: me.membro_id
+    };
+    try{
+      var q;
+      if(cnSalvato) q = await sb.from("hn_percorsi_cani").update(dati).eq("id", cnSalvato.id).select().single();
+      else q = await sb.from("hn_percorsi_cani").insert(dati).select().single();
+      if(q.error) throw q.error;
+      cnSalvato = q.data;
+      toast("Percorso salvato sulla battuta");
+      renderCani();
+    }catch(e){
+      var m=String(e.message||e);
+      if(/hn_percorsi_cani/.test(m)) toast("Manca la tabella hn_percorsi_cani: lancia l'SQL su Supabase");
+      else toast("Non riesco a salvare: "+m);
+    }
+  }
+  async function cancellaPercorsoCani(){
+    if(!cnSalvato) return;
+    try{
+      var r = await sb.from("hn_percorsi_cani").delete().eq("id", cnSalvato.id);
+      if(r.error) throw r.error;
+      cnSalvato = null; cnCani = [];
+      if(cnStrati) Object.keys(cnStrati).forEach(function(k){ cnStrati[k].clearLayers(); });
+      toast("Percorso tolto");
+      renderCani();
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+
   /* ================= ARCHIVIO E TOTALI DELLE BATTUTE (21/09) =================
      In cima a Battute tre linguette: Calendario (per il cacciatore "Le tue
      giornate"), Archivio e Totali. L'Archivio elenca le giornate CONCLUSE
@@ -7750,6 +8253,7 @@ header .menubtn{min-width:48px; min-height:48px;}
              + (ore ? ore : "orario non registrato") + (min ? ' \u00b7 ' + durataTesto(min) : '')
              + (miaA ? ' \u00b7 <span style="color:#9fc8ed">la tua posta: ' + numeroPostaArc(miaA.posta_id) + '</span>' : '')
              + '</div>';
+          if(vedeComeCapo()) h += '<button class="btn line" data-arccani="'+bs.id+'" style="font-size:11.5px; padding:7px; margin-top:6px">\ud83d\udc15 Percorso dei cani</button>';
           h += '</div>';
         });
         h += '<button class="btn line" data-arcapri="'+data+'" style="font-size:12.5px; padding:9px">Apri la giornata \u203a</button>';
@@ -8741,6 +9245,9 @@ header .menubtn{min-width:48px; min-height:48px;}
             +' \u00b7 '+inc+' incaric'+(inc===1?'o':'hi')
             +' \u00b7 '+cp.perc+'% delle poste</div>';
           h+='</div>';
+          if(!viva && capoReale){
+            h+='<button class="inf" data-bscani="'+bs.id+'" title="Percorso dei cani" style="width:auto; padding:0 10px; height:28px; font-size:13px">\ud83d\udc15</button>';
+          }
           if(!viva && agisce && !conclusa){
             /* una battuta chiusa si deve poter riaprire: se ci si accorge dopo
                di aver sbagliato una posta o un abbattimento, senza matita
@@ -9222,6 +9729,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     root.querySelectorAll("[data-viceapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.viceapri); };
+    });
+    root.querySelectorAll("[data-bscani]").forEach(function(b){
+      b.onclick=function(ev){ ev.stopPropagation(); apriCaniBattuta(b.dataset.bscani); };
     });
     root.querySelectorAll("[data-bsmod]").forEach(function(b){
       b.onclick=function(ev){
@@ -17577,6 +18087,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     };
     document.getElementById("m-pres-annulla").onclick=function(){ document.getElementById("m-presenze").classList.remove("show"); };
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
+    document.getElementById("cn-indietro").onclick=function(){ tornaIndietro(); };
+    document.getElementById("cn-file").onchange=function(ev){
+      var f=(ev.target.files||[])[0];
+      ev.target.value="";
+      cnFileScelto(f);
+    };
     document.getElementById("ad-indietro").onclick=function(){ showView("aree"); renderAree(); };
     document.getElementById("ap-indietro").onclick=function(){ showView("giornata"); renderGiornata(); };
     document.getElementById("m-cp-chiudi").onclick=function(){ document.getElementById("m-chiposta").classList.remove("show"); };
@@ -17609,6 +18125,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(!b) return;
       if(b.dataset.vbat){ vistaBat = b.dataset.vbat; renderBattuteVista(); return; }
       if(b.dataset.arcg){ arcAperte[b.dataset.arcg] = !arcAperte[b.dataset.arcg]; renderArchivio(); return; }
+      if(b.dataset.arccani){ apriCaniDaArchivio(b.dataset.arccani); return; }
       if(b.dataset.arcapri){ apriGiornata(b.dataset.arcapri); return; }
     });
     document.getElementById("mp-numero").onclick=apriNumeroPosta;
