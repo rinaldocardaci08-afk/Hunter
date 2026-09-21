@@ -1870,7 +1870,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     <section class="view" id="v-bacheca">
       <div class="backbar">
         <button data-home title="Indietro" aria-label="Indietro">❮</button>
-        <div class="ttl">Bacheca</div>
+        <div class="ttl">Bacheca e comunicazioni</div>
       </div>
       <div class="scroll" id="bacheca-scroll"><div class="loading">Carico…</div></div>
     </section>
@@ -3050,6 +3050,17 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: a chi scrivo -->
+<div class="modal" id="m-dest">
+  <div class="sheet" style="max-height:85vh; overflow-y:auto">
+    <h3>A chi scrivi?</h3>
+    <div id="m-dest-lista"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-dest-annulla">Annulla</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: segnalare un punto al capo (passo C) -->
 <div class="modal" id="m-segnala">
   <div class="sheet" style="max-height:88vh; overflow-y:auto">
@@ -3634,7 +3645,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.39";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.41";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5427,6 +5438,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(typeof segnRemota!=="undefined" && segnRemota && v!=="mappa") chiudiSegnRemota();
     if(typeof spostaSel!=="undefined" && spostaSel && v!=="mappa") chiudiSposta();
     if(typeof cnPlay!=="undefined" && cnPlay && v!=="cani") cnFermaRiproduzione();
+    if(typeof chatCon!=="undefined" && chatCon && v!=="bacheca") chatCon = null;
+    if(typeof bsCorrezione!=="undefined" && bsCorrezione && v!=="poste") bsCorrezione = null;
     if(typeof sezioneAnteprima!=="undefined" && sezioneAnteprima && v!=="mappa"){
       sezioneAnteprima = null;
       var szb = document.getElementById("szbanner");
@@ -7736,6 +7749,335 @@ header .menubtn{min-width:48px; min-height:48px;}
 
 
 
+
+  /* ================= COMUNICAZIONI (21/09) =================
+     La Bacheca diventa "Bacheca e comunicazioni" con tre linguette:
+     BACHECA (gli annunci di sempre), COMUNICAZIONI (i messaggi fra persone),
+     SEGNALAZIONI (i punti mandati col GPS, passo C).
+     Regole sue: il cacciatore scrive solo a chi ha una carica; i capi a
+     chiunque, e anche al gruppo dei presenti di una giornata. Per parlare a
+     tutta la squadra c'e' gia' la bacheca, quindi qui non serve.
+     ATTENZIONE: il messaggio NON fa squillare il telefono. Hunter e' una
+     pagina salvata sulla home: si vede il pallino rosso quando si apre. */
+
+  var vistaBac = "bach";        // bach | com | segn
+  var messaggi = [];            // tutti i miei, mandati e ricevuti
+  var chatCon = null;           // {tipo:"persona"|"gruppo", id:..., nome:...}
+
+  function eCapoMsg(m){
+    if(!m) return false;
+    return m.is_admin===true || m.ruolo==="capocaccia" || m.ruolo==="vicecapocaccia" || m.ruolo==="vicecapobattuta";
+  }
+  function possoScrivereA(m){
+    if(!m || m.id===me.membro_id) return false;
+    if(eCapoMsg(me)) return true;          /* il capo scrive a chiunque */
+    return eCapoMsg(m);                    /* il cacciatore solo a chi ha una carica */
+  }
+  function nonLetti(){
+    return messaggi.filter(function(x){ return x.a_membro===me.membro_id && !x.letto_il; }).length;
+  }
+
+  async function caricaMessaggi(){
+    if(!me || !me.membro_id) return;
+    try{
+      var r1 = await sb.from("hn_messaggi").select("*").eq("squadra_id", me.squadra_id)
+                 .eq("a_membro", me.membro_id).order("creato_il", {ascending:false}).limit(200);
+      var r2 = await sb.from("hn_messaggi").select("*").eq("squadra_id", me.squadra_id)
+                 .eq("da_membro", me.membro_id).order("creato_il", {ascending:false}).limit(200);
+      if(r1.error) throw r1.error;
+      if(r2.error) throw r2.error;
+      var tutti = (r1.data||[]).concat(r2.data||[]);
+      var visti = {};
+      messaggi = tutti.filter(function(m){ if(visti[m.id]) return false; visti[m.id]=1; return true; })
+                      .sort(function(a,b){ return String(a.creato_il) < String(b.creato_il) ? 1 : -1; });
+    }catch(e){ /* tabella non ancora creata o rete assente */ }
+  }
+
+  /* --- le linguette --- */
+  function htmlLinguetteBacheca(){
+    var c = function(k,t,n){
+      return '<button class="chip'+(vistaBac===k?" on":"")+'" data-vbac="'+k+'" style="flex:1; justify-content:center">'
+        + t + (n>0 ? ' <span class="segno rosso" style="position:static; margin-left:5px">'+n+'</span>' : '') + '</button>';
+    };
+    var nSegn = puoDecidereSegn() ? segnAperti().length
+              : segnalati.filter(function(s){ return s.membro_id===me.membro_id && s.stato==="aperto"; }).length;
+    return '<div style="display:flex; gap:6px; margin-bottom:12px">'
+      + c("bach","Bacheca",0) + c("com","Comunicazioni",nonLetti()) + c("segn","Segnalazioni",nSegn) + '</div>';
+  }
+  async function renderBachecaVista(){
+    if(vistaBac==="com"){ await renderComunicazioni(); return; }
+    if(vistaBac==="segn"){ await renderSegnalazioniTab(); return; }
+    chatCon = null;
+    renderBacheca();
+  }
+
+  /* --- COMUNICAZIONI --- */
+  async function renderComunicazioni(){
+    var root = document.getElementById("bacheca-scroll");
+    root.innerHTML = htmlLinguetteBacheca() + '<div class="loading">Carico\u2026</div>';
+    if(!messaggi.length) await caricaMessaggi();
+    if(!membri.length) await caricaMembriSilenzioso();
+    if(chatCon){ renderChat(); return; }
+    var h = htmlLinguetteBacheca();
+    h += '<button class="btn primary" id="msg-nuovo" style="margin-bottom:12px">\u2709\ufe0f Scrivi a qualcuno</button>';
+    /* le conversazioni: una per persona, piu' i gruppi che ho mandato io */
+    var conv = {};
+    messaggi.forEach(function(m){
+      var chiave, nome, tipo;
+      if(m.gruppo_id && m.da_membro===me.membro_id){
+        chiave = "g:"+m.gruppo_id; nome = m.gruppo_nome || "gruppo"; tipo = "gruppo";
+      }else{
+        var altro = m.da_membro===me.membro_id ? m.a_membro : m.da_membro;
+        chiave = "p:"+altro; nome = nomeDi(altro); tipo = "persona";
+      }
+      if(!conv[chiave]) conv[chiave] = {tipo:tipo, id:chiave.slice(2), nome:nome, ultimo:m, n:0, quando:m.creato_il};
+      if(String(m.creato_il) > String(conv[chiave].quando)){ conv[chiave].ultimo = m; conv[chiave].quando = m.creato_il; }
+      if(m.a_membro===me.membro_id && !m.letto_il) conv[chiave].n++;
+    });
+    var lista = Object.keys(conv).map(function(k){ return conv[k]; })
+                  .sort(function(a,b){ return String(a.quando) < String(b.quando) ? 1 : -1; });
+    if(!lista.length){
+      h += '<div class="empty">Nessun messaggio.<br>'
+        + (eCapoMsg(me) ? 'Scrivi a un componente o ai presenti di una giornata.' : 'Qui arrivano i messaggi dei capi.')
+        + '</div>';
+    }
+    lista.forEach(function(c){
+      var mio = c.ultimo.da_membro===me.membro_id;
+      h += '<div class="card" data-chat="'+(c.tipo==="gruppo"?"g":"p")+'|'+c.id+'|'+esc(c.nome)+'" style="margin-bottom:7px; cursor:pointer">'
+        + '<div style="display:flex; align-items:center; gap:10px">'
+        + '<span style="width:34px; height:34px; border-radius:50%; background:'+(c.tipo==="gruppo"?"#4a3560":"var(--dark3)")+'; '
+        + 'display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0">'
+        + (c.tipo==="gruppo" ? "\ud83d\udc65" : esc(String(c.nome||"?").slice(0,1).toUpperCase())) + '</span>'
+        + '<span style="flex:1; min-width:0">'
+        + '<span style="display:block; font-size:14px; color:var(--cream)">'+esc(c.nome)+'</span>'
+        + '<span style="display:block; font-size:11.5px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap">'
+        + (mio?'tu: ':'') + esc(String(c.ultimo.testo||"").slice(0,60)) + '</span></span>'
+        + (c.n>0 ? '<span class="segno rosso" style="position:static">'+c.n+'</span>' : '')
+        + '<span style="font-size:10.5px; color:var(--muted)">'+oraCorta(c.ultimo.creato_il)+'</span>'
+        + '</div></div>';
+    });
+    root.innerHTML = h;
+    agganciaComunicazioni(root);
+  }
+
+  function renderChat(){
+    var root = document.getElementById("bacheca-scroll");
+    var mm = messaggi.filter(function(m){
+      if(chatCon.tipo==="gruppo") return m.gruppo_id===chatCon.id;
+      return (m.da_membro===me.membro_id && m.a_membro===chatCon.id) || (m.da_membro===chatCon.id && m.a_membro===me.membro_id);
+    }).slice().sort(function(a,b){ return String(a.creato_il) < String(b.creato_il) ? -1 : 1; });
+    var h = '<button class="btn line" id="msg-torna" style="margin-bottom:12px">\u276e Comunicazioni</button>';
+    h += '<div class="sechead" style="margin-top:0">'+esc(chatCon.nome)+'</div>';
+    var visti = {};
+    mm.forEach(function(m){
+      if(chatCon.tipo==="gruppo" && m.gruppo_id){
+        if(visti[m.creato_il+"|"+m.testo]) return;      /* un messaggio solo, non uno per destinatario */
+        visti[m.creato_il+"|"+m.testo] = 1;
+      }
+      var mio = m.da_membro===me.membro_id;
+      h += '<div style="display:flex; margin-bottom:8px; '+(mio?'justify-content:flex-end':'')+'">'
+        + '<div style="max-width:80%; background:'+(mio?"#3a2f1a":"var(--dark2)")+'; border:1px solid '+(mio?"#5a441f":"var(--dark3)")+'; '
+        + 'border-radius:12px; padding:9px 11px">'
+        + (!mio && chatCon.tipo!=="gruppo" ? '' : '')
+        + '<div style="font-size:13.5px; color:var(--cream); line-height:1.5; white-space:pre-wrap">'+esc(m.testo)+'</div>'
+        + '<div style="font-size:10px; color:var(--muted); margin-top:4px">'+fmtData(m.creato_il)+' \u00b7 '+oraCorta(m.creato_il)
+        + (mio && m.letto_il ? ' \u00b7 letto' : '') + '</div>'
+        + '</div></div>';
+    });
+    if(chatCon.tipo==="gruppo"){
+      h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-top:10px">'
+        + 'Chi risponde lo fa in privato: lo trovi nella sua conversazione.</div>';
+    }else{
+      h += '<textarea id="msg-testo" placeholder="Scrivi\u2026" style="margin-top:10px"></textarea>';
+      h += '<button class="btn primary" id="msg-invia" style="margin-top:8px">Manda</button>';
+    }
+    root.innerHTML = h;
+    agganciaComunicazioni(root);
+    segnaLetti();
+  }
+
+  async function segnaLetti(){
+    if(!chatCon) return;
+    var da = messaggi.filter(function(m){
+      if(m.a_membro!==me.membro_id || m.letto_il) return false;
+      return chatCon.tipo==="gruppo" ? (m.gruppo_id===chatCon.id) : (m.da_membro===chatCon.id);
+    });
+    if(!da.length) return;
+    var ora = new Date().toISOString();
+    da.forEach(function(m){ m.letto_il = ora; });
+    try{
+      for(var i=0;i<da.length;i++){
+        await sb.from("hn_messaggi").update({letto_il:ora}).eq("id", da[i].id);
+      }
+    }catch(e){}
+    if(typeof calcolaSegnaliSegn==="function") calcolaSegnaliSegn();
+  }
+
+  function apriScegliDestinatario(){
+    var cand = membri.filter(possoScrivereA);
+    var h = "";
+    if(eCapoMsg(me)){
+      var pres = presentiDiOggi();
+      if(pres.n > 0){
+        h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">A un gruppo</div>';
+        h += '<button class="btn line" data-dest="gruppo" style="text-align:left; margin-bottom:12px">\ud83d\udc65 <b>'
+          + esc(pres.nome) + '</b><span style="display:block; font-size:11px; color:var(--muted)">'
+          + pres.n + ' persone \u00b7 lo ricevono tutte in privato</span></button>';
+      }
+    }
+    h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">A una persona</div>';
+    if(!cand.length) h += '<div class="hint">Nessuno a cui scrivere.</div>';
+    cand.forEach(function(m){
+      h += '<button class="btn line" data-dest="'+m.id+'" style="text-align:left; margin-bottom:6px">'
+        + esc(m.nome) + '<span style="display:block; font-size:11px; color:var(--muted)">'
+        + (eCapoMsg(m) ? esc(CARICHE[m.ruolo] ? CARICHE[m.ruolo].nome : "capo") : "cacciatore") + '</span></button>';
+    });
+    if(!eCapoMsg(me)){
+      h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-top:10px">'
+        + 'Ai compagni si parla in battuta o per radio: qui si scrive a chi guida la squadra.</div>';
+    }
+    document.getElementById("m-dest-lista").innerHTML = h;
+    document.getElementById("m-dest").classList.add("show");
+    document.getElementById("m-dest-lista").querySelectorAll("[data-dest]").forEach(function(b){
+      b.onclick = function(){
+        document.getElementById("m-dest").classList.remove("show");
+        if(b.dataset.dest==="gruppo"){
+          var p = presentiDiOggi();
+          chatCon = {tipo:"gruppo", id:"nuovo", nome:p.nome, membri:p.ids};
+          apriScritturaGruppo(p);
+        }else{
+          chatCon = {tipo:"persona", id:b.dataset.dest, nome:nomeDi(b.dataset.dest)};
+          renderChat();
+        }
+      };
+    });
+  }
+  /* il gruppo: i presenti dell'ultima giornata con presenze segnate */
+  function presentiDiOggi(){
+    var g = giornataAperta;
+    var ids = [];
+    if(g){
+      ids = adesioni.filter(function(a){ return a.presente && a.membro_id!==me.membro_id; })
+                    .map(function(a){ return a.membro_id; });
+    }
+    return {ids:ids, n:ids.length,
+            nome: g ? ("Presenti di " + fmtGiorno(daIso(String(g.data).slice(0,10)))) : "Presenti"};
+  }
+  function apriScritturaGruppo(p){
+    var root = document.getElementById("bacheca-scroll");
+    var h = '<button class="btn line" id="msg-torna" style="margin-bottom:12px">\u276e Comunicazioni</button>';
+    h += '<div class="sechead" style="margin-top:0">'+esc(p.nome)+'</div>';
+    h += '<div style="font-size:12px; color:var(--muted); line-height:1.6; margin-bottom:10px">'
+      + 'Lo ricevono ' + p.n + ' persone, ognuna nella sua conversazione.</div>';
+    h += '<textarea id="msg-testo" placeholder="Scrivi\u2026"></textarea>';
+    h += '<button class="btn primary" id="msg-invia" style="margin-top:8px">Manda a tutti</button>';
+    root.innerHTML = h;
+    agganciaComunicazioni(root);
+  }
+
+  async function inviaMessaggio(){
+    var el = document.getElementById("msg-testo");
+    var testo = String(el ? el.value : "").trim();
+    if(!testo){ toast("Scrivi il messaggio"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per mandare il messaggio"); return; }
+    var righe = [];
+    var ora = new Date().toISOString();
+    if(chatCon.tipo==="gruppo"){
+      var gid = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ("g"+Date.now());
+      (chatCon.membri||[]).forEach(function(mid){
+        righe.push({squadra_id:me.squadra_id, da_membro:me.membro_id, a_membro:mid, testo:testo,
+                    gruppo_id:gid, gruppo_nome:chatCon.nome, creato_il:ora});
+      });
+      if(!righe.length){ toast("Nessun destinatario"); return; }
+    }else{
+      righe.push({squadra_id:me.squadra_id, da_membro:me.membro_id, a_membro:chatCon.id, testo:testo, creato_il:ora});
+    }
+    try{
+      var r = await sb.from("hn_messaggi").insert(righe).select();
+      if(r.error) throw r.error;
+      messaggi = (r.data||[]).concat(messaggi);
+      if(chatCon.tipo==="gruppo" && r.data && r.data.length) chatCon.id = r.data[0].gruppo_id;
+      el.value = "";
+      toast(chatCon.tipo==="gruppo" ? ("Mandato a "+righe.length+" persone") : "Mandato");
+      renderChat();
+    }catch(e){
+      var m=String(e.message||e);
+      toast(/hn_messaggi|does not exist|schema cache/.test(m) ? "Manca la tabella hn_messaggi: lancia l'SQL su Supabase" : "Non riesco: "+m);
+    }
+  }
+
+  function agganciaComunicazioni(root){
+    root.querySelectorAll("[data-vbac]").forEach(function(b){
+      b.onclick=function(){ vistaBac=b.dataset.vbac; chatCon=null; renderBachecaVista(); };
+    });
+    root.querySelectorAll("[data-chat]").forEach(function(b){
+      b.onclick=function(){
+        var p=b.dataset.chat.split("|");
+        chatCon={tipo:(p[0]==="g"?"gruppo":"persona"), id:p[1], nome:p[2]};
+        renderChat();
+      };
+    });
+    var bn=document.getElementById("msg-nuovo");
+    if(bn) bn.onclick=apriScegliDestinatario;
+    var bt=document.getElementById("msg-torna");
+    if(bt) bt.onclick=function(){ chatCon=null; renderComunicazioni(); };
+    var bi=document.getElementById("msg-invia");
+    if(bi) bi.onclick=inviaMessaggio;
+    root.querySelectorAll("[data-segnapri2]").forEach(function(b){
+      b.onclick=function(){ apriSegnalaSu(b.dataset.segnapri2); };
+    });
+    var bs=document.getElementById("segn-nuovo");
+    if(bs) bs.onclick=function(){ apriSegnala(); };
+  }
+
+  /* --- SEGNALAZIONI, la terza linguetta --- */
+  async function renderSegnalazioniTab(){
+    var root = document.getElementById("bacheca-scroll");
+    root.innerHTML = htmlLinguetteBacheca() + '<div class="loading">Carico\u2026</div>';
+    await caricaSegnalati();
+    if(!membri.length) await caricaMembriSilenzioso();
+    var h = htmlLinguetteBacheca();
+    h += '<button class="btn primary" id="segn-nuovo" style="margin-bottom:12px">\ud83d\udccd Segnala un punto</button>';
+    if(puoDecidereSegn()){
+      var ap = segnAperti();
+      h += '<div class="sechead" style="margin-top:0">Da decidere</div>';
+      if(!ap.length) h += '<div style="font-size:12px; color:var(--muted); margin-bottom:6px">Nessun punto in attesa.</div>';
+      ap.forEach(function(s){
+        var t = tipoSegn(s.tipo), vic = mappaPiuVicina(s);
+        h += '<div class="card" data-segnapri2="'+s.id+'" style="margin-bottom:7px; cursor:pointer; background:#1f2b38; border:1px solid #3d5f80">'
+          + '<div style="display:flex; align-items:center; gap:10px"><span style="font-size:20px">'+t.em+'</span>'
+          + '<span style="flex:1; min-width:0"><span style="display:block; font-size:13.5px; color:var(--cream)">'+esc(t.n)+'</span>'
+          + '<span style="display:block; font-size:11px; color:#9fc8ed; margin-top:2px">'+esc(nomeDi(s.membro_id))
+          + (vic ? (' \u00b7 '+esc(vic.area.nome)+' \u00b7 '+fmtDist(vic.d)) : '') + '</span></span>'
+          + '<span style="font-size:15px; color:#9fc8ed">\u203a</span></div>'
+          + (s.nota ? ('<div style="font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.5">'+esc(s.nota)+'</div>') : '')
+          + '</div>';
+      });
+    }
+    var miei = segnalati.filter(function(s){ return s.membro_id===me.membro_id; });
+    h += '<div class="sechead">I punti che hai mandato</div>';
+    if(!miei.length) h += '<div style="font-size:12px; color:var(--muted)">Non ne hai mandati.</div>';
+    miei.slice(0,15).forEach(function(s){
+      var t = tipoSegn(s.tipo);
+      var col = s.stato==="accolto" ? "#7be0a8" : (s.stato==="scartato" ? "#e07a6a" : "var(--gold)");
+      var eti = s.stato==="accolto" ? "accolto" : (s.stato==="scartato" ? "scartato" : "in attesa");
+      h += '<div style="display:flex; align-items:center; gap:9px; padding:7px 0; border-bottom:1px solid var(--dark3)">'
+        + '<span style="font-size:17px">'+t.em+'</span>'
+        + '<span style="flex:1; min-width:0"><span style="display:block; font-size:12.5px; color:var(--cream)">'+esc(t.n)+'</span>'
+        + '<span style="display:block; font-size:10.5px; color:var(--muted)">'+fmtData(s.creato_il)
+        + (s.esito ? (' \u00b7 '+esc(s.esito)) : '')+'</span></span>'
+        + '<span style="font-size:11px; color:'+col+'">'+eti+'</span></div>';
+    });
+    root.innerHTML = h;
+    agganciaComunicazioni(root);
+  }
+  async function apriSegnalaSu(id){
+    await apriSegnala();
+    segnSel = segnalati.find(function(s){ return s.id===id; }) || null;
+    segnAreaSel = null;
+    renderSegnala();
+  }
+
   /* ================= PASSO C: SEGNALARE UN PUNTO AL CAPO (21/09) =================
      Il cacciatore, stando sul posto, manda al capo un punto col GPS: la sua
      posta da spostare, una posta nuova da valutare, un passaggio, un punto di
@@ -8098,6 +8440,18 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* il numerino sulla casella della Home */
   function calcolaSegnaliSegn(){
     try{
+      var tb = document.querySelector('.tile[data-go="bacheca"]');
+      if(tb){
+        var nb = nonLetti() + (puoDecidereSegn() ? segnAperti().length : 0);
+        var vb = tb.querySelector(".segno");
+        if(vb) vb.remove();
+        if(nb>0){
+          var sb2 = document.createElement("span");
+          sb2.className = "segno rosso";
+          sb2.textContent = nb;
+          tb.appendChild(sb2);
+        }
+      }
       var t = document.querySelector('.tile[data-azione="segnala"]');
       if(!t) return;
       var n = puoDecidereSegn() ? segnAperti().length : 0;
@@ -8338,7 +8692,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(cnStrati) Object.keys(cnStrati).forEach(function(k){ cnStrati[k].clearLayers(); });
     var poste = cnPoste();
     var res = {perc:null, celleB:0, celleT:0, sfiorate:0, posteTot:poste.length, mai:[], km:0, durata:""};
-    if(!cnCani.length){ cnCalc=res; return res; }
+    /* BUG TROVATO DA LUI (21/09): senza percorso si usciva di qui, e la mappa
+       restava con poste e griglia della battuta aperta prima. Adesso si va
+       avanti lo stesso: gli strati sono gia' puliti e le poste della battuta
+       giusta vengono ridisegnate. */
     var iCol=0;
     var pts30 = [];
     cnCani.forEach(function(c){
@@ -8356,7 +8713,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var conT = cnCani.filter(function(c){ return !c.palmare; });
     res.durata = conT.length ? cnDurata(conT[0].punti) : "";
 
-    if(poste.length >= 3){
+    if(poste.length >= 3 && cnCani.length){
       var poly = cnInvolucro(poste.map(function(p){ return {lat:Number(p.lat), lng:Number(p.lng)}; }));
       if(cnStrati) L.polygon(poly.map(function(p){ return [p.lat,p.lng]; }),
         {color:"#E8C86A", weight:2, fill:false, dashArray:"6 6"}).addTo(cnStrati.perimetro);
@@ -8448,6 +8805,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       root.innerHTML = h;
       var ba=document.getElementById("cn-apri");
       if(ba) ba.onclick=function(){ document.getElementById("cn-file").click(); };
+      cnCalcola();        /* ripulisce e disegna le poste di QUESTA battuta */
+      cnInquadra();       /* e riquadra la mappa su di lei */
       return;
     }
     var r = cnCalcola();
@@ -11968,6 +12327,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     return h;
   }
   async function cambiaContoBattuta(campo, delta){
+    if(bloccataAvvisa(battutaSvoltaDi(bsAperta))) return;
     if(!bsAperta || !puoGestireBattute()) return;
     var bs = battutaSvoltaDi(bsAperta);
     if(!bs) return;
@@ -11980,6 +12340,38 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(k>=0) battuteSvolte[k] = r.data;
     }catch(e){ toast("Non riesco a salvare: serve la rete"); return; }
     renderAssegnazioni();
+  }
+
+  /* ===== CORREGGERE UNA BATTUTA GIA' CHIUSA (sua decisione 21/09) =====
+     A battuta chiusa non si tocca niente: si guarda e basta. Chi di dovere
+     preme "Correggi i dati di questa battuta" e da quel momento la pagina si
+     sblocca, con una fascia gialla bene in vista perche' nessuno ci metta le
+     mani per sbaglio. Si corregge solo dentro la stagione in corso. */
+  var bsCorrezione = null;     // la battuta chiusa che sto correggendo
+
+  function puoCorreggere(){
+    if(!me) return false;
+    return me.is_admin===true || me.ruolo==="capocaccia" || me.ruolo==="vicecapocaccia";
+  }
+  function correggibile(bs){
+    if(!bs || !bs.chiusa_il) return false;
+    if(!puoCorreggere()) return false;
+    var g = giornataAperta && giornataAperta.data ? String(giornataAperta.data).slice(0,10) : null;
+    if(!g) return false;
+    return stagioneDi(g) === stagioneCorrente();
+  }
+  /* la battuta si puo' toccare? */
+  function bsModificabile(bs){
+    if(!bs) return false;
+    if(!bs.chiusa_il) return true;
+    return bsCorrezione === bs.id;
+  }
+  function bloccataAvvisa(bs){
+    if(bsModificabile(bs)) return false;
+    if(correggibile(bs)) toast("Battuta chiusa: premi \u270f\ufe0f Correggi per modificarla");
+    else if(bs && bs.chiusa_il && puoCorreggere()) toast("Battuta di una stagione passata: non si corregge pi\u00f9");
+    else toast("Battuta chiusa");
+    return true;
   }
 
   function renderAssegnazioni(){
@@ -11996,6 +12388,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     var h = "";
 
     var soloVice = !puoGestireBattute();
+    var sbloccata = chiusa && bsCorrezione === bs.id;
+    if(sbloccata){
+      h += '<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:12px">'
+        + '<div style="font-size:13px; color:var(--gold); font-weight:600">\u270f\ufe0f Stai correggendo una battuta chiusa</div>'
+        + '<div style="font-size:11.5px; color:#e8d9bb; margin-top:4px; line-height:1.5">'
+        + 'Quello che cambi qui entra nello storico e nella classifica. Quando hai finito premi Fine correzione.</div></div>';
+    }
     h += '<div class="card" style="margin-bottom:12px">';
     h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">'
        + (bs.numero ? bs.numero+'ª battuta di oggi' : 'battuta')
@@ -12023,10 +12422,19 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     h += '<div class="btnrow" style="margin-top:10px">';
     h += '<button class="btn line" id="ap-mappa" style="font-size:12px; padding:9px">🗺️ Mappa</button>';
-    if(!chiusa && puoGestireBattute()){
+    if((!chiusa || sbloccata) && puoGestireBattute()){
       h += '<button class="btn line" id="ap-ruoli" style="font-size:12px; padding:9px">🐕 Battitori e canai</button>';
     }
     h += '</div>';
+    if(chiusa && !sbloccata && correggibile(bs)){
+      h += '<button class="btn line" id="ap-correggi" style="margin-top:8px; border-color:var(--gold); color:var(--gold)">'
+         + '\u270f\ufe0f Correggi i dati di questa battuta</button>';
+      h += '<div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5">'
+         + 'Serve quando di corsa non si \u00e8 fatto in tempo a segnare chi era in posta o i capi.</div>';
+    }
+    if(sbloccata){
+      h += '<button class="btn primary" id="ap-finecorr" style="margin-top:8px">\u2713 Fine correzione</button>';
+    }
     if(!chiusa && puoGestireBattute() && prepQ){
       /* sua regola 20/09: la programmazione si salva da sola a ogni tocco,
          non c'e' niente da chiudere. Qui si torna indietro e basta. */
@@ -12181,6 +12589,17 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     var bc = document.getElementById("ap-chiudi");
     if(bc) bc.onclick = function(){ chiudiBattutaSvolta(bsAperta); };
+    var bcor = document.getElementById("ap-correggi");
+    if(bcor) bcor.onclick = function(){
+      var bs = battutaSvoltaDi(bsAperta);
+      if(!correggibile(bs)) return;
+      chiediConferma("Correggere una battuta chiusa?",
+        "Quello che cambi entra nello storico e nella classifica.\nSi corregge quello che quel giorno non si \u00e8 fatto in tempo a segnare.",
+        "\u270f\ufe0f Sblocca",
+        function(){ bsCorrezione = bsAperta; renderAssegnazioni(); toast("Battuta sbloccata"); });
+    };
+    var bfin = document.getElementById("ap-finecorr");
+    if(bfin) bfin.onclick = function(){ bsCorrezione = null; renderAssegnazioni(); toast("Correzione chiusa"); };
     var bf = document.getElementById("ap-fineprog");
     if(bf) bf.onclick = function(){ showView("giornata"); renderGiornata(); toast("Programmazione salvata"); };
     var br = document.getElementById("ap-ruoli");
@@ -12193,6 +12612,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* toccando una posta: se e' libera scelgo chi ci va; se e' presa e ne tocco
      un'altra presa, i due si scambiano */
   function toccataPostaDaAssegnare(postaId){
+    if(bloccataAvvisa(battutaSvoltaDi(bsAperta))) return;
     var a = aree.find(function(x){ return x.id === apAreaId; });
     var p = (a.poste||[]).find(function(x){ return x.id === postaId; });
     if(!p) return;
@@ -12362,6 +12782,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   function apriRuoliSenzaPosta(){
     if(!bsAperta) return;
+    if(bloccataAvvisa(battutaSvoltaDi(bsAperta))) return;
     var cand = daMettereInPosta();
     var h = '<div class="hint" style="margin-bottom:10px">Chi non va in posta: battitori, canai, chi resta a tracciare.</div>';
     if(!cand.length) h += '<div class="hint">Nessun presente.</div>';
@@ -18405,7 +18826,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var r=await sb.from("hn_annunci").select("*").eq("squadra_id",me.squadra_id).order("creato_il",{ascending:false});
     if(r.error){ root.innerHTML='<div class="empty">Errore:<br>'+esc(r.error.message)+'</div>'; return; }
     annunci=r.data||[];
-    renderBacheca();
+    renderBachecaVista();
   }
   function fmtData(iso){
     if(!iso) return "";
@@ -18446,7 +18867,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
   function renderBacheca(){
     var root=document.getElementById("bacheca-scroll");
-    var h="";
+    var h=htmlLinguetteBacheca();
     if(puoPubblicare()){
       h+='<button class="btn primary" id="btn-newannuncio" style="margin-bottom:14px">+ Nuovo annuncio</button>';
     }
@@ -18466,6 +18887,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='</div></div>';
     });
     root.innerHTML=h;
+    agganciaComunicazioni(root);
     var nb=root.querySelector("#btn-newannuncio");
     if(nb) nb.onclick=function(){
       document.getElementById("m-ann-titolo").value="";
@@ -18781,6 +19203,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("cn-indietro").onclick=function(){ tornaIndietro(); };
     document.getElementById("cn-play-stop").onclick=function(){ cnFermaRiproduzione(); };
     document.getElementById("sg-chiudi").onclick=chiudiSegnala;
+    document.getElementById("m-dest-annulla").onclick=function(){ document.getElementById("m-dest").classList.remove("show"); };
     document.getElementById("mv-segnala").onclick=function(){ apriSegnala(); };
     document.getElementById("nc-annulla").onclick=function(){ document.getElementById("m-nomecane").classList.remove("show"); };
     document.getElementById("nc-salva").onclick=salvaNomeCane;
@@ -21734,7 +22157,7 @@ function fineA(){
 
   var CASELLE_HOME = [
     {k:"ossnott",    ic:"\ud83d\udd2d", nm:"Osservazioni notturne", ds:"Punti, luna e avvistamenti col visore", go:"ossnott", soloVisore:true},
-    {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca",          ds:"Annunci e comunicazioni",     go:"bacheca", wide:true, foto:"bacheca.png"},
+    {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca e comunicazioni", ds:"Annunci, messaggi e punti segnalati", go:"bacheca", wide:true, foto:"bacheca.png"},
     {k:"battute",    ic:"\ud83d\udd25", nm:"Battute",          ds:"Calendario e adesioni",       go:"battute"},
     {k:"aree",       ic:"\ud83d\udccd", nm:"Mappe e poste",    ds:"Crea e modifica i terreni",   go:"aree"},
     {k:"segnala",    ic:"\ud83d\udccd", nm:"Segnala un punto", ds:"Mandi al capo il punto dove sei", azione:"segnala"},
@@ -21773,6 +22196,12 @@ function fineA(){
       if(c) homeOrdine=c;
     }catch(e){}
     renderCaselleHome();
+    /* il pallino rosso sulla casella: messaggi non letti e punti da decidere */
+    setTimeout(function(){
+      Promise.all([caricaMessaggi(), caricaSegnalati()]).then(function(){
+        if(typeof calcolaSegnaliSegn==="function") calcolaSegnaliSegn();
+      });
+    }, 900);
     setTimeout(controllaAvvisoAtc, 200);
     setTimeout(calcolaSegnali, 400);   // la Home e' gia' a schermo: adesso posso chiedere
     if(!me || !me.squadra_id) return;
