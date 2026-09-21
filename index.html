@@ -3645,7 +3645,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.41";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.42";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -8687,11 +8687,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     return t;
   }
 
-  /* ---- il conto: quadretti battuti, poste sfiorate, km ---- */
+  /* ---- il conto: quadretti battuti e km ---- */
   function cnCalcola(){
     if(cnStrati) Object.keys(cnStrati).forEach(function(k){ cnStrati[k].clearLayers(); });
     var poste = cnPoste();
-    var res = {perc:null, celleB:0, celleT:0, sfiorate:0, posteTot:poste.length, mai:[], km:0, durata:""};
+    var res = {perc:null, celleB:0, celleT:0, posteTot:poste.length, km:0, durata:""};
     /* BUG TROVATO DA LUI (21/09): senza percorso si usciva di qui, e la mappa
        restava con poste e griglia della battuta aperta prima. Adesso si va
        avanti lo stesso: gli strati sono gia' puliti e le poste della battuta
@@ -8758,13 +8758,13 @@ header .menubtn{min-width:48px; min-height:48px;}
         });
       }
     }
+    /* le poste si disegnano e basta: quali hanno sfiorato si vede dalle linee
+       sulla mappa, il conteggio col raggio regolabile era di troppo (21/09) */
     poste.forEach(function(p){
       var ll={lat:Number(p.lat), lng:Number(p.lng)};
-      var vicina = pts30.some(function(q){ return cnDist(ll,q) <= cnBuffer; });
-      if(vicina) res.sfiorate++; else res.mai.push(p.numero||"?");
       if(cnStrati){
-        L.circleMarker([ll.lat,ll.lng], {radius:9, color:vicina?"#241d13":"#8a7350", weight:1.5,
-          fillColor:vicina?"#E8C86A":"#5a5a5a", fillOpacity:1}).addTo(cnStrati.poste)
+        L.circleMarker([ll.lat,ll.lng], {radius:9, color:"#241d13", weight:1.5,
+          fillColor:"#E8C86A", fillOpacity:1}).addTo(cnStrati.poste)
          .bindTooltip(String(p.numero||""), {permanent:true, direction:"center", className:"posta-lab"});
       }
     });
@@ -8813,13 +8813,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     var conT = cnCani.filter(function(c){ return !c.palmare; });
     h += '<div class="cn-num">';
     h += '<div class="b"><div class="n">'+(r.perc===null?"\u2014":r.perc+"%")+'</div><div class="t">mappa battuta</div></div>';
-    h += '<div class="b"><div class="n">'+r.sfiorate+'/'+r.posteTot+'</div><div class="t">poste sfiorate</div></div>';
+    h += '<div class="b"><div class="n">'+(r.durata||"\u2014")+'</div><div class="t">durata</div></div>';
     h += '<div class="b"><div class="n">'+r.km.toFixed(1)+'</div><div class="t">km dei cani</div></div>';
     h += '</div>';
     h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:10px">'
       + (r.celleT ? (r.celleB+' quadretti su '+r.celleT+' da '+cnQuadretto+' m') : 'la mappa ha meno di 3 poste: niente griglia')
-      + (r.durata ? (' \u00b7 registrazione di '+r.durata) : '')
-      + (r.mai.length ? ('<br><span style="color:#e0a96a">Poste mai raggiunte: '+r.mai.join(", ")+'</span>') : (r.posteTot?'<br><span style="color:#7be0a8">I cani sono passati vicino a tutte le poste.</span>':''))
+      + (r.posteTot ? (' \u00b7 ' + r.posteTot + ' poste sulla mappa') : '')
       + '</div>';
     h += '<div style="font-size:11px; color:var(--muted); margin-bottom:5px">Quadretto della griglia</div>';
     h += '<div style="display:flex; gap:6px; margin-bottom:10px">';
@@ -8827,8 +8826,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<button class="chip'+(cnQuadretto===q?" on":"")+'" data-cnq="'+q+'" style="flex:1; justify-content:center">'+q+' m</button>';
     });
     h += '</div>';
-    h += '<div style="font-size:11px; color:var(--muted); margin-bottom:5px">Posta sfiorata entro <b style="color:var(--cream)">'+cnBuffer+' m</b></div>';
-    h += '<input type="range" id="cn-buf" min="20" max="120" step="10" value="'+cnBuffer+'" style="width:100%; margin-bottom:12px">';
+
     h += '<div class="sechead">Collari</div>';
     cnCani.forEach(function(c,i){
       h += '<div class="cn-riga" style="flex-wrap:wrap"><span class="pt" style="background:'+(c.colUsato||"#888")+'"></span>'
@@ -8862,8 +8860,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-cnp]").forEach(function(b){
       b.onclick=function(){ cnRiproduci(+b.dataset.cnp); };
     });
-    var sl=document.getElementById("cn-buf");
-    if(sl) sl.onchange=function(){ cnBuffer = +sl.value; renderCani(); };
+
     var ba=document.getElementById("cn-apri");
     if(ba) ba.onclick=function(){ document.getElementById("cn-file").click(); };
     var bs=document.getElementById("cn-salva");
@@ -8956,27 +8953,44 @@ header .menubtn{min-width:48px; min-height:48px;}
     c.nome = nome;
     cnFermaRiproduzione();
     renderCani();
-    if(!c.dev){ toast("Nome cambiato solo qui: il file non dice quale collare \u00e8"); return; }
-    cnNomiCani[String(c.dev)] = nome;
-    if(!navigator.onLine){ toast("Nome cambiato \u00b7 senza rete non lo salvo per le prossime volte"); return; }
-    try{
-      var r = await sb.from("hn_cani").select("id").eq("squadra_id", me.squadra_id).eq("collare", String(c.dev)).limit(1);
-      if(r.error) throw r.error;
-      if(r.data && r.data.length){
-        var u = await sb.from("hn_cani").update({nome:nome, colore:c.colore||null}).eq("id", r.data[0].id);
-        if(u.error) throw u.error;
-      }else{
-        var q = await sb.from("hn_cani").insert({squadra_id:me.squadra_id, collare:String(c.dev),
-                                                 nome:nome, colore:c.colore||null});
-        if(q.error) throw q.error;
-      }
-      toast("Adesso si chiama " + nome);
-      if(cnSalvato) salvaPercorsoCani(true);
-    }catch(e){
-      var m = String(e.message||e);
-      if(/hn_cani/.test(m)) toast("Manca la tabella hn_cani: lancia l'SQL su Supabase");
-      else toast("Non riesco a salvare il nome: "+m);
+    if(!navigator.onLine){ toast("Nome cambiato \u00b7 senza rete non lo salvo"); return; }
+    /* BUG TROVATO DA LUI (21/09): il nome finiva SOLO nella tabella dei cani,
+       e se quella mancava o il collare non aveva identificativo non restava
+       niente. Adesso il nome si scrive PRIMA dentro il percorso della battuta
+       (dove sta insieme ai punti) e POI, se si puo', nella tabella dei cani
+       che lo porta anche sulle registrazioni future. */
+    var salvatoQui = false, salvatoSempre = false, errore = "";
+    if(cnSalvato){
+      try{ await salvaPercorsoCani(true); salvatoQui = !!cnSalvato; }
+      catch(e){ errore = String(e.message||e); }
     }
+    if(c.dev){
+      cnNomiCani[String(c.dev)] = nome;
+      try{
+        var r = await sb.from("hn_cani").select("id").eq("squadra_id", me.squadra_id).eq("collare", String(c.dev)).limit(1);
+        if(r.error) throw r.error;
+        if(r.data && r.data.length){
+          var u = await sb.from("hn_cani").update({nome:nome, colore:c.colore||null}).eq("id", r.data[0].id);
+          if(u.error) throw u.error;
+        }else{
+          var q = await sb.from("hn_cani").insert({squadra_id:me.squadra_id, collare:String(c.dev),
+                                                   nome:nome, colore:c.colore||null});
+          if(q.error) throw q.error;
+        }
+        salvatoSempre = true;
+      }catch(e){
+        var m = String(e.message||e);
+        errore = /hn_cani|does not exist|schema cache/.test(m)
+               ? "manca la tabella hn_cani: lancia l'SQL su Supabase" : m;
+      }
+    }else{
+      errore = "questa registrazione non dice quale collare \u00e8: ricarica il file .dogtracerecord";
+    }
+    if(salvatoSempre) toast("Adesso si chiama " + nome + ", anche nelle prossime registrazioni");
+    else if(salvatoQui) toast("Si chiama " + nome + " su questa battuta \u00b7 " + errore);
+    else if(!cnSalvato) toast("Nome cambiato: premi \ud83d\udcbe Salva per tenerlo");
+    else toast("Non riesco a salvare il nome: " + errore);
+    renderCani();
   }
 
   /* ---- PERCORSO ACCELERATO: la registrazione, lunga quanto vuole, viene
@@ -9076,7 +9090,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       fine: t1 ? new Date(t1).toISOString() : null,
       quadretto: cnQuadretto, buffer_posta: cnBuffer,
       perc_battuta: r.perc, celle_battute: r.celleB, celle_totali: r.celleT,
-      poste_sfiorate: r.sfiorate, poste_totali: r.posteTot,
+      poste_sfiorate: null, poste_totali: r.posteTot,
       km: Number(r.km.toFixed(2)),
       cani: cani, creato_da: me.membro_id
     };
@@ -9089,6 +9103,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(!zitto){ toast("Percorso salvato sulla battuta"); renderCani(); }
     }catch(e){
       var m=String(e.message||e);
+      if(zitto) throw e;
       if(/hn_percorsi_cani/.test(m)) toast("Manca la tabella hn_percorsi_cani: lancia l'SQL su Supabase");
       else toast("Non riesco a salvare: "+m);
     }
