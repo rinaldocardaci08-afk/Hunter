@@ -3704,7 +3704,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.46";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.47";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5499,6 +5499,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(typeof cnPlay!=="undefined" && cnPlay && v!=="cani") cnFermaRiproduzione();
     if(typeof chatCon!=="undefined" && chatCon && v!=="bacheca") chatCon = null;
     if(typeof bsCorrezione!=="undefined" && bsCorrezione && v!=="poste") bsCorrezione = null;
+    if(typeof giornCorrezione!=="undefined" && giornCorrezione && v!=="giornata" && v!=="poste") giornCorrezione = null;
     if(typeof sezioneAnteprima!=="undefined" && sezioneAnteprima && v!=="mappa"){
       sezioneAnteprima = null;
       var szb = document.getElementById("szbanner");
@@ -10510,9 +10511,24 @@ header .menubtn{min-width:48px; min-height:48px;}
       return;
     }
   }
+  /* ===== CORREGGERE LE PRESENZE DI UNA GIORNATA CONCLUSA (21/09) =====
+     Stessa regola della battuta chiusa: a giornata conclusa non si tocca
+     niente, ma chi di dovere sblocca e puo' segnare chi non si e' mai
+     prenotato ne' messo presente. Serve per chi l'app non la usa. */
+  var giornCorrezione = null;
+  function giornataCorreggibile(){
+    if(!giornataAperta || giornataAperta.stato!=="conclusa") return false;
+    if(!puoCorreggere()) return false;
+    var g = String(giornataAperta.data||"").slice(0,10);
+    return !!g && stagioneDi(g) === stagioneCorrente();
+  }
+  function giornSbloccata(){
+    return !!(giornataAperta && giornCorrezione === giornataAperta.id);
+  }
+
   function htmlPresenze(){
     var capo = puoGestireBattute() && vistaGiornata==="capo";   // qui capo = chi puo' segnare
-    var conclusa = giornataAperta && giornataAperta.stato==="conclusa";
+    var conclusa = (giornataAperta && giornataAperta.stato==="conclusa") && !giornSbloccata();
     var h = '<div class="cvfil" style="margin-top:9px">'
       + '<button class="'+(cvFiltro2==="presenti"?"on":"")+'" data-fil2="presenti">Presenti</button>'
       + '<button class="'+(cvFiltro2==="prenotati"?"on":"")+'" data-fil2="prenotati">Prenotati</button>'
@@ -10578,6 +10594,18 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<button class="btn line" id="agg-ospite" style="margin-top:6px; border-style:dashed">'
          + '+ Aggiungi un ospite che \u00e8 venuto</button>';
     }
+    if(conclusa && giornataCorreggibile()){
+      h += '<button class="btn line" id="gi-corrpres" style="margin-top:8px; border-color:var(--gold); color:var(--gold)">'
+         + '\u270f\ufe0f Correggi le presenze</button>'
+         + '<div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5">'
+         + 'Per segnare chi \u00e8 venuto ma l\'app non la usa e non si \u00e8 mai prenotato.</div>';
+    }
+    if(giornSbloccata() && giornataAperta.stato==="conclusa"){
+      h += '<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-top:9px; padding:9px 11px">'
+         + '<div style="font-size:12.5px; color:var(--gold); font-weight:600">\u270f\ufe0f Stai correggendo una giornata conclusa</div>'
+         + '<div style="font-size:11px; color:#e8d9bb; margin-top:3px; line-height:1.5">Le presenze che tocchi entrano in quote e classifica.</div></div>'
+         + '<button class="btn primary" id="gi-finepres" style="margin-top:8px">\u2713 Fine correzione</button>';
+    }
     return h;
   }
   function agganciaPresenze(box){
@@ -10587,6 +10615,20 @@ header .menubtn{min-width:48px; min-height:48px;}
     box.querySelectorAll("[data-pres1]").forEach(function(b){
       b.onclick = function(){ chiediPresenzaSingola(b.dataset.pres1, b.dataset.membro); };
     });
+    var bcp = box.querySelector("#gi-corrpres");
+    if(bcp) bcp.onclick = function(){
+      chiediConferma("Correggere una giornata conclusa?",
+        "Puoi segnare presente chi non si \u00e8 mai prenotato.\nQuello che cambi entra nelle quote e nella classifica.",
+        "\u270f\ufe0f Sblocca",
+        function(){
+          giornCorrezione = giornataAperta.id;
+          cvFiltro2 = "tutti";      /* sbloccando, l'elenco si apre su TUTTI: e' li' che stanno quelli da segnare */
+          renderGiornata();
+          toast("Giornata sbloccata \u00b7 elenco su tutti");
+        });
+    };
+    var bfp = box.querySelector("#gi-finepres");
+    if(bfp) bfp.onclick = function(){ giornCorrezione = null; renderGiornata(); toast("Correzione chiusa"); };
     box.querySelectorAll("[data-osp]").forEach(function(b){
       b.onclick = function(){
         var o = ospiti.find(function(x){ return x.id===b.dataset.osp; });
