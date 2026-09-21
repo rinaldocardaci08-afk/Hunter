@@ -319,6 +319,8 @@
   .cn-riga{display:flex; align-items:center; gap:8px; padding:7px 0; border-bottom:1px solid var(--dark3); font-size:12.5px;}
   .cn-riga .pt{width:12px; height:12px; border-radius:50%; flex-shrink:0;}
   .cn-riga .s{font-size:10.5px; color:var(--muted);}
+  .sost{display:inline-block; background:var(--dark2); border-radius:7px; padding:3px 7px;
+    font-size:10.5px; color:#d9c9a8; white-space:nowrap;}
   /* il canvas NON può usare flex:1 (non riceve altezza reale): lo ancoro al contenitore */
   #schema{position:absolute; top:0; left:0; right:0; bottom:0; width:100%; height:100%;
     display:block; background:#34401f;}
@@ -3702,7 +3704,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.45";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.46";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -8787,7 +8789,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
           {maxZoom:19, maxNativeZoom:19, attribution:"Esri"}).addTo(cnMap);
         cnStrati = {griglia:L.layerGroup().addTo(cnMap), perimetro:L.layerGroup().addTo(cnMap),
-                    linee:L.layerGroup().addTo(cnMap), poste:L.layerGroup().addTo(cnMap)};
+                    linee:L.layerGroup().addTo(cnMap), soste:L.layerGroup().addTo(cnMap),
+                    poste:L.layerGroup().addTo(cnMap)};
       }catch(e){ cnMap=null; }
     }
     if(cnMap) setTimeout(function(){ try{ cnMap.invalidateSize(); }catch(e){} }, 120);
@@ -8816,6 +8819,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       var pts = cnSemplifica(c.punti, 8);
       c.disegno = pts;
       c.km = cnKm(c.punti);
+      if(!c.palmare){ cnAnalizza(c); if(c.an) c.km = c.an.km; }
       if(!c.palmare && caneAcceso(c)) res.km += c.km;
       if(cnStrati && caneAcceso(c)){
         L.polyline(pts.map(function(p){ return [p.lat,p.lng]; }),
@@ -8877,6 +8881,7 @@ header .menubtn{min-width:48px; min-height:48px;}
          .bindTooltip(String(p.numero||""), {permanent:true, direction:"center", className:"posta-lab"});
       }
     });
+    cnDisegnaSoste();
     cnCalc = res;
     return res;
   }
@@ -8898,6 +8903,151 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     vicine.sort(function(x,y){ return x.d-y.d; });
     return vicine.length ? vicine : null;
+  }
+
+
+  /* ===== COSA HA FATTO IL CANE (sua richiesta 21/09) =====
+     Tempo di caccia dal primo movimento vero all'ultimo, km, velocita' media
+     complessiva e in movimento, e soprattutto le SOSTE: punti consecutivi che
+     restano dentro 15 m per almeno 2 minuti. La sosta e' il dato che dice
+     dove il cane ha tenuto fermo il porco. Non uso i quadretti perche' un
+     cane immobile balla di 10-15 m e il fermo si spezzerebbe fra piu'
+     quadretti senza raggiungere mai la soglia. Se le coordinate sono identiche
+     cifra per cifra non e' un fermo: e' il segnale perso, e lo dico. */
+
+  var SOSTA_RAGGIO = 15;      // metri
+  var SOSTA_SECONDI = 120;    // 2 minuti
+  var cnSoste = true;         // le soste si vedono sulla mappa
+
+  function cnAnalizza(c){
+    var p = (c.punti||[]).filter(function(q){ return q && isFinite(q.lat) && isFinite(q.lng); });
+    var an = {tempo:0, fermo:0, km:0, vMedia:0, vMovimento:0, soste:[], perse:[], da:null, a:null};
+    if(p.length < 2){ c.an = an; return an; }
+    var conOra = !!(p[0].t && p[p.length-1].t);
+    function durata(i,j){ return conOra ? Math.round(((p[j].t||0)-(p[i].t||0))/1000) : (j-i); }
+
+    /* 1) SEGNALE CONGELATO: coordinate identiche cifra per cifra per almeno
+       un minuto. Un fermo vero non e' mai identico, il GPS balla sempre. */
+    var congelato = {}, i = 0;
+    while(i < p.length){
+      var j = i+1;
+      while(j < p.length && p[j].lat===p[i].lat && p[j].lng===p[i].lng) j++;
+      if(j-i >= 3 && durata(i,j-1) >= 60){
+        an.perse.push({da:i, a:j-1, sec:durata(i,j-1), lat:p[i].lat, lng:p[i].lng});
+        for(var z=i; z<j; z++) congelato[z]=true;
+      }
+      i = (j > i+1) ? j : i+1;
+    }
+
+    /* 2) i blocchi fermi: punti consecutivi dentro 15 m per almeno 2 minuti */
+    var blocchi = []; i = 0;
+    while(i < p.length){
+      var j2 = i+1;
+      while(j2 < p.length && cnDist(p[i], p[j2]) <= SOSTA_RAGGIO) j2++;
+      var sec = durata(i, j2-1);
+      if(sec >= SOSTA_SECONDI && (j2-i) >= 3){
+        var congN = 0;
+        for(var k=i; k<j2; k++) if(congelato[k]) congN++;
+        blocchi.push({da:i, a:j2-1, sec:sec, fisso:(congN >= (j2-i)*0.8),
+                      lat:p.slice(i,j2).reduce(function(s,q){ return s+q.lat; },0)/(j2-i),
+                      lng:p.slice(i,j2).reduce(function(s,q){ return s+q.lng; },0)/(j2-i)});
+        i = j2;
+      }else i++;
+    }
+
+    /* 3) il tempo di caccia parte dal primo movimento vero: se la
+       registrazione comincia con un fermo (cane ancora legato) lo salto, e
+       lo stesso se finisce con uno (cane ripreso, o segnale perso) */
+    var da = 0, a = p.length-1;
+    if(blocchi.length && blocchi[0].da === 0) da = blocchi[0].a;
+    if(blocchi.length && blocchi[blocchi.length-1].a === p.length-1) a = blocchi[blocchi.length-1].da;
+    if(a <= da){ da = 0; a = p.length-1; }
+    an.da = p[da].t || null; an.a = p[a].t || null;
+    an.tempo = Math.max(0, durata(da, a));
+
+    /* 4) km: i punti dentro una sosta non fanno strada, altrimenti sette
+       minuti di fermo regalerebbero al cane un chilometro che non ha fatto */
+    var inSosta = {};
+    blocchi.forEach(function(b){ for(var z=b.da; z<=b.a; z++) inSosta[z]=true; });
+    var m = 0;
+    for(var q=da+1; q<=a; q++){
+      if(inSosta[q] && inSosta[q-1]) continue;
+      m += cnDist(p[q-1], p[q]);
+    }
+    an.km = m/1000;
+
+    /* 5) le soste dentro la caccia */
+    blocchi.forEach(function(b){
+      if(b.a <= da || b.da >= a) return;      /* al guinzaglio o gia' ripreso */
+      if(b.fisso) return;                     /* era segnale congelato, gia' segnato */
+      an.fermo += b.sec;
+      an.soste.push({lat:b.lat, lng:b.lng, sec:b.sec,
+                     da:(p[b.da].t||null), a:(p[b.a].t||null)});
+    });
+    an.vMedia = an.tempo ? (an.km / (an.tempo/3600)) : 0;
+    var muove = Math.max(1, an.tempo - an.fermo);
+    an.vMovimento = an.km / (muove/3600);
+    c.an = an;
+    return an;
+  }
+
+  function coloreSosta(sec){
+    var m = sec/60;
+    if(m >= 5) return "#E0342B";
+    if(m >= 4) return "#E0A02B";
+    if(m >= 3) return "#4FB84A";
+    return "#9BE07A";
+  }
+  function tempoTesto(sec){
+    sec = Math.round(sec||0);
+    if(sec < 60) return sec+" s";
+    var m = Math.round(sec/60);
+    if(m < 60) return m+" min";
+    return Math.floor(m/60)+" h "+String(m%60).padStart(2,"0");
+  }
+
+  function cnDisegnaSoste(){
+    if(!cnStrati || !cnStrati.soste) return;
+    cnStrati.soste.clearLayers();
+    if(!cnSoste) return;
+    cnCani.forEach(function(c){
+      if(c.palmare || !caneAcceso(c) || !c.an) return;
+      c.an.soste.forEach(function(s){
+        var col = coloreSosta(s.sec);
+        var r = Math.min(26, 9 + Math.round(s.sec/60)*2);
+        L.circleMarker([s.lat, s.lng], {radius:r, color:"#1b1610", weight:1.5,
+          fillColor:col, fillOpacity:.55})
+          .addTo(cnStrati.soste)
+          .bindTooltip(esc(c.nome)+" \u00b7 "+tempoTesto(s.sec)+(s.da?(" \u00b7 "+oraCorta(new Date(s.da).toISOString())):""),
+                       {direction:"top"});
+        L.circleMarker([s.lat, s.lng], {radius:3, color:col, weight:2, fillColor:"#fff", fillOpacity:1})
+          .addTo(cnStrati.soste);
+      });
+      (c.an.perse||[]).forEach(function(b){
+        L.circleMarker([b.lat, b.lng], {radius:7, color:"#8a7350", weight:1.5, dashArray:"3 3",
+          fillColor:"#4a4133", fillOpacity:.5}).addTo(cnStrati.soste)
+          .bindTooltip("segnale perso \u00b7 "+tempoTesto(b.sec), {direction:"top"});
+      });
+    });
+  }
+
+  /* la riga dei numeri di un cane */
+  function htmlNumeriCane(c){
+    var an = c.an;
+    if(!an || !an.tempo) return '';
+    var forti = an.soste.filter(function(s){ return s.sec >= 300; }).length;
+    var piu = an.soste.reduce(function(t,s){ return Math.max(t, s.sec); }, 0);
+    return '<div style="display:flex; gap:6px; margin:6px 0 2px; flex-wrap:wrap">'
+      + '<span class="sost">\u23f1 '+tempoTesto(an.tempo)+'</span>'
+      + '<span class="sost">'+an.km.toFixed(2)+' km</span>'
+      + '<span class="sost">'+an.vMedia.toFixed(1)+' km/h medi</span>'
+      + '<span class="sost">'+an.vMovimento.toFixed(1)+' in movimento</span>'
+      + (an.soste.length
+          ? ('<span class="sost" style="background:'+(forti?"#5A2418":"#2f3a22")+'; color:'+(forti?"#ffb3a7":"#b7e0a0")+'">'
+             + an.soste.length+(an.soste.length===1?' sosta':' soste')+' \u00b7 max '+tempoTesto(piu)+'</span>')
+          : '<span class="sost">mai fermo</span>')
+      + (an.perse && an.perse.length ? ('<span class="sost" style="color:#e0a96a">'+an.perse.length+' segnale perso</span>') : '')
+      + '</div>';
   }
 
   /* ---- il pannello ---- */
@@ -8927,6 +9077,10 @@ header .menubtn{min-width:48px; min-height:48px;}
       + (r.celleT ? (r.celleB+' quadretti su '+r.celleT+' da '+cnQuadretto+' m') : 'la mappa ha meno di 3 poste: niente griglia')
       + (r.posteTot ? (' \u00b7 ' + r.posteTot + ' poste sulla mappa') : '')
       + '</div>';
+    h += '<div style="display:flex; gap:6px; margin-bottom:10px">';
+    h += '<button class="chip'+(cnSoste?" on":"")+'" data-cnsoste="1" style="flex:1; justify-content:center; font-size:11.5px">'
+       + (cnSoste?"\u25c9 Soste sulla mappa":"soste nascoste")+'</button>';
+    h += '</div>';
     h += '<div style="font-size:11px; color:var(--muted); margin-bottom:5px">Quadretto della griglia</div>';
     h += '<div style="display:flex; gap:6px; margin-bottom:10px">';
     [10,20,30].forEach(function(q){
@@ -8961,13 +9115,14 @@ header .menubtn{min-width:48px; min-height:48px;}
           + (c.palmare?' <span style="color:var(--muted)">(palmare)</span>':'')
           + (!c.palmare && !c.cane_id ? ' <span style="color:#e0a96a">\u00b7 cane da scegliere</span>' : '')
           + '</span>'
-          + '<div class="s">'+(c.km||0).toFixed(2)+' km \u00b7 '+(cnDurata(c.punti)||"senza orari")
+          + '<div class="s">'+(cnDurata(c.punti)||"senza orari")
           + (c.nomeFile && c.nomeFile!==c.nome ? (' \u00b7 nel file: '+esc(c.nomeFile)) : '')+'</div></span>'
           + '<span style="display:flex; gap:5px">'
           + (c.palmare||!suo ? '' : '<button class="chip" data-cnn="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u270e Cane</button>')
           + (c.punti.length>1 ? '<button class="chip" data-cnp="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u25b6 Percorso</button>' : '')
           + (suo ? ('<button class="chip'+(c.visibile!==false?" on":"")+'" data-cnv="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">'+(c.visibile!==false?"visibile":"nascosto")+'</button>') : '')
           + '</span></div>';
+        if(!c.palmare) h += htmlNumeriCane(c);
       });
     });
 
@@ -8983,6 +9138,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-cnq]").forEach(function(b){
       b.onclick=function(){ cnFermaRiproduzione(); cnQuadretto = +b.dataset.cnq; renderCani(); };
     });
+    var bso=root.querySelector("[data-cnsoste]");
+    if(bso) bso.onclick=function(){ cnSoste = !cnSoste; renderCani(); };
     root.querySelectorAll("[data-cnmuta]").forEach(function(b){
       b.onclick=function(){
         cnFermaRiproduzione();
@@ -9255,9 +9412,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     var r = cnCalc || cnCalcola();
     var cani = suoi.map(function(c){
       var p = cnSemplifica(c.punti, 15);
+      var an = c.an || (c.palmare ? null : cnAnalizza(c));
       return {dev:c.dev||null, cane_id:c.cane_id||null, nome:c.nome, nomeFile:c.nomeFile||c.nome,
               colore:c.colore||c.colUsato||null, palmare:!!c.palmare,
               km:Number((c.km||cnKm(c.punti)).toFixed(2)),
+              analisi: an ? {tempo:an.tempo, fermo:an.fermo, km:Number(an.km.toFixed(3)),
+                             v_media:Number(an.vMedia.toFixed(2)), v_movimento:Number(an.vMovimento.toFixed(2)),
+                             soste:an.soste.map(function(s){ return {lat:+s.lat.toFixed(6), lng:+s.lng.toFixed(6), sec:s.sec}; })} : null,
               punti:p.map(function(q){ return [ +q.lat.toFixed(6), +q.lng.toFixed(6), q.t||null ]; })};
     });
     var punti = [];
