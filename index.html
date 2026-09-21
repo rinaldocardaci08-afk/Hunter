@@ -3587,7 +3587,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.33";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.34";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -9616,7 +9616,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(agisce && b.stato==="aperta"){
       h+='<div class="btnrow" style="margin-top:16px">';
       if(tr) h+='<button class="btn primary" id="gi-dividi">Dividi i tracciatori</button>';
-      h+='<button class="btn line" id="gi-chiudi">Chiudi le adesioni</button>';
+      h+='<button class="btn line" id="gi-chiudi">Chiudi le prenotazioni</button>';
+      h+='</div>';
+    }
+    /* prenotazioni chiuse: si riaprono finché la giornata non è conclusa */
+    else if(agisce && !conclusa && b.id && b.stato!=="nuova"){
+      h+='<div class="btnrow" style="margin-top:16px">';
+      if(tr) h+='<button class="btn primary" id="gi-dividi">Dividi i tracciatori</button>';
+      h+='<button class="btn line" id="gi-riapri">\ud83d\udd13 Riapri le prenotazioni</button>';
       h+='</div>';
     }
     // la giornata si conclude quando e' passata: da li' i presenti sono definitivi
@@ -9699,6 +9706,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(d) d.onclick=dividiTracciatori;
     var c=root.querySelector("#gi-chiudi");
     if(c) c.onclick=chiudiAdesioni;
+    var ra=root.querySelector("#gi-riapri");
+    if(ra) ra.onclick=riapriAdesioni;
     root.querySelectorAll("[data-vg]").forEach(function(bt){
       bt.onclick=function(){ vistaGiornata=bt.dataset.vg; renderGiornata(); };
     });
@@ -9800,18 +9809,35 @@ header .menubtn{min-width:48px; min-height:48px;}
     }catch(e){ toast("Serve la rete per aprire la giornata"); }
   }
 
-  async function chiudiAdesioni(){
+  /* PRENOTAZIONI: si chiudono e si RIAPRONO finché la giornata non è
+     conclusa. Prima c'era un confirm() del browser, che nell'app sull'iPhone
+     a volte non compare e il tasto sembra morto (21/09). */
+  function chiudiAdesioni(){
     if(!puoGestireBattute()) return;
-    if(!confirm("Chiudere le adesioni? Nessuno potrà più rispondere.")) return;
+    chiediConferma("Chiudere le prenotazioni?",
+      "Nessuno potrà più dare l'adesione.\nPuoi riaprirle quando vuoi, finché la giornata non è conclusa.",
+      "Chiudi le prenotazioni",
+      function(){ cambiaStatoAdesioni("chiusa"); });
+  }
+  function riapriAdesioni(){
+    if(!puoGestireBattute()) return;
+    chiediConferma("Riaprire le prenotazioni?",
+      "La squadra torna a poter rispondere sì o no per questa giornata. Chi aveva già risposto resta com'era.",
+      "Riapri le prenotazioni",
+      function(){ cambiaStatoAdesioni("aperta"); });
+  }
+  async function cambiaStatoAdesioni(stato){
+    if(!giornataAperta || !giornataAperta.id) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
     try{
-      var r=await sb.from("hn_battute").update({stato:"chiusa"}).eq("id",giornataAperta.id).select().single();
+      var r=await sb.from("hn_battute").update({stato:stato}).eq("id",giornataAperta.id).select().single();
       if(r.error) throw r.error;
       giornataAperta=r.data;
       var i=battute.findIndex(function(x){return x.id===r.data.id;});
       if(i>=0) battute[i]=r.data;
       renderGiornata();
-      toast("Adesioni chiuse");
-    }catch(e){ toast("Serve la rete"); }
+      toast(stato==="aperta" ? "Prenotazioni riaperte" : "Prenotazioni chiuse");
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
   }
 
   function scegliAreeSegnalate(){
