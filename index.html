@@ -3050,6 +3050,18 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: segnalare un punto al capo (passo C) -->
+<div class="modal" id="m-segnala">
+  <div class="sheet" style="max-height:88vh; overflow-y:auto">
+    <h3>📍 Segnala un punto</h3>
+    <p class="hint">Il punto è dove hai i piedi: il capo lo riceve col GPS.</p>
+    <div id="sg-corpo"><div class="loading">Carico…</div></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="sg-chiudi">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: nome del collare -->
 <div class="modal" id="m-nomecane">
   <div class="sheet">
@@ -3145,6 +3157,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <span style="flex:1; min-width:0"><span id="mv-coord-t" style="font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px">—</span>
         <span style="display:block; font-size:10px; color:var(--muted); margin-top:2px">tocca: centra la mappa · tieni premuto: copia</span></span>
       </button>
+      <button id="mv-segnala" style="width:100%; margin-bottom:10px; background:#1f2b38; border:1px solid #3d5f80; border-radius:11px; padding:11px 12px; color:#cfe6f7; font-size:13px;">📍 Segnala un punto al capo</button>
       <div id="mv-vicine" style="background:var(--dark2); border-radius:12px; padding:11px 13px; margin-bottom:10px;"></div>
       <div id="mv-notebox" style="background:#4a3320; border:1px solid #6b4a28; border-radius:12px; padding:12px 13px;">
         <div style="font-size:11px; color:var(--gold); margin-bottom:5px;">⚠ La tua nota di sicurezza</div>
@@ -3621,7 +3634,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.37";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.38";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5522,7 +5535,7 @@ header .menubtn{min-width:48px; min-height:48px;}
      Si segnano stando sul posto (mappatura o scheda mappa), si vedono sulla mappa
      con l'emoji, si modificano (nome e note) e si cancellano come i ritrovi. */
   var poi = [];
-  var POI_TIPI = { passaggio:{em:"\ud83d\udc3e", nome:"Passaggio"}, acqua:{em:"\ud83d\udca7", nome:"Punto acqua"}, permanenza:{em:"\ud83c\udf3f", nome:"Permanenza"} };
+  var POI_TIPI = { passaggio:{em:"\ud83d\udc3e", nome:"Passaggio"}, acqua:{em:"\ud83d\udca7", nome:"Punto acqua"}, permanenza:{em:"\ud83c\udf3f", nome:"Permanenza"}, notturno:{em:"\ud83d\udd2d", nome:"Osservazione notturna"} };
   var poiEdit = null, poiTipo = "passaggio", poiPunto = null, poiArea = null;
   async function caricaPoi(){
     if(!me || !me.squadra_id) return;
@@ -7722,6 +7735,366 @@ header .menubtn{min-width:48px; min-height:48px;}
   var tgRitroviChiesti = false;   /* i ritrovi si chiedono una volta sola */
 
 
+
+  /* ================= PASSO C: SEGNALARE UN PUNTO AL CAPO (21/09) =================
+     Il cacciatore, stando sul posto, manda al capo un punto col GPS: la sua
+     posta da spostare, una posta nuova da valutare, un passaggio, un punto di
+     osservazione notturna. Il capo lo vede, sceglie la mappa (gli propongo la
+     piu' vicina coi metri) e con un tocco lo trasforma nella cosa giusta o lo
+     scarta. Chi ha segnalato vede l'esito. Tabella: hn_punti_segnalati.
+     Si puo' segnalare sempre, anche fuori dai giorni di battuta (sua scelta). */
+
+  var SEGN_TIPI = [
+    {k:"sposta_posta", em:"\ud83d\udccd", n:"La mia posta va spostata qui", d:"il capo con un tocco la sposta"},
+    {k:"posta_nuova",  em:"\ud83c\udfaf", n:"Qui ci starebbe una posta",    d:"diventa una posta da verificare"},
+    {k:"passaggio",    em:"\ud83d\udc3e", n:"Passaggio",                    d:"dove passano i cinghiali"},
+    {k:"notturno",     em:"\ud83d\udd2d", n:"Osservazione notturna",        d:"punto buono col visore"}
+  ];
+  var segnalati = [];
+  var segnTipo = "passaggio";
+  var segnSel = null;        // la segnalazione che il capo sta decidendo
+  var segnAreaSel = null;    // la mappa scelta dal capo
+
+  function tipoSegn(k){
+    var t=null; SEGN_TIPI.forEach(function(x){ if(x.k===k) t=x; });
+    return t || {k:k, em:"\ud83d\udccc", n:k, d:""};
+  }
+  function segnAperti(){ return segnalati.filter(function(s){ return s.stato==="aperto"; }); }
+  function puoDecidereSegn(){ return puoGestireBattute() || puoMappare(); }
+
+  async function caricaSegnalati(){
+    if(!me || !me.squadra_id) return;
+    try{
+      var r = await sb.from("hn_punti_segnalati").select("*").eq("squadra_id", me.squadra_id)
+                .order("creato_il", {ascending:false}).limit(60);
+      if(r.error) throw r.error;
+      segnalati = r.data || [];
+    }catch(e){ /* tabella non ancora creata o rete assente */ }
+  }
+
+  /* --- la finestra: al cacciatore il modulo, al capo anche le decisioni --- */
+  async function apriSegnala(){
+    document.getElementById("m-segnala").classList.add("show");
+    document.getElementById("sg-corpo").innerHTML = '<div class="loading">Carico\u2026</div>';
+    await caricaSegnalati();
+    if(!aree.length){
+      try{
+        var ra = await sb.from("hn_aree").select("*").eq("squadra_id", me.squadra_id);
+        if(!ra.error && ra.data){
+          var rp = await sb.from("hn_poste").select("*").in("area_id", ra.data.map(function(a){ return a.id; }));
+          aree = ra.data.map(function(a){
+            a.poste = (rp.data||[]).filter(function(p){ return p.area_id===a.id && !p.archiviata_il; });
+            return a;
+          });
+        }
+      }catch(e){}
+    }
+    renderSegnala();
+  }
+  function chiudiSegnala(){
+    document.getElementById("m-segnala").classList.remove("show");
+    segnSel = null; segnAreaSel = null;
+  }
+
+  function renderSegnala(){
+    var root = document.getElementById("sg-corpo");
+    if(segnSel){ root.innerHTML = htmlDecisioneSegn(); agganciaSegnala(root); return; }
+    var mia = laMiaPosta();
+    var miaPosta = null, miaArea = null;
+    if(mia && mia.posta_id){
+      miaArea = aree.find(function(a){ return a.id===mia.area_id; });
+      if(miaArea) miaPosta = (miaArea.poste||[]).find(function(p){ return p.id===mia.posta_id; });
+    }
+    if(segnTipo==="sposta_posta" && !miaPosta) segnTipo = "posta_nuova";
+    var h = "";
+
+    /* --- quello che il capo deve decidere --- */
+    if(puoDecidereSegn()){
+      var ap = segnAperti();
+      h += '<div class="sechead" style="margin-top:0">Da decidere</div>';
+      if(!ap.length){
+        h += '<div style="font-size:12px; color:var(--muted); line-height:1.6; margin-bottom:6px">Nessun punto in attesa.</div>';
+      }else{
+        ap.forEach(function(s){
+          var t = tipoSegn(s.tipo);
+          var vic = mappaPiuVicina(s);
+          h += '<div class="card" data-segnapri="'+s.id+'" style="margin-bottom:7px; cursor:pointer; background:#1f2b38; border:1px solid #3d5f80">'
+            + '<div style="display:flex; align-items:center; gap:10px">'
+            + '<span style="font-size:20px">'+t.em+'</span>'
+            + '<span style="flex:1; min-width:0">'
+            + '<span style="display:block; font-size:13.5px; color:var(--cream)">'+esc(t.n)+'</span>'
+            + '<span style="display:block; font-size:11px; color:#9fc8ed; margin-top:2px">'
+            + esc(nomeDi(s.membro_id)) + (vic ? (' \u00b7 ' + esc(vic.area.nome) + ' \u00b7 ' + fmtDist(vic.d)) : '')
+            + '</span></span>'
+            + '<span style="font-size:15px; color:#9fc8ed">\u203a</span></div>'
+            + (s.nota ? ('<div style="font-size:11.5px; color:var(--muted); margin-top:6px; line-height:1.5">'+esc(s.nota)+'</div>') : '')
+            + '</div>';
+        });
+      }
+    }
+
+    /* --- il modulo per mandare un punto --- */
+    h += '<div class="sechead">Manda un punto</div>';
+    h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:9px">'
+      + (pos ? ('Prendo dove sei adesso: ' + Number(pos.lat).toFixed(6) + ', ' + Number(pos.lng).toFixed(6)
+               + ' \u00b7 GPS \u00b1' + Math.round(pos.acc) + ' m')
+             : 'Aspetto il segnale GPS: il punto \u00e8 dove hai i piedi, non dove tocchi lo schermo.')
+      + '</div>';
+    SEGN_TIPI.forEach(function(t){
+      if(t.k==="sposta_posta" && !miaPosta) return;
+      var on = segnTipo===t.k;
+      h += '<button class="btn line" data-segntipo="'+t.k+'" style="text-align:left; margin-bottom:6px; line-height:1.4;'
+        + (on ? 'border-color:var(--gold); background:#3a2f1a' : '') + '">'
+        + t.em + ' <b>' + esc(t.n) + '</b>'
+        + '<span style="display:block; font-size:11px; color:var(--muted)">' + esc(t.d)
+        + (t.k==="sposta_posta" && miaPosta ? (' \u00b7 posta ' + (miaPosta.numero||"?") + (pos ? (' \u00b7 ' + Math.round(distM(miaPosta, pos)) + ' m da dov\'\u00e8 segnata') : '')) : '')
+        + '</span></button>';
+    });
+    h += '<label style="display:block; font-size:12px; color:var(--muted); margin:12px 0 6px">Nota per il capo</label>';
+    h += '<textarea id="sg-nota" placeholder="due parole: cosa hai visto, perch\u00e9"></textarea>';
+    h += '<button class="btn primary" id="sg-manda" style="margin-top:10px">\ud83d\udce4 Manda al capo</button>';
+
+    /* --- quello che ho mandato io --- */
+    var miei = segnalati.filter(function(s){ return s.membro_id===me.membro_id; });
+    if(miei.length){
+      h += '<div class="sechead">I punti che hai mandato</div>';
+      miei.slice(0,8).forEach(function(s){
+        var t = tipoSegn(s.tipo);
+        var col = s.stato==="accolto" ? "#7be0a8" : (s.stato==="scartato" ? "#e07a6a" : "var(--gold)");
+        var eti = s.stato==="accolto" ? "accolto" : (s.stato==="scartato" ? "scartato" : "in attesa");
+        h += '<div style="display:flex; align-items:center; gap:9px; padding:7px 0; border-bottom:1px solid var(--dark3)">'
+          + '<span style="font-size:17px">'+t.em+'</span>'
+          + '<span style="flex:1; min-width:0"><span style="display:block; font-size:12.5px; color:var(--cream)">'+esc(t.n)+'</span>'
+          + '<span style="display:block; font-size:10.5px; color:var(--muted)">'
+          + String(s.creato_il||"").slice(8,10)+'/'+String(s.creato_il||"").slice(5,7)
+          + (s.esito ? (' \u00b7 ' + esc(s.esito)) : '') + '</span></span>'
+          + '<span style="font-size:11px; color:'+col+'">'+eti+'</span></div>';
+      });
+    }
+    root.innerHTML = h;
+    agganciaSegnala(root);
+  }
+
+  function mappaPiuVicina(s){
+    var out = null;
+    aree.forEach(function(a){
+      (a.poste||[]).forEach(function(p){
+        if(!isFinite(p.lat)||!isFinite(p.lng)) return;
+        var d = distM({lat:Number(s.lat), lng:Number(s.lng)}, p);
+        if(!out || d < out.d) out = {area:a, d:d, posta:p};
+      });
+    });
+    return out;
+  }
+  function mappeVicine(s){
+    var l = [];
+    aree.forEach(function(a){
+      var m = null;
+      (a.poste||[]).forEach(function(p){
+        if(!isFinite(p.lat)||!isFinite(p.lng)) return;
+        var d = distM({lat:Number(s.lat), lng:Number(s.lng)}, p);
+        if(m===null || d<m) m = d;
+      });
+      if(m!==null) l.push({area:a, d:m});
+    });
+    return l.sort(function(x,y){ return x.d-y.d; }).slice(0,3);
+  }
+
+  function htmlDecisioneSegn(){
+    var s = segnSel, t = tipoSegn(s.tipo);
+    var vicine = mappeVicine(s);
+    if(!segnAreaSel && vicine.length) segnAreaSel = vicine[0].area.id;
+    var h = '<button class="btn line" id="sg-torna" style="margin-bottom:12px">\u276e Torna all\'elenco</button>';
+    h += '<div class="card" style="background:#1f2b38; border:1px solid #3d5f80; margin-bottom:12px">'
+      + '<div style="font-size:15px; color:var(--cream)">'+t.em+' '+esc(t.n)+'</div>'
+      + '<div style="font-size:11.5px; color:#9fc8ed; margin-top:4px">'+esc(nomeDi(s.membro_id))
+      + ' \u00b7 ' + String(s.creato_il||"").slice(8,10)+'/'+String(s.creato_il||"").slice(5,7)
+      + (s.accuratezza ? (' \u00b7 GPS \u00b1'+s.accuratezza+' m') : '') + '</div>'
+      + '<div style="font-family:ui-monospace,Menlo,monospace; font-size:12.5px; color:var(--cream); margin-top:6px">'
+      + Number(s.lat).toFixed(6)+', '+Number(s.lng).toFixed(6)+'</div>'
+      + (s.nota ? ('<div style="font-size:12.5px; color:#f0e2c9; margin-top:8px; line-height:1.5">'+esc(s.nota)+'</div>') : '')
+      + '</div>';
+
+    if(s.tipo==="sposta_posta"){
+      var a0 = aree.find(function(a){ return a.id===s.area_id; });
+      var p0 = a0 ? (a0.poste||[]).find(function(p){ return p.id===s.posta_id; }) : null;
+      if(p0){
+        h += '<div style="font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:10px">'
+          + 'La sua posta \u00e8 la <b style="color:var(--cream)">'+(p0.numero||"?")+'</b> di \u00ab'+esc(a0.nome)+'\u00bb, '
+          + 'segnata a <b style="color:var(--cream)">'+Math.round(distM(p0,{lat:Number(s.lat),lng:Number(s.lng)}))+' m</b> da dove si trova lui.</div>';
+        h += '<button class="btn primary" id="sg-fai" style="margin-bottom:8px">\ud83d\udccd Sposta la posta '+(p0.numero||"?")+' qui</button>';
+      }else{
+        h += '<div style="font-size:12.5px; color:#e07a6a; line-height:1.6; margin-bottom:10px">La posta di quella segnalazione non c\'\u00e8 pi\u00f9.</div>';
+      }
+    }else{
+      h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">Su quale mappa</div>';
+      if(!vicine.length){
+        h += '<div style="font-size:12.5px; color:#e07a6a; margin-bottom:10px">Nessuna mappa con poste: non so dove metterlo.</div>';
+      }else{
+        h += '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">';
+        vicine.forEach(function(v){
+          h += '<button class="chip'+(segnAreaSel===v.area.id?" on":"")+'" data-segnarea="'+v.area.id+'" style="width:auto; padding:7px 10px; font-size:11.5px">'
+            + esc(v.area.nome) + ' \u00b7 ' + fmtDist(v.d) + '</button>';
+        });
+        h += '</div>';
+        if(vicine[0].d > 200){
+          h += '<div style="font-size:11.5px; color:#e0a96a; line-height:1.5; margin-bottom:10px">'
+            + 'Il punto \u00e8 a '+fmtDist(vicine[0].d)+' dalla posta pi\u00f9 vicina: pu\u00f2 essere un terreno ancora da mappare.</div>';
+        }
+        var eti = s.tipo==="posta_nuova" ? "\ud83c\udfaf Crea la posta qui (da verificare)"
+                : (s.tipo==="notturno" ? "\ud83d\udd2d Segna il punto di osservazione" : "\ud83d\udc3e Segna il passaggio");
+        h += '<button class="btn primary" id="sg-fai" style="margin-bottom:8px">'+eti+'</button>';
+      }
+    }
+    h += '<button class="btn line" id="sg-scarta" style="border-color:#C0392B; color:#e07a6a">Scarta la segnalazione</button>';
+    return h;
+  }
+
+  function agganciaSegnala(root){
+    root.querySelectorAll("[data-segntipo]").forEach(function(b){
+      b.onclick=function(){
+        var nota = document.getElementById("sg-nota");
+        var tenuta = nota ? nota.value : "";
+        segnTipo = b.dataset.segntipo;
+        renderSegnala();
+        var n2 = document.getElementById("sg-nota");
+        if(n2) n2.value = tenuta;
+      };
+    });
+    root.querySelectorAll("[data-segnapri]").forEach(function(b){
+      b.onclick=function(){
+        segnSel = segnalati.find(function(s){ return s.id===b.dataset.segnapri; }) || null;
+        segnAreaSel = null;
+        renderSegnala();
+      };
+    });
+    root.querySelectorAll("[data-segnarea]").forEach(function(b){
+      b.onclick=function(){ segnAreaSel = b.dataset.segnarea; renderSegnala(); };
+    });
+    var bt=document.getElementById("sg-torna");
+    if(bt) bt.onclick=function(){ segnSel=null; segnAreaSel=null; renderSegnala(); };
+    var bm=document.getElementById("sg-manda");
+    if(bm) bm.onclick=mandaSegnalazione;
+    var bf=document.getElementById("sg-fai");
+    if(bf) bf.onclick=accogliSegnalazione;
+    var bs=document.getElementById("sg-scarta");
+    if(bs) bs.onclick=function(){
+      chiediConferma("Scartare il punto?", "Chi l'ha mandato vedr\u00e0 che \u00e8 stato scartato.", "Scarta", function(){ decidiSegnalazione("scartato", "scartato dal capo"); });
+    };
+  }
+
+  async function mandaSegnalazione(){
+    if(!pos){ toast("Aspetto il segnale GPS"); serveGPS("segnalazione"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per mandare il punto"); return; }
+    var nota = String((document.getElementById("sg-nota")||{}).value || "").trim();
+    var mia = laMiaPosta();
+    var dati = {
+      squadra_id: me.squadra_id, membro_id: me.membro_id,
+      tipo: segnTipo, nota: nota || null,
+      lat: pos.lat, lng: pos.lng, accuratezza: Math.round(pos.acc),
+      stato: "aperto",
+      giornata_id: (giornataAperta && giornataAperta.id) || null,
+      battuta_svolta_id: mia ? mia.battuta_svolta_id : null,
+      area_id: mia ? mia.area_id : null,
+      posta_id: (segnTipo==="sposta_posta" && mia) ? mia.posta_id : null
+    };
+    if(segnTipo==="sposta_posta" && !dati.posta_id){ toast("Non hai una posta assegnata"); return; }
+    try{
+      var r = await sb.from("hn_punti_segnalati").insert(dati).select().single();
+      if(r.error) throw r.error;
+      segnalati.unshift(r.data);
+      var n=document.getElementById("sg-nota"); if(n) n.value="";
+      toast("Punto mandato al capo");
+      renderSegnala();
+    }catch(e){
+      var m=String(e.message||e);
+      toast(/hn_punti_segnalati|does not exist|schema cache/.test(m) ? "Manca la tabella hn_punti_segnalati: lancia l'SQL su Supabase" : "Non riesco: "+m);
+    }
+  }
+
+  async function accogliSegnalazione(){
+    var s = segnSel;
+    if(!s) return;
+    if(!puoDecidereSegn()){ toast("Decide il capocaccia"); return; }
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    try{
+      if(s.tipo==="sposta_posta"){
+        var a0 = aree.find(function(a){ return a.id===s.area_id; });
+        var p0 = a0 ? (a0.poste||[]).find(function(p){ return p.id===s.posta_id; }) : null;
+        if(!p0){ toast("Quella posta non c'\u00e8 pi\u00f9"); return; }
+        var r0 = await sb.from("hn_poste").update({lat:Number(s.lat), lng:Number(s.lng),
+                    accuratezza:s.accuratezza||null, da_verificare:false}).eq("id", p0.id).select().single();
+        if(r0.error) throw r0.error;
+        var k = a0.poste.findIndex(function(x){ return x.id===p0.id; });
+        if(k>=0) a0.poste[k] = r0.data;
+        await decidiSegnalazione("accolto", "posta " + (p0.numero||"") + " spostata");
+      }else if(s.tipo==="posta_nuova"){
+        var a1 = aree.find(function(a){ return a.id===segnAreaSel; });
+        if(!a1){ toast("Scegli la mappa"); return; }
+        var n1 = prossimoNumeroPosta(a1);
+        var r1 = await sb.from("hn_poste").insert({
+          area_id: a1.id, nome: "Posta " + n1, numero: n1, tipo: "fissa",
+          lat: Number(s.lat), lng: Number(s.lng), accuratezza: s.accuratezza||null,
+          da_verificare: true, note: s.nota || null, creata_il: new Date().toISOString()
+        }).select().single();
+        if(r1.error) throw r1.error;
+        a1.poste = (a1.poste||[]).concat([r1.data]);
+        await decidiSegnalazione("accolto", "creata la posta " + n1 + " su " + a1.nome);
+      }else{
+        var a2 = aree.find(function(a){ return a.id===segnAreaSel; });
+        if(!a2){ toast("Scegli la mappa"); return; }
+        var t2 = tipoSegn(s.tipo);
+        var r2 = await sb.from("hn_punti_interesse").insert({
+          squadra_id: me.squadra_id, area_id: a2.id, tipo: s.tipo,
+          nome: t2.n + " di " + nomeDi(s.membro_id), note: s.nota || null,
+          lat: Number(s.lat), lng: Number(s.lng), accuratezza: s.accuratezza||null,
+          creato_da: s.membro_id
+        }).select().single();
+        if(r2.error) throw r2.error;
+        poi = poi.concat([r2.data]);
+        await decidiSegnalazione("accolto", t2.n.toLowerCase() + " segnato su " + a2.nome);
+      }
+      salvaCacheAree(); schemaReset(); schemaGeo=null;
+      renderAree(); refreshMapArea();
+    }catch(e){
+      var m=String(e.message||e);
+      if(/tipo/.test(m) && /check/.test(m)) toast("Il tipo non \u00e8 previsto dal database: lancia l'SQL dei punti di interesse");
+      else toast("Non riesco: "+m);
+    }
+  }
+
+  async function decidiSegnalazione(stato, esito){
+    var s = segnSel;
+    if(!s) return;
+    try{
+      var r = await sb.from("hn_punti_segnalati").update({stato:stato, esito:esito||null,
+                deciso_da: me.membro_id, deciso_il: new Date().toISOString()}).eq("id", s.id).select().single();
+      if(r.error) throw r.error;
+      var i = segnalati.findIndex(function(x){ return x.id===s.id; });
+      if(i>=0) segnalati[i] = r.data;
+      segnSel = null; segnAreaSel = null;
+      toast(stato==="accolto" ? ("Fatto: "+esito) : "Segnalazione scartata");
+      renderSegnala();
+      calcolaSegnaliSegn();
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+  /* il numerino sulla casella della Home */
+  function calcolaSegnaliSegn(){
+    try{
+      var t = document.querySelector('.tile[data-azione="segnala"]');
+      if(!t) return;
+      var n = puoDecidereSegn() ? segnAperti().length : 0;
+      var vecchio = t.querySelector(".segno");
+      if(vecchio) vecchio.remove();
+      if(n>0){
+        var sp = document.createElement("span");
+        sp.className = "segno rosso";
+        sp.textContent = n;
+        t.appendChild(sp);
+      }
+    }catch(e){}
+  }
+
   /* ================= PERCORSO DEI CANI (21/09) =================
      Si apre da una battuta CHIUSA: si carica il file .dogtracerecord
      esportato da Dogtrace (e' uno zip: lo apriamo qui, senza librerie) e si
@@ -9638,6 +10011,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='<div style="font-size:17px; color:#fff; font-weight:700">'+esc(mia0.ruolo||"incarico")+'</div>';
       h+='<div style="font-size:11.5px; color:#c9b3e0; margin-top:3px">'
         +esc(arMio?arMio.nome:'')+(bsMio&&bsMio.numero?(' \u00b7 '+bsMio.numero+'ª battuta'):'')+'</div>';
+      h+='<button class="btn line" id="gi-segnala2" style="margin-top:10px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Segnala un punto al capo</button>';
       h+='</div>';
     }
     if(mia0 && mia0.posta_id){
@@ -9674,6 +10048,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='</div>';
         }
         h+='<button class="btn" id="gi-miaposta" style="margin-top:11px; background:#1D9E75; color:#fff; width:100%">🗺️ Portami alla mia posta</button>';
+        h+='<button class="btn line" id="gi-segnala" style="margin-top:7px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Segnala un punto al capo</button>';
         h+='</div>';
       }
     }
@@ -9981,6 +10356,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-vg]").forEach(function(bt){
       bt.onclick=function(){ vistaGiornata=bt.dataset.vg; renderGiornata(); };
     });
+    var sg1=root.querySelector("#gi-segnala"), sg2=root.querySelector("#gi-segnala2");
+    if(sg1) sg1.onclick=apriSegnala;
+    if(sg2) sg2.onclick=apriSegnala;
     var mp=root.querySelector("#gi-miaposta");
     if(mp) mp.onclick=function(){ apriMiaPostaInMappa(); };
     var gp=root.querySelector("#gi-presenze");
@@ -18385,6 +18763,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
     document.getElementById("cn-indietro").onclick=function(){ tornaIndietro(); };
     document.getElementById("cn-play-stop").onclick=function(){ cnFermaRiproduzione(); };
+    document.getElementById("sg-chiudi").onclick=chiudiSegnala;
+    document.getElementById("mv-segnala").onclick=function(){ apriSegnala(); };
     document.getElementById("nc-annulla").onclick=function(){ document.getElementById("m-nomecane").classList.remove("show"); };
     document.getElementById("nc-salva").onclick=salvaNomeCane;
     document.getElementById("nc-nome").addEventListener("keydown", function(ev){ if(ev.key==="Enter") salvaNomeCane(); });
@@ -21340,6 +21720,7 @@ function fineA(){
     {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca",          ds:"Annunci e comunicazioni",     go:"bacheca", wide:true, foto:"bacheca.png"},
     {k:"battute",    ic:"\ud83d\udd25", nm:"Battute",          ds:"Calendario e adesioni",       go:"battute"},
     {k:"aree",       ic:"\ud83d\udccd", nm:"Mappe e poste",    ds:"Crea e modifica i terreni",   go:"aree"},
+    {k:"segnala",    ic:"\ud83d\udccd", nm:"Segnala un punto", ds:"Mandi al capo il punto dove sei", azione:"segnala"},
     {k:"mezzo",      ic:"\ud83d\ude97", nm:"Il mio mezzo",     ds:"Dove ho parcheggiato \u00b7 anche senza rete", azione:"mezzo"},
     {k:"cassa",      ic:"\ud83d\udcb0", nm:"Cassa",            ds:"Quote, spese, saldi",         go:"cassa"},
     {k:"scadenze",   ic:"\ud83d\udccb", nm:"Le mie scadenze",  ds:"Tasse e assicurazione",       go:"scadenze"},
@@ -21459,6 +21840,7 @@ function fineA(){
     });
     g.innerHTML=h;
     agganciaCaselleHome(g);
+    if(typeof calcolaSegnaliSegn==="function") calcolaSegnaliSegn();
     g.querySelectorAll("[data-dom-si]").forEach(function(b){ b.onclick=function(){ rispondiDaHome(b.dataset.domSi, true); }; });
     g.querySelectorAll("[data-dom-no]").forEach(function(b){ b.onclick=function(){ rispondiDaHome(b.dataset.domNo, false); }; });
   }
@@ -21473,7 +21855,10 @@ function fineA(){
       t.onclick=function(){ toast(t.dataset.soon+" \u2014 in arrivo"); };
     });
     g.querySelectorAll(".tile[data-azione]").forEach(function(t){
-      t.onclick=function(){ if(t.dataset.azione==="mezzo") apriFinestraAuto(); };
+      t.onclick=function(){
+        if(t.dataset.azione==="mezzo") apriFinestraAuto();
+        else if(t.dataset.azione==="segnala") apriSegnala();
+      };
     });
   }
   /* --- la schermata in Amministrazione per riordinare --- */
