@@ -3620,7 +3620,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.35";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.36";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -8200,33 +8200,42 @@ header .menubtn{min-width:48px; min-height:48px;}
     var inizio = Date.now(), k = 0;
     cnPlay = { scia:scia, testa:testa, cane:i, timer:setInterval(function(){
       var f = Math.min(1, (Date.now()-inizio)/CN_DURATA_PLAY);
-      var fino;
+      /* il pallino scorre DENTRO il segmento: con un punto al secondo, saltare
+         da un punto all'altro lo fa andare a scatti (suo, 21/09) */
+      var u = 0, pt;
       if(reale){
         var tAdesso = t0 + f*reale;
-        while(k < pts.length-1 && (pts[k+1].t||t0) <= tAdesso) k++;
-        fino = k;
+        while(k < pts.length-2 && (pts[k+1].t||t0) <= tAdesso) k++;
+        var a = pts[k], b = pts[k+1] || a;
+        var ta = a.t || t0, tb = b.t || ta;
+        u = (tb > ta) ? Math.min(1, Math.max(0, (tAdesso-ta)/(tb-ta))) : 1;
+        pt = a;
       }else{
-        fino = Math.floor(f*(pts.length-1));
+        var x = f*(pts.length-1);
+        k = Math.min(pts.length-2, Math.floor(x));
+        u = x - k;
+        pt = pts[k];
       }
-      var linea = pts.slice(0, fino+1).map(function(p){ return [p.lat,p.lng]; });
-      if(linea.length < 1) linea = [[pts[0].lat,pts[0].lng]];
+      var A = pts[k], B = pts[k+1] || A;
+      var ora = [A.lat + (B.lat-A.lat)*u, A.lng + (B.lng-A.lng)*u];
+      var linea = pts.slice(0, k+1).map(function(p){ return [p.lat,p.lng]; });
+      linea.push(ora);
       try{
         scia.setLatLngs(linea);
-        testa.setLatLng(linea[linea.length-1]);
+        testa.setLatLng(ora);
       }catch(e){}
       var bi = document.getElementById("cn-barra-i");
       if(bi) bi.style.width = Math.round(f*100)+"%";
-      var pt = pts[fino] || pts[0];
       var oraEl = document.getElementById("cn-play-ora");
-      if(oraEl && pt.t) oraEl.textContent = new Date(pt.t).toLocaleTimeString("it-IT")
-        + " \u00b7 " + (fino+1) + "/" + pts.length + " punti";
+      if(oraEl && pt && pt.t) oraEl.textContent = new Date(pt.t).toLocaleTimeString("it-IT")
+        + " \u00b7 " + (k+1) + "/" + pts.length + " punti";
       if(f >= 1){
         setTimeout(function(){
           cnFermaRiproduzione();
           renderCani();
         }, 900);
       }
-    }, 60) };
+    }, 40) };
   }
 
   /* ---- salvataggio ---- */
@@ -8333,7 +8342,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     var gior = battute.filter(function(b){ return b.stato==="conclusa" && stagioneDi(b.data)===st; });
     var ids = gior.map(function(b){ return b.id; });
-    var d = {stagione:st, svolte:[], fatti:[], adesioni:[], ospiti:[], mie:[], poste:[], aree:[]};
+    var d = {stagione:st, svolte:[], fatti:[], adesioni:[], ospiti:[], mie:[], poste:[], aree:[], percorsi:{}};
     if(ids.length){
       try{
         var r1 = await sb.from("hn_battute_svolte").select("*").in("giornata_id", ids);
@@ -8346,6 +8355,14 @@ header .menubtn{min-width:48px; min-height:48px;}
         if(!r4.error) d.ospiti = r4.data || [];
         var r5 = await sb.from("hn_assegnazioni").select("*").in("battuta_id", ids).eq("membro_id", me.membro_id);
         if(!r5.error) d.mie = r5.data || [];
+        /* quali battute hanno gia' il percorso dei cani caricato */
+        d.percorsi = {};
+        try{
+          var r9 = await sb.from("hn_percorsi_cani")
+                     .select("battuta_svolta_id,perc_battuta,km,quadretto,poste_sfiorate,poste_totali")
+                     .eq("squadra_id", me.squadra_id);
+          if(!r9.error) (r9.data||[]).forEach(function(p){ d.percorsi[p.battuta_svolta_id] = p; });
+        }catch(e){}
         if(!aree.length){
           var r6 = await sb.from("hn_aree").select("id,nome").eq("squadra_id", me.squadra_id);
           if(!r6.error) d.aree = r6.data || [];
@@ -8420,7 +8437,11 @@ header .menubtn{min-width:48px; min-height:48px;}
           var min = minutiSvolta(bs);
           var cap = capiDiSvolta(bs, (arcDati.fatti||[]).filter(function(f){ return f.tipo==="uccisione"; }));
           var miaA = (arcDati.mie||[]).find(function(x){ return x.battuta_svolta_id===bs.id && x.posta_id; });
-          h += '<div style="background:#2f2818; border-radius:10px; padding:9px 11px; margin-bottom:6px">';
+          var perc = (arcDati.percorsi||{})[bs.id];
+          h += '<div style="border-radius:10px; padding:9px 11px; margin-bottom:6px; '
+             + (perc ? 'background:#1f2b38; border:1px solid #3d5f80; cursor:pointer"'
+                      + ' data-arccani="'+bs.id+'"'
+                     : 'background:#2f2818"') + '>';
           h += '<div style="display:flex; align-items:baseline; gap:8px">';
           h += '<span style="font-size:13.5px; color:var(--cream); flex:1; min-width:0">'
              + (bs.numero ? bs.numero+'\u00aa \u00b7 ' : '') + esc(nomeAreaArc(bs.area_id)) + '</span>';
@@ -8431,7 +8452,13 @@ header .menubtn{min-width:48px; min-height:48px;}
              + (ore ? ore : "orario non registrato") + (min ? ' \u00b7 ' + durataTesto(min) : '')
              + (miaA ? ' \u00b7 <span style="color:#9fc8ed">la tua posta: ' + numeroPostaArc(miaA.posta_id) + '</span>' : '')
              + '</div>';
-          if(vedeComeCapo()) h += '<button class="btn line" data-arccani="'+bs.id+'" style="font-size:11.5px; padding:7px; margin-top:6px">\ud83d\udc15 Percorso dei cani</button>';
+          if(perc){
+            h += '<div style="font-size:11px; color:#9fc8ed; margin-top:5px">\ud83d\udc15 percorso dei cani'
+               + (perc.perc_battuta!==null && perc.perc_battuta!==undefined ? (' \u00b7 ' + perc.perc_battuta + '% di mappa battuta (quadretti da ' + (perc.quadretto||30) + ' m)') : '')
+               + (perc.km ? (' \u00b7 ' + Number(perc.km).toFixed(1) + ' km') : '')
+               + ' \u00b7 <b>tocca per vederlo</b></div>';
+          }
+          if(!perc && vedeComeCapo()) h += '<button class="btn line" data-arccani="'+bs.id+'" style="font-size:11.5px; padding:7px; margin-top:6px">\ud83d\udc15 Percorso dei cani</button>';
           h += '</div>';
         });
         h += '<button class="btn line" data-arcapri="'+data+'" style="font-size:12.5px; padding:9px">Apri la giornata \u203a</button>';
@@ -18329,7 +18356,7 @@ header .menubtn{min-width:48px; min-height:48px;}
        cosi' vale anche per quello che viene ridisegnato dopo */
     document.getElementById("battute-scroll").addEventListener("click", function(ev){
       var t = ev.target;
-      var b = (t && t.closest) ? t.closest("[data-vbat],[data-arcg],[data-arcapri]") : null;
+      var b = (t && t.closest) ? t.closest("[data-vbat],[data-arccani],[data-arcapri],[data-arcg]") : null;
       if(!b) return;
       if(b.dataset.vbat){ vistaBat = b.dataset.vbat; renderBattuteVista(); return; }
       if(b.dataset.arcg){ arcAperte[b.dataset.arcg] = !arcAperte[b.dataset.arcg]; renderArchivio(); return; }
