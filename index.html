@@ -3634,7 +3634,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.38";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.39";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7835,11 +7835,20 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     /* --- il modulo per mandare un punto --- */
     h += '<div class="sechead">Manda un punto</div>';
-    h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:9px">'
-      + (pos ? ('Prendo dove sei adesso: ' + Number(pos.lat).toFixed(6) + ', ' + Number(pos.lng).toFixed(6)
-               + ' \u00b7 GPS \u00b1' + Math.round(pos.acc) + ' m')
-             : 'Aspetto il segnale GPS: il punto \u00e8 dove hai i piedi, non dove tocchi lo schermo.')
-      + '</div>';
+    /* le coordinate grandi e copiabili: se le vuole mandare anche per radio o
+       su WhatsApp deve poterle leggere e copiare (sua richiesta 21/09) */
+    if(pos){
+      h += '<button id="sg-coord" style="width:100%; margin-bottom:10px; background:#1f2b38; border:1px solid #3d5f80;'
+        + ' border-radius:12px; padding:11px 13px; text-align:left; color:var(--cream)">'
+        + '<span style="display:block; font-size:10px; color:#9fc8ed; letter-spacing:.5px">DOVE SEI ADESSO</span>'
+        + '<span id="sg-coord-t" style="display:block; font-family:ui-monospace,Menlo,Consolas,monospace; font-size:17px; color:#fff; margin-top:3px">'
+        + Number(pos.lat).toFixed(6) + ', ' + Number(pos.lng).toFixed(6) + '</span>'
+        + '<span style="display:block; font-size:10.5px; color:var(--muted); margin-top:3px">GPS \u00b1'
+        + Math.round(pos.acc) + ' m \u00b7 tocca per copiarle</span></button>';
+    }else{
+      h += '<div style="font-size:11.5px; color:#e0a96a; line-height:1.6; margin-bottom:9px">'
+        + 'Aspetto il segnale GPS: il punto \u00e8 dove hai i piedi, non dove tocchi lo schermo.</div>';
+    }
     SEGN_TIPI.forEach(function(t){
       if(t.k==="sposta_posta" && !miaPosta) return;
       var on = segnTipo===t.k;
@@ -7973,6 +7982,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     var bt=document.getElementById("sg-torna");
     if(bt) bt.onclick=function(){ segnSel=null; segnAreaSel=null; renderSegnala(); };
+    var bc=document.getElementById("sg-coord");
+    if(bc) bc.onclick=function(){
+      var t=document.getElementById("sg-coord-t").textContent;
+      if(!t) return;
+      if(navigator.clipboard && navigator.clipboard.writeText)
+        navigator.clipboard.writeText(t).then(function(){ toast("Coordinate copiate: "+t); }, function(){ toast(t); });
+      else toast(t);
+    };
     var bm=document.getElementById("sg-manda");
     if(bm) bm.onclick=mandaSegnalazione;
     var bf=document.getElementById("sg-fai");
