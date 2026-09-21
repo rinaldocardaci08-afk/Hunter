@@ -3109,7 +3109,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 <div class="modal" id="m-vista" style="align-items:stretch;">
   <div style="background:var(--dark); width:100%; display:flex; flex-direction:column;">
     <div style="background:#1d3a5a; padding:calc(12px + env(safe-area-inset-top)) 14px 12px; display:flex; align-items:center; gap:10px;">
-      <div style="flex:1; font-size:13px; color:#9fc8ed;">👁 Anteprima — così la vede il postaiolo</div>
+      <div id="mv-intest" style="flex:1; font-size:13px; color:#9fc8ed; min-width:0;">👁 Anteprima — così la vede il postaiolo</div>
       <button id="mv-mappa" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:7px 11px;font-size:13px;">🗺️ Mappa</button>
       <button id="mv-chiudi" style="background:rgba(255,255,255,.15);border:none;color:#fff;border-radius:8px;padding:7px 13px;font-size:13px;">Chiudi</button>
     </div>
@@ -3145,6 +3145,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <span style="flex:1; min-width:0"><span id="mv-coord-t" style="font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px">—</span>
         <span style="display:block; font-size:10px; color:var(--muted); margin-top:2px">tocca: centra la mappa · tieni premuto: copia</span></span>
       </button>
+      <div id="mv-vicine" style="background:var(--dark2); border-radius:12px; padding:11px 13px; margin-bottom:10px;"></div>
       <div id="mv-notebox" style="background:#4a3320; border:1px solid #6b4a28; border-radius:12px; padding:12px 13px;">
         <div style="font-size:11px; color:var(--gold); margin-bottom:5px;">⚠ La tua nota di sicurezza</div>
         <div id="mv-note" style="font-size:13px; color:var(--cream); line-height:1.55;">—</div>
@@ -3620,7 +3621,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.36";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.37";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6231,33 +6232,40 @@ header .menubtn{min-width:48px; min-height:48px;}
       for(; gy<H; gy+=stepPx){ ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke(); }
     }
 
-    // vicini col nome
+    // vicini: azzurri col nome del cacciatore se assegnati, beige se liberi
     vic.forEach(function(v){
       var c=px(v.p);
       if(c.x<-30||c.x>W+30||c.y<-30||c.y>H+30) return;
       var r=v.grado===1?11:9;
+      var chi = chiInPosta(v.p.id);
       ctx.globalAlpha = v.grado===1?0.95:0.6;
-      ctx.fillStyle="#B89968"; ctx.beginPath(); ctx.arc(c.x,c.y,r,0,7); ctx.fill();
+      ctx.fillStyle = chi ? "#8FC7EC" : "#B89968";
+      ctx.beginPath(); ctx.arc(c.x,c.y,r,0,7); ctx.fill();
       ctx.strokeStyle="#2C2418"; ctx.lineWidth=2; ctx.stroke();
       ctx.globalAlpha=1;
-      ctx.fillStyle="#D8C6A8"; ctx.font=(grande?"11px":"10px")+" sans-serif";
+      ctx.fillStyle = chi ? "#CFE6F7" : "#D8C6A8";
+      ctx.font=(chi?("600 "):"")+(grande?"11px":"10px")+" sans-serif";
       ctx.textAlign="center"; ctx.textBaseline="top";
-      ctx.fillText(v.p.nome||("Posta "+v.p.numero), c.x, c.y+r+4);
+      ctx.fillText(chi || v.p.nome || ("Posta "+v.p.numero), c.x, c.y+r+4);
+      if(chi){
+        ctx.fillStyle="#9db3c4"; ctx.font=(grande?"9.5px":"9px")+" sans-serif";
+        ctx.fillText("posta "+(v.p.numero||"?"), c.x, c.y+r+(grande?18:16));
+      }
     });
-    // la posta
+    // la posta di chi guarda: blu pieno, si deve riconoscere al volo
     var c0=px(posta);
-    var col = posta.tipo==="occasionale" ? "#E0922B" : (posta.tipo==="controposta" ? "#7B5EA7" : "#C0392B");
+    var col = "#1D6FD0";
     ctx.fillStyle=col; ctx.beginPath(); ctx.arc(c0.x,c0.y,grande?18:15,0,7); ctx.fill();
     ctx.strokeStyle="#fff"; ctx.lineWidth=3; ctx.stroke();
     ctx.fillStyle="#fff"; ctx.font="700 "+(grande?15:13)+"px sans-serif";
     ctx.textAlign="center"; ctx.textBaseline="middle";
     ctx.fillText(String(posta.numero||"?"), c0.x, c0.y);
-    ctx.fillStyle="#F0E6D2"; ctx.font=(grande?"12px":"11px")+" sans-serif"; ctx.textBaseline="top";
-    ctx.fillText("la tua", c0.x, c0.y+(grande?22:19));
-    // utente
+    ctx.fillStyle="#CFE6F7"; ctx.font="600 "+(grande?"12px":"11px")+" sans-serif"; ctx.textBaseline="top";
+    ctx.fillText("LA TUA POSTA", c0.x, c0.y+(grande?22:19));
+    // dove sei tu: verde, altrimenti si confonde con la posta blu
     if(pos){
       var cu=px(pos);
-      ctx.fillStyle="#378ADD"; ctx.beginPath(); ctx.arc(cu.x,cu.y,grande?9:7,0,7); ctx.fill();
+      ctx.fillStyle="#1D9E75"; ctx.beginPath(); ctx.arc(cu.x,cu.y,grande?9:7,0,7); ctx.fill();
       ctx.strokeStyle="#fff"; ctx.lineWidth=2.5; ctx.stroke();
     }
     // scala metrica
@@ -6405,9 +6413,66 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("mv-dist").textContent="GPS spento";
       document.getElementById("mv-arrow").style.transform="rotate(0deg)";
     }
+    var a0 = areaAttiva();
+    var intest = document.getElementById("mv-intest");
+    if(intest){
+      if(vedeComeCapo()){
+        intest.innerHTML = "\ud83d\udc41 Anteprima \u2014 cos\u00ec la vede il postaiolo";
+      }else{
+        /* al cacciatore non interessa sapere che e' un'anteprima: e' la SUA
+           posta (sua richiesta 21/09) */
+        intest.innerHTML = '<span style="color:#fff; font-weight:600">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</span>'
+          + (a0 ? ('<span style="display:block; font-size:11px; color:#9fc8ed">'+esc(a0.nome)+'</span>') : '');
+      }
+    }
+    riempiVicineVista(p, a0);
     miniReset("mv-schema");
     document.getElementById("m-vista").classList.add("show");
     mvSetMode(mvMode);
+  }
+
+  /* chi sta nella posta: serve allo schema e all'elenco dei vicini (21/09) */
+  function chiInPosta(postaId){
+    if(!postaId || !assegnazioni || !assegnazioni.length) return null;
+    var a = assegnazioni.find(function(x){ return x.posta_id === postaId; });
+    if(!a || !a.membro_id) return null;
+    var n = nomeDi(a.membro_id);
+    return (n && n !== "\u2014") ? n : null;
+  }
+  /* la direzione in parole, con la bussola (sua scelta 21/09) */
+  function direzioneInParole(gradi){
+    var g = ((Number(gradi)||0) % 360 + 360) % 360;
+    var nomi = ["nord","nord-est","est","sud-est","sud","sud-ovest","ovest","nord-ovest"];
+    return nomi[Math.round(g/45) % 8];
+  }
+  /* le 4 poste piu' vicine alla sua, con chi c'e' dentro e dove stanno */
+  function elencoPosteVicine(posta, poste, quante){
+    if(!posta || !poste) return [];
+    return poste.filter(function(x){ return x.id !== posta.id && isFinite(x.lat) && isFinite(x.lng); })
+      .map(function(x){
+        return {p:x, d:distM(posta, x), dir:direzioneInParole(bearing(posta, x)), chi:chiInPosta(x.id)};
+      })
+      .sort(function(u,v){ return u.d - v.d; })
+      .slice(0, quante || 4);
+  }
+  function riempiVicineVista(posta, area){
+    var box = document.getElementById("mv-vicine");
+    if(!box) return;
+    var lista = elencoPosteVicine(posta, (area && area.poste) || [], 4);
+    if(!lista.length){ box.style.display = "none"; return; }
+    box.style.display = "block";
+    var h = '<div style="font-size:10px; color:var(--muted); letter-spacing:.5px; margin-bottom:7px">POSTE VICINE</div>';
+    lista.forEach(function(v){
+      h += '<div style="display:flex; align-items:center; gap:9px; padding:5px 0; border-bottom:1px solid var(--dark3)">'
+        + '<span style="background:'+(v.chi?"#1D6FD0":"#6b5b3e")+'; color:#fff; font-size:11px; font-weight:700; width:23px; height:23px; '
+        + 'border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0">'+(v.p.numero||"?")+'</span>'
+        + '<span style="flex:1; min-width:0; font-size:12.5px; color:'+(v.chi?"var(--cream)":"var(--muted)")+'">'
+        + (v.chi ? esc(v.chi) : esc(v.p.nome || ("Posta "+(v.p.numero||"")))+" (non assegnata)")+'</span>'
+        + '<span style="font-size:11px; color:#9db894; text-align:right; flex-shrink:0">'+fmtDist(v.d)+'<br>'
+        + '<span style="color:var(--muted)">a '+v.dir+'</span></span>'
+        + '</div>';
+    });
+    box.innerHTML = h;
   }
 
   function mvSetMode(m){
