@@ -3566,7 +3566,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.31";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.32";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7270,7 +7270,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     var oggi = iso(new Date());
     var capo = puoGestireBattute();
 
-    var h='<div style="display:flex; gap:6px; margin-bottom:12px">';
+    var h=htmlLinguetteBattute();
+    h+='<div style="display:flex; gap:6px; margin-bottom:12px">';
     h+='<button class="chip" data-vcal="mese" style="flex:1; justify-content:center">Mese</button>';
     h+='<button class="chip on" data-vcal="settimana" style="flex:1; justify-content:center">Settimana</button>';
     h+='</div>';
@@ -7459,7 +7460,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       }catch(e2){ battute=[]; }
     }
     calendarioForzato=false;
-    renderCalendario();
+    renderBattuteVista();   /* torna dove era: calendario, archivio o totali */
   }
 
   function giornoCorto(d){
@@ -7477,7 +7478,7 @@ header .menubtn{min-width:48px; min-height:48px;}
                         .sort(function(a,b){ return String(a.data)>String(b.data)?-1:1; });
     var ultima=concluse[0]||null;
     var Cap=function(t){ return t.replace(/^./,function(c){return c.toUpperCase();}); };
-    var h='<div class="sechead">Adesioni aperte</div>';
+    var h=htmlLinguetteBattute()+'<div class="sechead">Adesioni aperte</div>';
     if(!aperte.length) h+='<div class="card" style="font-size:13px; color:var(--muted); margin-bottom:12px">Nessuna giornata aperta alle adesioni. Quando il capocaccia ne apre una, la trovi qui e in Home.</div>';
     aperte.forEach(function(b){
       var mia=mieAdesioniTG[b.id]||null;
@@ -7533,7 +7534,13 @@ header .menubtn{min-width:48px; min-height:48px;}
           if(JSON.stringify(nuovo)!==JSON.stringify(mieAdesioniTG)){ mieAdesioniTG=nuovo; cambiate=true; } }
       }catch(e){}
     }
-    if(!(ritrovi&&ritrovi.length)){ try{ await caricaRitrovi(); cambiate=true; }catch(e){} }
+    /* i ritrovi si chiedono UNA volta sola e si ridisegna solo se sono
+       arrivati davvero: se la squadra non ne ha (o manca la rete) prima si
+       rientrava qui a ogni giro e la pagina si ridisegnava all'infinito */
+    if(!(ritrovi&&ritrovi.length) && !tgRitroviChiesti){
+      tgRitroviChiesti = true;
+      try{ await caricaRitrovi(); if(ritrovi&&ritrovi.length) cambiate=true; }catch(e){}
+    }
     if(cambiate && document.getElementById("v-battute").classList.contains("active") && !calendarioForzato){ renderTueGiornate(); return; }
     /* meteo della prossima: sulla prima posta della prima mappa scelta, altrimenti su dove sono */
     if(prossima){
@@ -7592,6 +7599,214 @@ header .menubtn{min-width:48px; min-height:48px;}
      tasto. Chi ha la vista capo vede il calendario per primo, come prima. */
   var calendarioForzato = false;
   var mieAdesioniTG = {};
+  var tgRitroviChiesti = false;   /* i ritrovi si chiedono una volta sola */
+
+  /* ================= ARCHIVIO E TOTALI DELLE BATTUTE (21/09) =================
+     In cima a Battute tre linguette: Calendario (per il cacciatore "Le tue
+     giornate"), Archivio e Totali. L'Archivio elenca le giornate CONCLUSE
+     della stagione in corso, dalla piu' recente; toccando una riga si aprono
+     le battute di quel giorno, e da li' si entra nella giornata in sola
+     lettura (che gia' mostra al capo tutto e al cacciatore la sua posta).
+     Fin dove va indietro: solo la stagione in corso (sua scelta). */
+
+  var vistaBat = "cal";        // cal | arch | tot
+  var arcDati = null;          // dati della stagione, caricati una volta sola
+  var arcAperte = {};          // le giornate aperte nell'elenco
+
+  function htmlLinguetteBattute(){
+    var primo = vedeComeCapo() ? "Calendario" : "Le tue giornate";
+    var c = function(k, t){
+      return '<button class="chip'+(vistaBat===k?" on":"")+'" data-vbat="'+k+'" style="flex:1; justify-content:center">'+t+'</button>';
+    };
+    return '<div style="display:flex; gap:6px; margin-bottom:12px">'
+         + c("cal", primo) + c("arch", "Archivio") + c("tot", "Totali") + '</div>';
+  }
+  function renderBattuteVista(){
+    if(vistaBat === "arch"){ renderArchivio(); return; }
+    if(vistaBat === "tot"){ renderTotali(); return; }
+    renderCalendario();
+  }
+
+  function nomeAreaArc(id){
+    var a = aree.find(function(x){ return x.id===id; });
+    if(a) return a.nome;
+    var b = (arcDati && arcDati.aree || []).find(function(x){ return x.id===id; });
+    return b ? b.nome : "mappa";
+  }
+  function numeroPostaArc(id){
+    var p = (arcDati && arcDati.poste || []).find(function(x){ return x.id===id; });
+    if(p) return p.numero || "?";
+    var q = null;
+    aree.forEach(function(a){ (a.poste||[]).forEach(function(x){ if(x.id===id) q=x; }); });
+    return q ? (q.numero||"?") : "?";
+  }
+
+  async function caricaArchivio(forza){
+    var st = stagioneCorrente();
+    if(arcDati && arcDati.stagione===st && !forza) return;
+    if(!battute.length){
+      try{
+        var rb = await sb.from("hn_battute").select("*").eq("squadra_id", me.squadra_id).order("data");
+        if(!rb.error) battute = rb.data || [];
+      }catch(e){}
+    }
+    var gior = battute.filter(function(b){ return b.stato==="conclusa" && stagioneDi(b.data)===st; });
+    var ids = gior.map(function(b){ return b.id; });
+    var d = {stagione:st, svolte:[], fatti:[], adesioni:[], ospiti:[], mie:[], poste:[], aree:[]};
+    if(ids.length){
+      try{
+        var r1 = await sb.from("hn_battute_svolte").select("*").in("giornata_id", ids);
+        if(!r1.error) d.svolte = r1.data || [];
+        var r2 = await sb.from("hn_fatti").select("*").in("battuta_id", ids);
+        if(!r2.error) d.fatti = r2.data || [];
+        var r3 = await sb.from("hn_adesioni").select("battuta_id,membro_id,presente").in("battuta_id", ids);
+        if(!r3.error) d.adesioni = r3.data || [];
+        var r4 = await sb.from("hn_ospiti").select("battuta_id,presente").in("battuta_id", ids);
+        if(!r4.error) d.ospiti = r4.data || [];
+        var r5 = await sb.from("hn_assegnazioni").select("*").in("battuta_id", ids).eq("membro_id", me.membro_id);
+        if(!r5.error) d.mie = r5.data || [];
+        if(!aree.length){
+          var r6 = await sb.from("hn_aree").select("id,nome").eq("squadra_id", me.squadra_id);
+          if(!r6.error) d.aree = r6.data || [];
+        }
+        var idsP = d.mie.map(function(x){ return x.posta_id; }).filter(function(v,i,arr){ return v && arr.indexOf(v)===i; });
+        if(idsP.length){
+          var r7 = await sb.from("hn_poste").select("id,numero,nome,area_id").in("id", idsP);
+          if(!r7.error) d.poste = r7.data || [];
+        }
+      }catch(e){ toast("Senza rete l'archivio non si carica"); }
+    }
+    arcDati = d;
+  }
+
+  function capiDiGiornata(b){
+    var ucc = (arcDati.fatti||[]).filter(function(f){ return f.tipo==="uccisione"; });
+    return uccisioniPeriodo(b.id, ucc, arcDati.svolte||[]);
+  }
+  function padelleDiGiornata(b){
+    return (arcDati.fatti||[]).filter(function(f){ return f.tipo==="padella" && f.battuta_id===b.id; })
+      .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+  }
+  function presentiDiGiornata(b){
+    return (arcDati.adesioni||[]).filter(function(a){ return a.battuta_id===b.id && a.presente; }).length
+         + (arcDati.ospiti||[]).filter(function(o){ return o.battuta_id===b.id && o.presente; }).length;
+  }
+  function ceroStato(b){
+    return (arcDati.adesioni||[]).some(function(a){ return a.battuta_id===b.id && a.membro_id===me.membro_id && a.presente; });
+  }
+
+  async function renderArchivio(){
+    var root = document.getElementById("battute-scroll");
+    root.innerHTML = htmlLinguetteBattute() + '<div class="loading">Carico\u2026</div>';
+    await caricaArchivio(false);
+    var st = arcDati.stagione;
+    var gior = battute.filter(function(b){ return b.stato==="conclusa" && stagioneDi(b.data)===st; })
+                      .sort(function(a,b){ return String(a.data) > String(b.data) ? -1 : 1; });
+    var capo = vedeComeCapo();
+    var h = htmlLinguetteBattute();
+    h += '<div class="sechead">Giornate concluse \u00b7 stagione '+st+'</div>';
+    if(!gior.length){
+      h += '<div class="card" style="font-size:13px; color:var(--muted); line-height:1.6">'
+         + 'Nessuna giornata conclusa in questa stagione. Appena se ne conclude una la trovi qui.</div>';
+      root.innerHTML = h; return;
+    }
+    gior.forEach(function(b){
+      var data = String(b.data).slice(0,10);
+      var sue = (arcDati.svolte||[]).filter(function(x){ return x.giornata_id===b.id; })
+                  .sort(function(x,y){ return (Number(x.numero)||0) - (Number(y.numero)||0); });
+      var capi = capiDiGiornata(b), pad = padelleDiGiornata(b);
+      var aperta = !!arcAperte[b.id];
+      var mio = ceroStato(b);
+      h += '<div class="card" style="margin-bottom:8px; padding:0; overflow:hidden">';
+      h += '<button data-arcg="'+b.id+'" style="width:100%; background:none; border:none; padding:11px 12px; text-align:left; display:flex; align-items:center; gap:10px; color:var(--cream)">';
+      h += '<span style="font-size:17px">'+(aperta?"\u25be":"\u25b8")+'</span>';
+      h += '<span style="flex:1; min-width:0">';
+      h += '<span style="display:block; font-size:14.5px; font-weight:600">'+esc(fmtGiorno(daIso(data)))+'</span>';
+      h += '<span style="display:block; font-size:11.5px; color:var(--muted); margin-top:2px">'
+         + sue.length + ' battut' + (sue.length===1?'a':'e')
+         + (capo ? (' \u00b7 ' + presentiDiGiornata(b) + ' presenti') : (mio ? ' \u00b7 c\'eri' : ''))
+         + (pad ? (' \u00b7 ' + pad + ' padell' + (pad===1?'a':'e')) : '')
+         + '</span></span>';
+      h += '<span style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:22px; color:'+(capi?'var(--gold)':'var(--muted)')+'">'+capi+'</span>';
+      h += '<span style="font-size:10px; color:var(--muted)">cap'+(capi===1?'o':'i')+'</span>';
+      h += '</button>';
+      if(aperta){
+        h += '<div style="padding:0 12px 12px">';
+        if(!sue.length){
+          h += '<div style="font-size:12px; color:var(--muted)">Nessuna battuta registrata in questa giornata.</div>';
+        }
+        sue.forEach(function(bs){
+          var min = minutiSvolta(bs);
+          var cap = capiDiSvolta(bs, (arcDati.fatti||[]).filter(function(f){ return f.tipo==="uccisione"; }));
+          var miaA = (arcDati.mie||[]).find(function(x){ return x.battuta_svolta_id===bs.id && x.posta_id; });
+          h += '<div style="background:#2f2818; border-radius:10px; padding:9px 11px; margin-bottom:6px">';
+          h += '<div style="display:flex; align-items:baseline; gap:8px">';
+          h += '<span style="font-size:13.5px; color:var(--cream); flex:1; min-width:0">'
+             + (bs.numero ? bs.numero+'\u00aa \u00b7 ' : '') + esc(nomeAreaArc(bs.area_id)) + '</span>';
+          h += '<span style="font-size:13px; color:'+(cap?'var(--gold)':'var(--muted)')+'">'+cap+' cap'+(cap===1?'o':'i')+'</span>';
+          h += '</div>';
+          var ore = (bs.aperta_il ? oraCorta(bs.aperta_il) : "") + (bs.chiusa_il ? " \u2013 "+oraCorta(bs.chiusa_il) : "");
+          h += '<div style="font-size:11px; color:var(--muted); margin-top:3px">'
+             + (ore ? ore : "orario non registrato") + (min ? ' \u00b7 ' + durataTesto(min) : '')
+             + (miaA ? ' \u00b7 <span style="color:#9fc8ed">la tua posta: ' + numeroPostaArc(miaA.posta_id) + '</span>' : '')
+             + '</div>';
+          h += '</div>';
+        });
+        h += '<button class="btn line" data-arcapri="'+data+'" style="font-size:12.5px; padding:9px">Apri la giornata \u203a</button>';
+        h += '</div>';
+      }
+      h += '</div>';
+    });
+    root.innerHTML = h;
+  }
+
+  async function renderTotali(){
+    var root = document.getElementById("battute-scroll");
+    root.innerHTML = htmlLinguetteBattute() + '<div class="loading">Carico\u2026</div>';
+    await caricaArchivio(false);
+    var st = arcDati.stagione;
+    var gior = battute.filter(function(b){ return b.stato==="conclusa" && stagioneDi(b.data)===st; });
+    var svolte = (arcDati.svolte||[]).filter(function(x){ return x.chiusa_il; });
+    var ucc = (arcDati.fatti||[]).filter(function(f){ return f.tipo==="uccisione"; });
+    var capi = gior.reduce(function(t,b){ return t + uccisioniPeriodo(b.id, ucc, arcDati.svolte||[]); }, 0);
+    var pad = (arcDati.fatti||[]).filter(function(f){ return f.tipo==="padella"; })
+                .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+    var media = gior.length ? (capi/gior.length) : 0;
+    var minTot = svolte.reduce(function(t,bs){ return t + minutiSvolta(bs); }, 0);
+    /* la mappa piu' battuta della stagione */
+    var perArea = {};
+    svolte.forEach(function(bs){ perArea[bs.area_id] = (perArea[bs.area_id]||0) + 1; });
+    var top = Object.keys(perArea).sort(function(a,b){ return perArea[b]-perArea[a]; })[0];
+    /* i miei numeri */
+    var mieP = gior.filter(function(b){ return ceroStato(b); }).length;
+    var mieiCapi = ucc.filter(function(f){ return f.membro_id===me.membro_id; })
+                      .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+    var miePad = (arcDati.fatti||[]).filter(function(f){ return f.tipo==="padella" && f.membro_id===me.membro_id; })
+                      .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+
+    var box = function(n, t, col){
+      return '<div class="box" style="background:var(--dark2)"><div class="n" style="color:'+(col||"var(--cream)")+'">'+n+'</div>'
+           + '<div class="t" style="color:var(--muted)">'+t+'</div></div>';
+    };
+    var h = htmlLinguetteBattute();
+    h += '<div class="sechead">La squadra \u00b7 stagione '+st+'</div>';
+    h += '<div class="card" style="margin-bottom:10px">';
+    h += '<div class="conta">' + box(gior.length, "uscite") + box(svolte.length, "battute") + box(capi, "capi", "var(--gold)") + '</div>';
+    h += '<div class="conta" style="margin-top:8px">' + box(pad, "padelle") + box(media ? media.toFixed(1).replace(".",",") : "0", "capi per uscita")
+       + box(minTot ? durataTesto(minTot) : "\u2014", "in battuta") + '</div>';
+    if(top) h += '<div style="font-size:12px; color:var(--muted); margin-top:10px; line-height:1.5">Mappa pi\u00f9 battuta: <b style="color:var(--cream)">'
+       + esc(nomeAreaArc(top)) + '</b> \u00b7 ' + perArea[top] + ' volt' + (perArea[top]===1?'a':'e') + '</div>';
+    h += '</div>';
+    h += '<div class="sechead">I tuoi numeri</div>';
+    h += '<div class="card">';
+    h += '<div class="conta">' + box(mieP, "uscite fatte") + box(mieiCapi, "capi", "var(--gold)") + box(miePad, "padelle") + '</div>';
+    h += '<div style="font-size:11.5px; color:var(--muted); margin-top:9px; line-height:1.5">'
+       + (gior.length ? ('Sei stato a ' + mieP + ' giornate su ' + gior.length + '.') : 'Ancora nessuna giornata conclusa.')
+       + '</div>';
+    h += '</div>';
+    root.innerHTML = h;
+  }
+
   function renderCalendario(){
     if(!vedeComeCapo() && !calendarioForzato){ renderTueGiornate(); return; }
     if(vistaCal === "settimana"){ renderSettimana(); return; }
@@ -7603,7 +7818,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var oggi=iso(new Date());
     var capoMese=puoGestireBattute();
 
-    var h='';
+    var h=htmlLinguetteBattute();
     if(!vedeComeCapo()) h+='<button class="btn line" id="tg-torna" style="margin-bottom:10px">\u2039 Le tue giornate</button>';
     h+='<div style="display:flex; gap:6px; margin-bottom:12px">';
     h+='<button class="chip on" data-vcal="mese" style="flex:1; justify-content:center">Mese</button>';
@@ -17386,6 +17601,16 @@ header .menubtn{min-width:48px; min-height:48px;}
       disegnaTracce(); aggiornaComandiMappa();
       toast(vistaMappa.linee ? "Linee accese" : "Linee spente");
     };
+    /* le linguette di Battute e le righe dell'archivio: un ascoltatore solo,
+       cosi' vale anche per quello che viene ridisegnato dopo */
+    document.getElementById("battute-scroll").addEventListener("click", function(ev){
+      var t = ev.target;
+      var b = (t && t.closest) ? t.closest("[data-vbat],[data-arcg],[data-arcapri]") : null;
+      if(!b) return;
+      if(b.dataset.vbat){ vistaBat = b.dataset.vbat; renderBattuteVista(); return; }
+      if(b.dataset.arcg){ arcAperte[b.dataset.arcg] = !arcAperte[b.dataset.arcg]; renderArchivio(); return; }
+      if(b.dataset.arcapri){ apriGiornata(b.dataset.arcapri); return; }
+    });
     document.getElementById("mp-numero").onclick=apriNumeroPosta;
     document.getElementById("mp-sposta").onclick=apriSpostaPosta;
     document.getElementById("mp-cancella").onclick=chiediCancellaPosta;
