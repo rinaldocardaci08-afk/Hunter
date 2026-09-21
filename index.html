@@ -3704,7 +3704,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.47";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.48";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5227,12 +5227,22 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     // chi non è autorizzato nemmeno a VEDERE le aree: sezione chiusa
     if(!vedeAree){
+      /* niente mappe, ma da qui si manda un punto al capo: e' il posto dove
+         il cacciatore va a cercarle (sua regola 21/09) */
       root.innerHTML=
-        '<div class="empty" style="padding-top:60px">'+
+        '<div class="empty" style="padding-top:44px">'+
         '<div style="font-size:40px; margin-bottom:14px">🔒</div>'+
         '<div style="font-size:15px; color:var(--cream); margin-bottom:10px">Le mappe sono riservate</div>'+
         '<div style="line-height:1.6">Vedrai la tua postazione quando il capocaccia<br>aprirà la battuta e ti assegnerà una posta.</div>'+
+        '</div>'+
+        '<div class="card" style="background:#1f2b38; border:1px solid #3d5f80; margin-top:18px">'+
+        '<div style="font-size:13.5px; color:#cfe6f7">📍 Hai visto qualcosa sul terreno?</div>'+
+        '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-top:5px">'+
+        'Un passaggio, un punto buono per una posta, la tua posta da spostare: mandalo al capocaccia col GPS, da dove sei.</div>'+
+        '<button class="btn line" id="ar-segnala" style="margin-top:10px; border-color:#3d5f80; color:#cfe6f7">Segnala un punto al capo</button>'+
         '</div>';
+      var bsg=document.getElementById("ar-segnala");
+      if(bsg) bsg.onclick=apriSegnala;
       return;
     }
 
@@ -9837,14 +9847,18 @@ header .menubtn{min-width:48px; min-height:48px;}
       var capi = capiDiGiornata(b), pad = padelleDiGiornata(b);
       var aperta = !!arcAperte[b.id];
       var mio = ceroStato(b);
+      /* chi non ha una carica apre solo le giornate in cui c'era davvero:
+         chi non frequenta non si porta a casa il lavoro degli altri */
+      var puoEntrare = capo || mio;
+      if(!puoEntrare) aperta = false;
       h += '<div class="card" style="margin-bottom:8px; padding:0; overflow:hidden">';
-      h += '<button data-arcg="'+b.id+'" style="width:100%; background:none; border:none; padding:11px 12px; text-align:left; display:flex; align-items:center; gap:10px; color:var(--cream)">';
-      h += '<span style="font-size:17px">'+(aperta?"\u25be":"\u25b8")+'</span>';
+      h += '<button '+(puoEntrare?('data-arcg="'+b.id+'"'):'disabled')+' style="width:100%; background:none; border:none; padding:11px 12px; text-align:left; display:flex; align-items:center; gap:10px; color:var(--cream)'+(puoEntrare?'':'; opacity:.5')+'">';
+      h += '<span style="font-size:17px">'+(puoEntrare?(aperta?"\u25be":"\u25b8"):"\u00b7")+'</span>';
       h += '<span style="flex:1; min-width:0">';
       h += '<span style="display:block; font-size:14.5px; font-weight:600">'+esc(fmtGiorno(daIso(data)))+'</span>';
       h += '<span style="display:block; font-size:11.5px; color:var(--muted); margin-top:2px">'
          + sue.length + ' battut' + (sue.length===1?'a':'e')
-         + (capo ? (' \u00b7 ' + presentiDiGiornata(b) + ' presenti') : (mio ? ' \u00b7 c\'eri' : ''))
+         + (capo ? (' \u00b7 ' + presentiDiGiornata(b) + ' presenti') : (mio ? ' \u00b7 c\'eri' : ' \u00b7 non c\'eri'))
          + (pad ? (' \u00b7 ' + pad + ' padell' + (pad===1?'a':'e')) : '')
          + '</span></span>';
       h += '<span style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:22px; color:'+(capi?'var(--gold)':'var(--muted)')+'">'+capi+'</span>';
@@ -9860,6 +9874,9 @@ header .menubtn{min-width:48px; min-height:48px;}
           var cap = capiDiSvolta(bs, (arcDati.fatti||[]).filter(function(f){ return f.tipo==="uccisione"; }));
           var miaA = (arcDati.mie||[]).find(function(x){ return x.battuta_svolta_id===bs.id && x.posta_id; });
           var perc = (arcDati.percorsi||{})[bs.id];
+          /* i dati dei cani non sono roba da cacciatore */
+          var vedeCani = vedeComeCapo() || (perc && eCanaio(me) && perc.canaio_id===me.membro_id);
+          if(!vedeCani) perc = null;
           h += '<div style="border-radius:10px; padding:9px 11px; margin-bottom:6px; '
              + (perc ? 'background:#1f2b38; border:1px solid #3d5f80; cursor:pointer"'
                       + ' data-arccani="'+bs.id+'"'
@@ -10107,6 +10124,23 @@ header .menubtn{min-width:48px; min-height:48px;}
     var b=battutaDi(dataIso);
     // il cacciatore normale entra solo se le adesioni sono aperte
     if(!b && !puoGestireBattute()){ toast("Adesioni non ancora aperte"); return; }
+    /* UNA GIORNATA GIA' CONCLUSA LA RIAPRE SOLO CHI C'ERA (sua regola 21/09):
+       chi non e' venuto non deve vedere mappe, poste e lavoro degli altri. */
+    if(b && b.stato==="conclusa" && !vedeComeCapo()){
+      var ok = false;
+      var mieA = (typeof arcDati!=="undefined" && arcDati && arcDati.adesioni) ? arcDati.adesioni : null;
+      if(mieA){
+        ok = mieA.some(function(a){ return a.battuta_id===b.id && a.membro_id===me.membro_id && a.presente; });
+      }else{
+        try{
+          var r = await sb.from("hn_adesioni").select("presente")
+                    .eq("battuta_id", b.id).eq("membro_id", me.membro_id).limit(1);
+          if(r.error) throw r.error;
+          ok = !!(r.data && r.data[0] && r.data[0].presente);
+        }catch(e){ toast("Serve la rete per aprire una giornata passata"); return; }
+      }
+      if(!ok){ toast("Non hai partecipato a questa giornata"); return; }
+    }
     giornataAperta = b || { data:dataIso, stato:"nuova", squadra_id:me.squadra_id };
     azzeraGiornata();             // niente resti del giorno prima
     document.getElementById("gi-titolo").textContent=fmtGiorno(daIso(dataIso));
