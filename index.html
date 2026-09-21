@@ -283,7 +283,18 @@
   /* ---------- MAPPA ---------- */
   #map{flex:1; background:#3d4a2a;}
   /* PERCORSO DEI CANI: mappa sopra, pannello dei numeri sotto */
-  #canimap{flex:1; min-height:170px; background:#3d4a2a;}
+  #canimap{flex:1; min-height:170px; background:#3d4a2a; position:relative;}
+  #cn-play{position:absolute; left:10px; right:10px; top:10px; z-index:900; display:none;
+    background:rgba(24,20,14,.92); border:1px solid var(--gold); border-radius:12px;
+    padding:8px 10px; align-items:center; gap:10px;}
+  #cn-play.show{display:flex;}
+  #cn-play .tx{flex:1; min-width:0;}
+  #cn-play .a{font-size:13px; color:var(--cream); font-weight:600;}
+  #cn-play .b{font-size:10.5px; color:var(--muted);}
+  #cn-play button{background:var(--dark2); border:1px solid var(--dark3); color:var(--cream);
+    border-radius:9px; padding:7px 11px; font-size:13px;}
+  #cn-barra{height:3px; background:var(--dark3); border-radius:2px; margin-top:6px; overflow:hidden;}
+  #cn-barra i{display:block; height:100%; width:0; background:var(--gold);}
   #cani-scroll{flex:0 0 46%; padding-bottom:20px;}
   .cn-num{display:flex; gap:7px; margin-bottom:10px;}
   .cn-num .b{flex:1; background:var(--dark2); border-radius:12px; padding:9px 6px; text-align:center;}
@@ -1933,7 +1944,16 @@ header .menubtn{min-width:48px; min-height:48px;}
         <button id="cn-indietro" title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl" id="cn-titolo">Percorso dei cani</div>
       </div>
-      <div id="canimap"></div>
+      <div id="canimap">
+        <div id="cn-play">
+          <div class="tx">
+            <div class="a" id="cn-play-nome">—</div>
+            <div class="b" id="cn-play-ora">—</div>
+            <div id="cn-barra"><i id="cn-barra-i"></i></div>
+          </div>
+          <button id="cn-play-stop">✕</button>
+        </div>
+      </div>
       <div class="scroll" id="cani-scroll"><div class="loading">Carico…</div></div>
       <input type="file" id="cn-file" style="display:none">
     </section>
@@ -3030,6 +3050,19 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: nome del collare -->
+<div class="modal" id="m-nomecane">
+  <div class="sheet">
+    <h3>Nome del cane</h3>
+    <p class="hint" id="nc-sotto">—</p>
+    <input id="nc-nome" type="text" maxlength="30" placeholder="Macchia">
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="nc-annulla">Annulla</button>
+      <button class="btn primary" id="nc-salva">Salva</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: sposta la posta (tre modi) -->
 <div class="modal" id="m-spostaposta">
   <div class="sheet">
@@ -3587,7 +3620,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.34";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.35";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5379,6 +5412,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(typeof disegnoTraccia!=="undefined" && disegnoTraccia && v!=="mappa") chiudiDisegnoTraccia();
     if(typeof segnRemota!=="undefined" && segnRemota && v!=="mappa") chiudiSegnRemota();
     if(typeof spostaSel!=="undefined" && spostaSel && v!=="mappa") chiudiSposta();
+    if(typeof cnPlay!=="undefined" && cnPlay && v!=="cani") cnFermaRiproduzione();
     if(typeof sezioneAnteprima!=="undefined" && sezioneAnteprima && v!=="mappa"){
       sezioneAnteprima = null;
       var szb = document.getElementById("szbanner");
@@ -7707,7 +7741,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     var out=[];
     Object.keys(tracce).forEach(function(dev){
       if(tracce[dev].length<2) return;
-      out.push({ nome:(dev==="0"?"Palmare":(nomi[dev]||("Collare "+dev))),
+      out.push({ dev:dev,
+                 nomeFile:(dev==="0"?"Palmare":(nomi[dev]||("Collare "+dev))),
+                 nome:(dev==="0"?"Palmare":(cnNomiCani[dev] || nomi[dev] || ("Collare "+dev))),
                  colore:(dev==="0"?"#F0E2C9":(colori[dev]||null)),
                  palmare:(dev==="0"), punti:tracce[dev] });
     });
@@ -7790,6 +7826,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         }
       }catch(e){}
     }
+    await caricaNomiCani();
     await cnCarica();
     cnPrepara();
     renderCani();
@@ -7803,7 +7840,9 @@ header .menubtn{min-width:48px; min-height:48px;}
         cnQuadretto = Number(cnSalvato.quadretto)||30;
         cnBuffer = Number(cnSalvato.buffer_posta)||60;
         cnCani = (cnSalvato.cani||[]).map(function(c){
-          return {nome:c.nome, colore:c.colore, palmare:!!c.palmare,
+          return {dev:c.dev||null, nomeFile:c.nomeFile||c.nome,
+                  nome:((c.dev && cnNomiCani[c.dev]) || c.nome),
+                  colore:c.colore, palmare:!!c.palmare,
                   punti:(c.punti||[]).map(function(q){ return {lat:q[0], lng:q[1], t:q[2]||null}; })};
         });
         cnInfo = cnSalvato.nome_file ? {file:cnSalvato.nome_file} : null;
@@ -7876,17 +7915,24 @@ header .menubtn{min-width:48px; min-height:48px;}
         var cx=minX+(i+0.5)*cella, cy=minY+(j+0.5)*cella;
         if(cnDentro(cnLL(cx,cy), poly)){ dentroCelle[i+"_"+j]=true; res.celleT++; }
       }
-      for(var k=1;k<pts30.length;k++){
-        var A=cnXY(pts30[k-1]), B=cnXY(pts30[k]);
-        var L2=Math.hypot(B.x-A.x,B.y-A.y);
-        if(L2 > 300) continue;                 /* salto fra un cane e l'altro */
-        var passi=Math.max(1,Math.ceil(L2/(cella/2)));
-        for(var s=0;s<=passi;s++){
-          var x=A.x+(B.x-A.x)*s/passi, y=A.y+(B.y-A.y)*s/passi;
-          var key=Math.floor((x-minX)/cella)+"_"+Math.floor((y-minY)/cella);
-          if(dentroCelle[key]) battute[key]=true;
+      /* UN CANE ALLA VOLTA: se si uniscono i punti di tutti, fra l'ultimo
+         punto di un cane e il primo dell'altro nasce un segmento che non
+         esiste e colora i quadretti in diagonale (visto il 21/09) */
+      cnCani.forEach(function(c){
+        if(c.palmare || c.visibile===false) return;
+        var suoi = c.disegno || c.punti;
+        for(var k=1;k<suoi.length;k++){
+          var A=cnXY(suoi[k-1]), B=cnXY(suoi[k]);
+          var L2=Math.hypot(B.x-A.x,B.y-A.y);
+          if(L2 > 300) continue;               /* buco di segnale: non invento nulla */
+          var passi=Math.max(1,Math.ceil(L2/(cella/2)));
+          for(var s=0;s<=passi;s++){
+            var x=A.x+(B.x-A.x)*s/passi, y=A.y+(B.y-A.y)*s/passi;
+            var key=Math.floor((x-minX)/cella)+"_"+Math.floor((y-minY)/cella);
+            if(dentroCelle[key]) battute[key]=true;
+          }
         }
-      }
+      });
       res.celleB = Object.keys(battute).length;
       res.perc = res.celleT ? Math.round(100*res.celleB/res.celleT) : null;
       if(cnStrati){
@@ -7963,7 +8009,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       + '</div>';
     h += '<div style="font-size:11px; color:var(--muted); margin-bottom:5px">Quadretto della griglia</div>';
     h += '<div style="display:flex; gap:6px; margin-bottom:10px">';
-    [10,20,30,50].forEach(function(q){
+    [10,20,30].forEach(function(q){
       h += '<button class="chip'+(cnQuadretto===q?" on":"")+'" data-cnq="'+q+'" style="flex:1; justify-content:center">'+q+' m</button>';
     });
     h += '</div>';
@@ -7971,10 +8017,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     h += '<input type="range" id="cn-buf" min="20" max="120" step="10" value="'+cnBuffer+'" style="width:100%; margin-bottom:12px">';
     h += '<div class="sechead">Collari</div>';
     cnCani.forEach(function(c,i){
-      h += '<div class="cn-riga"><span class="pt" style="background:'+(c.colUsato||"#888")+'"></span>'
-        + '<span style="flex:1; min-width:0"><span style="color:var(--cream)">'+esc(c.nome)+(c.palmare?' <span style="color:var(--muted)">(palmare)</span>':'')+'</span>'
+      h += '<div class="cn-riga" style="flex-wrap:wrap"><span class="pt" style="background:'+(c.colUsato||"#888")+'"></span>'
+        + '<span style="flex:1; min-width:110px"><span style="color:var(--cream)">'+esc(c.nome)+(c.palmare?' <span style="color:var(--muted)">(palmare)</span>':'')+'</span>'
         + '<div class="s">'+cnKm(c.punti).toFixed(2)+' km \u00b7 '+(cnDurata(c.punti)||"senza orari")+'</div></span>'
-        + '<button class="chip'+(c.visibile!==false?" on":"")+'" data-cnv="'+i+'" style="width:auto; padding:5px 10px; font-size:11px">'+(c.visibile!==false?"visibile":"nascosto")+'</button></div>';
+        + '<span style="display:flex; gap:5px">'
+        + (c.palmare||!agisce ? '' : '<button class="chip" data-cnn="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u270e Nome</button>')
+        + (c.punti.length>1 ? '<button class="chip" data-cnp="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u25b6 Percorso</button>' : '')
+        + '<button class="chip'+(c.visibile!==false?" on":"")+'" data-cnv="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">'+(c.visibile!==false?"visibile":"nascosto")+'</button>'
+        + '</span></div>';
     });
     if(agisce){
       h += '<button class="btn primary" id="cn-salva" style="margin-top:12px">'+(cnSalvato?'\ud83d\udcbe Aggiorna il percorso salvato':'\ud83d\udcbe Salva sulla battuta')+'</button>';
@@ -7987,10 +8037,16 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.innerHTML = h;
 
     root.querySelectorAll("[data-cnq]").forEach(function(b){
-      b.onclick=function(){ cnQuadretto = +b.dataset.cnq; renderCani(); };
+      b.onclick=function(){ cnFermaRiproduzione(); cnQuadretto = +b.dataset.cnq; renderCani(); };
     });
     root.querySelectorAll("[data-cnv]").forEach(function(b){
-      b.onclick=function(){ var c=cnCani[+b.dataset.cnv]; c.visibile = (c.visibile===false); renderCani(); };
+      b.onclick=function(){ cnFermaRiproduzione(); var c=cnCani[+b.dataset.cnv]; c.visibile = (c.visibile===false); renderCani(); };
+    });
+    root.querySelectorAll("[data-cnn]").forEach(function(b){
+      b.onclick=function(){ apriNomeCane(+b.dataset.cnn); };
+    });
+    root.querySelectorAll("[data-cnp]").forEach(function(b){
+      b.onclick=function(){ cnRiproduci(+b.dataset.cnp); };
     });
     var sl=document.getElementById("cn-buf");
     if(sl) sl.onchange=function(){ cnBuffer = +sl.value; renderCani(); };
@@ -8051,15 +8107,138 @@ header .menubtn{min-width:48px; min-height:48px;}
       function(){ cnArea = prima.area; cnPrepara(); renderCani(); });
   }
 
+
+  /* ---- NOMI DEI CANI: legati all'identificativo del collare che sta dentro
+     il file, non al singolo file. Battezzato una volta, resta in tutte le
+     registrazioni (tabella hn_cani). ---- */
+  var cnNomiCani = {};     // { "3": "Macchia" }
+  var cnNomeIdx = -1;
+  async function caricaNomiCani(){
+    try{
+      var r = await sb.from("hn_cani").select("collare,nome").eq("squadra_id", me.squadra_id);
+      if(r.error) throw r.error;
+      cnNomiCani = {};
+      (r.data||[]).forEach(function(x){ cnNomiCani[String(x.collare)] = x.nome; });
+    }catch(e){ /* tabella non ancora creata: si usano i nomi del file */ }
+  }
+  function apriNomeCane(i){
+    var c = cnCani[i];
+    if(!c || c.palmare) return;
+    if(!puoGestireBattute()){ toast("Lo cambia il capocaccia"); return; }
+    cnNomeIdx = i;
+    document.getElementById("nc-sotto").textContent =
+      "Nel file si chiama \u00ab" + (c.nomeFile||c.nome) + "\u00bb" + (c.dev ? (" \u00b7 collare " + c.dev) : "")
+      + ". Il nome che scrivi resta anche nelle prossime registrazioni.";
+    document.getElementById("nc-nome").value = c.nome || "";
+    document.getElementById("m-nomecane").classList.add("show");
+    setTimeout(function(){ try{ document.getElementById("nc-nome").focus(); }catch(e){} }, 150);
+  }
+  async function salvaNomeCane(){
+    var c = cnCani[cnNomeIdx];
+    if(!c) return;
+    var nome = String(document.getElementById("nc-nome").value||"").trim();
+    if(!nome){ toast("Scrivi un nome"); return; }
+    document.getElementById("m-nomecane").classList.remove("show");
+    c.nome = nome;
+    cnFermaRiproduzione();
+    renderCani();
+    if(!c.dev){ toast("Nome cambiato solo qui: il file non dice quale collare \u00e8"); return; }
+    cnNomiCani[String(c.dev)] = nome;
+    if(!navigator.onLine){ toast("Nome cambiato \u00b7 senza rete non lo salvo per le prossime volte"); return; }
+    try{
+      var r = await sb.from("hn_cani").select("id").eq("squadra_id", me.squadra_id).eq("collare", String(c.dev)).limit(1);
+      if(r.error) throw r.error;
+      if(r.data && r.data.length){
+        var u = await sb.from("hn_cani").update({nome:nome, colore:c.colore||null}).eq("id", r.data[0].id);
+        if(u.error) throw u.error;
+      }else{
+        var q = await sb.from("hn_cani").insert({squadra_id:me.squadra_id, collare:String(c.dev),
+                                                 nome:nome, colore:c.colore||null});
+        if(q.error) throw q.error;
+      }
+      toast("Adesso si chiama " + nome);
+      if(cnSalvato) salvaPercorsoCani(true);
+    }catch(e){
+      var m = String(e.message||e);
+      if(/hn_cani/.test(m)) toast("Manca la tabella hn_cani: lancia l'SQL su Supabase");
+      else toast("Non riesco a salvare il nome: "+m);
+    }
+  }
+
+  /* ---- PERCORSO ACCELERATO: la registrazione, lunga quanto vuole, viene
+     ripassata in una dozzina di secondi rispettando i tempi veri: dove il
+     cane si ferma, il pallino si ferma. ---- */
+  var cnPlay = null;
+  var CN_DURATA_PLAY = 12000;
+  function cnFermaRiproduzione(){
+    if(!cnPlay) return;
+    try{ clearInterval(cnPlay.timer); }catch(e){}
+    try{ if(cnStrati){ cnStrati.linee.removeLayer(cnPlay.scia); cnStrati.linee.removeLayer(cnPlay.testa); } }catch(e){}
+    cnPlay = null;
+    var el = document.getElementById("cn-play");
+    if(el) el.classList.remove("show");
+  }
+  function cnRiproduci(i){
+    cnFermaRiproduzione();
+    var c = cnCani[i];
+    if(!c || c.punti.length < 2){ toast("Questo collare ha troppi pochi punti"); return; }
+    if(!cnMap || !cnStrati){ toast("La mappa non \u00e8 pronta"); return; }
+    if(c.visibile===false){ c.visibile = true; renderCani(); }
+    var pts = c.punti;
+    var t0 = pts[0].t, t1 = pts[pts.length-1].t;
+    var reale = (t0 && t1 && t1>t0) ? (t1-t0) : null;
+    var colore = c.colUsato || c.colore || "#E8C86A";
+    var scia = L.polyline([[pts[0].lat,pts[0].lng]], {color:colore, weight:5, opacity:1}).addTo(cnStrati.linee);
+    var testa = L.circleMarker([pts[0].lat,pts[0].lng],
+      {radius:8, color:"#fff", weight:2, fillColor:colore, fillOpacity:1}).addTo(cnStrati.linee);
+    try{ cnMap.setView([pts[0].lat,pts[0].lng], Math.max(cnMap.getZoom(), 17)); }catch(e){}
+    var el = document.getElementById("cn-play");
+    document.getElementById("cn-play-nome").textContent = c.nome;
+    document.getElementById("cn-play-ora").textContent =
+      (cnDurata(pts) || (pts.length+" punti")) + " in " + Math.round(CN_DURATA_PLAY/1000) + " secondi";
+    el.classList.add("show");
+    var inizio = Date.now(), k = 0;
+    cnPlay = { scia:scia, testa:testa, cane:i, timer:setInterval(function(){
+      var f = Math.min(1, (Date.now()-inizio)/CN_DURATA_PLAY);
+      var fino;
+      if(reale){
+        var tAdesso = t0 + f*reale;
+        while(k < pts.length-1 && (pts[k+1].t||t0) <= tAdesso) k++;
+        fino = k;
+      }else{
+        fino = Math.floor(f*(pts.length-1));
+      }
+      var linea = pts.slice(0, fino+1).map(function(p){ return [p.lat,p.lng]; });
+      if(linea.length < 1) linea = [[pts[0].lat,pts[0].lng]];
+      try{
+        scia.setLatLngs(linea);
+        testa.setLatLng(linea[linea.length-1]);
+      }catch(e){}
+      var bi = document.getElementById("cn-barra-i");
+      if(bi) bi.style.width = Math.round(f*100)+"%";
+      var pt = pts[fino] || pts[0];
+      var oraEl = document.getElementById("cn-play-ora");
+      if(oraEl && pt.t) oraEl.textContent = new Date(pt.t).toLocaleTimeString("it-IT")
+        + " \u00b7 " + (fino+1) + "/" + pts.length + " punti";
+      if(f >= 1){
+        setTimeout(function(){
+          cnFermaRiproduzione();
+          renderCani();
+        }, 900);
+      }
+    }, 60) };
+  }
+
   /* ---- salvataggio ---- */
-  async function salvaPercorsoCani(){
-    if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
+  async function salvaPercorsoCani(zitto){
+    if(!puoGestireBattute()){ if(!zitto) toast("Non hai il permesso"); return; }
     if(!cnCani.length) return;
     if(!navigator.onLine){ toast("Serve la rete per salvare"); return; }
     var r = cnCalc || cnCalcola();
     var cani = cnCani.map(function(c){
       var p = cnSemplifica(c.punti, 15);
-      return {nome:c.nome, colore:c.colore||c.colUsato||null, palmare:!!c.palmare,
+      return {dev:c.dev||null, nome:c.nome, nomeFile:c.nomeFile||c.nome,
+              colore:c.colore||c.colUsato||null, palmare:!!c.palmare,
               punti:p.map(function(q){ return [ +q.lat.toFixed(6), +q.lng.toFixed(6), q.t||null ]; })};
     });
     var tutti = cnTuttiPunti();
@@ -8084,8 +8263,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       else q = await sb.from("hn_percorsi_cani").insert(dati).select().single();
       if(q.error) throw q.error;
       cnSalvato = q.data;
-      toast("Percorso salvato sulla battuta");
-      renderCani();
+      if(!zitto){ toast("Percorso salvato sulla battuta"); renderCani(); }
     }catch(e){
       var m=String(e.message||e);
       if(/hn_percorsi_cani/.test(m)) toast("Manca la tabella hn_percorsi_cani: lancia l'SQL su Supabase");
@@ -18114,6 +18292,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("m-pres-annulla").onclick=function(){ document.getElementById("m-presenze").classList.remove("show"); };
     document.getElementById("m-pres-salva").onclick=salvaPresenze;
     document.getElementById("cn-indietro").onclick=function(){ tornaIndietro(); };
+    document.getElementById("cn-play-stop").onclick=function(){ cnFermaRiproduzione(); };
+    document.getElementById("nc-annulla").onclick=function(){ document.getElementById("m-nomecane").classList.remove("show"); };
+    document.getElementById("nc-salva").onclick=salvaNomeCane;
+    document.getElementById("nc-nome").addEventListener("keydown", function(ev){ if(ev.key==="Enter") salvaNomeCane(); });
     document.getElementById("cn-file").onchange=function(ev){
       var f=(ev.target.files||[])[0];
       ev.target.value="";
