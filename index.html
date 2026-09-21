@@ -1954,6 +1954,15 @@ header .menubtn{min-width:48px; min-height:48px;}
       <div class="scroll" id="areadett-scroll"><div class="loading">Carico…</div></div>
     </section>
 
+    <!-- MUTA CANI: i cani del canaio e le sue battute -->
+    <section class="view" id="v-muta">
+      <div class="backbar">
+        <button data-home title="Indietro" aria-label="Indietro">❮</button>
+        <div class="ttl" id="mt2-titolo">Muta cani</div>
+      </div>
+      <div class="scroll" id="muta-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
     <!-- PERCORSO DEI CANI di una battuta chiusa -->
     <section class="view" id="v-cani">
       <div class="backbar">
@@ -3091,13 +3100,45 @@ header .menubtn{min-width:48px; min-height:48px;}
 
 <!-- MODALE: nome del collare -->
 <div class="modal" id="m-nomecane">
-  <div class="sheet">
-    <h3>Nome del cane</h3>
+  <div class="sheet" style="max-height:86vh; overflow-y:auto">
+    <h3>Quale cane portava questo collare?</h3>
     <p class="hint" id="nc-sotto">—</p>
+    <div id="nc-lista"></div>
+    <label style="display:block; font-size:12px; color:var(--muted); margin:14px 0 6px">Oppure aggiungi un cane alla muta</label>
     <input id="nc-nome" type="text" maxlength="30" placeholder="Macchia">
     <div class="btnrow" style="margin-top:14px">
       <button class="btn line" id="nc-annulla">Annulla</button>
-      <button class="btn primary" id="nc-salva">Salva</button>
+      <button class="btn primary" id="nc-salva">Aggiungi</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: un cane della muta -->
+<div class="modal" id="m-canemuta">
+  <div class="sheet">
+    <h3 id="mc2-tit">Nuovo cane</h3>
+    <label>Nome</label>
+    <input id="mc2-nome" type="text" maxlength="30" placeholder="Macchia">
+    <label>Colore sulla mappa</label>
+    <input id="mc2-colore" type="color" value="#FF6B35" style="height:42px; padding:4px">
+    <label>Note</label>
+    <textarea id="mc2-note" placeholder="razza, età, come lavora"></textarea>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="mc2-annulla">Annulla</button>
+      <button class="btn primary" id="mc2-salva">Salva</button>
+    </div>
+    <button class="btn line" id="mc2-togli" style="margin-top:8px; border-color:#C0392B; color:#e07a6a; display:none">Togli dalla muta</button>
+  </div>
+</div>
+
+<!-- MODALE: di chi e' questa muta -->
+<div class="modal" id="m-canaio">
+  <div class="sheet" style="max-height:80vh; overflow-y:auto">
+    <h3>Di chi è la muta?</h3>
+    <p class="hint">Il percorso resta legato al canaio che l'ha portata.</p>
+    <div id="cnc-lista"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="cnc-annulla">Annulla</button>
     </div>
   </div>
 </div>
@@ -3661,7 +3702,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.44";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.45";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -8495,9 +8536,12 @@ header .menubtn{min-width:48px; min-height:48px;}
   var cnArea = null;        // la mappa della battuta
   var cnCani = [];          // [{nome,colore,palmare,punti:[{lat,lng,t}],visibile}]
   var cnInfo = null;        // quello che dice il file
-  var cnQuadretto = 30, cnBuffer = 60;
+  var cnQuadretto = 30;
   var cnMap = null, cnStrati = null, cnC0 = null;
-  var cnSalvato = null;     // la riga gia' sul database
+  var cnPercorsi = [];      // le righe gia' sul database (una per canaio)
+  var mutaCani = [];        // i cani delle mute
+  var cnMute = {};          // quali mute sono accese sulla mappa
+  var cnCanaioFile = null;  // di chi e' il file che sto caricando
   var cnCalc = null;        // ultimi numeri calcolati
   var cnColori = ["#FF6B35","#7F77DD","#1D9E75","#E24B4A","#378ADD","#EF9F27","#D4537E","#5DCAA5"];
 
@@ -8568,7 +8612,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(tracce[dev].length<2) return;
       out.push({ dev:dev,
                  nomeFile:(dev==="0"?"Palmare":(nomi[dev]||("Collare "+dev))),
-                 nome:(dev==="0"?"Palmare":(cnNomiCani[dev] || nomi[dev] || ("Collare "+dev))),
+                 nome:(dev==="0"?"Palmare":(nomi[dev] || ("Collare "+dev))),
                  colore:(dev==="0"?"#F0E2C9":(colori[dev]||null)),
                  palmare:(dev==="0"), punti:tracce[dev] });
     });
@@ -8615,8 +8659,34 @@ header .menubtn{min-width:48px; min-height:48px;}
     return m>=60 ? (Math.floor(m/60)+" h "+(m%60)) : (m+" min");
   }
 
-  /* dall'archivio: la battuta non sta in battuteSvolte, la prendo dai dati
-     della stagione gia' caricati */
+  /* ===== PIU' CANAI, OGNUNO CON LA SUA MUTA (sua decisione 21/09) =====
+     Ogni canaio carica il file della SUA muta sulla battuta: un percorso per
+     canaio, non uno per battuta. I cani appartengono alla muta (hn_cani con
+     canaio_id) e a ogni caricamento si dice quale cane portava quel collare
+     quel giorno, perche' lo stesso collare gira fra i cani. Il canaio vede
+     e tocca solo la sua muta; capocaccia e admin vedono tutte, e possono
+     accendere e spegnere una muta alla volta sulla mappa. */
+
+  function eCanaio(m){
+    var x = m || me;
+    return !!(x && (x.compiti||[]).indexOf("canaio") >= 0);
+  }
+  function vedeTutteLeMute(){
+    return !!(me && (me.is_admin===true || me.ruolo==="capocaccia"));
+  }
+  function vedeMutaCani(){ return vedeTutteLeMute() || eCanaio(me); }
+  function mutaMia(canaioId){ return canaioId && me && canaioId === me.membro_id; }
+  function puoToccareMuta(canaioId){ return vedeTutteLeMute() || mutaMia(canaioId); }
+  function elencoCanai(){
+    return (membri||[]).filter(function(m){ return eCanaio(m); });
+  }
+  function nomeCanaio(id){
+    if(!id) return "senza canaio";
+    var n = nomeDi(id);
+    return (n && n!=="\u2014") ? n : "canaio";
+  }
+
+  /* dall'archivio: la battuta non sta in battuteSvolte */
   function apriCaniDaArchivio(bsId){
     var bs = (arcDati && arcDati.svolte || []).find(function(x){ return x.id===bsId; });
     if(!bs){ toast("Battuta non trovata"); return; }
@@ -8624,16 +8694,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     apriCaniBattuta(bs.id);
   }
 
-  /* ---- apertura ---- */
-  async function apriCaniBattuta(bsId, giornataId){
+  async function apriCaniBattuta(bsId){
     var bs = battuteSvolte.find(function(x){ return x.id===bsId; });
     if(!bs && arcDati) bs = (arcDati.svolte||[]).find(function(x){ return x.id===bsId; });
     if(!bs){ toast("Battuta non trovata"); return; }
     if(!bs.chiusa_il){ toast("Il percorso dei cani si carica a battuta chiusa"); return; }
     cnBs = bs;
     cnArea = aree.find(function(a){ return a.id===bs.area_id; }) || null;
-    cnCani = []; cnInfo = null; cnSalvato = null; cnCalc = null;
-    cnQuadretto = 30; cnBuffer = 60;
+    cnCani = []; cnInfo = null; cnPercorsi = []; cnCalc = null; cnMute = {};
+    cnQuadretto = 30;
     document.getElementById("cn-titolo").textContent =
       "Cani \u00b7 " + (bs.numero ? bs.numero+"\u00aa \u00b7 " : "") + (cnArea ? cnArea.nome : "battuta");
     document.getElementById("cani-scroll").innerHTML = '<div class="loading">Carico\u2026</div>';
@@ -8651,28 +8720,56 @@ header .menubtn{min-width:48px; min-height:48px;}
         }
       }catch(e){}
     }
-    await caricaNomiCani();
+    if(!membri.length){
+      try{
+        var rm = await sb.from("hn_membri").select("*").eq("squadra_id", me.squadra_id);
+        if(!rm.error) membri = rm.data || [];
+      }catch(e){}
+    }
+    await caricaMuta();
     await cnCarica();
     cnPrepara();
     renderCani();
   }
+
+  /* i cani della muta: tutti se sono capo, altrimenti solo i miei */
+  async function caricaMuta(){
+    try{
+      var q = sb.from("hn_cani").select("*").eq("squadra_id", me.squadra_id);
+      var r = await q;
+      if(r.error) throw r.error;
+      mutaCani = r.data || [];
+    }catch(e){ mutaCani = []; }
+  }
+  function caniDi(canaioId){
+    return (mutaCani||[]).filter(function(c){ return c.canaio_id === canaioId && c.attivo !== false; })
+      .sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome)); });
+  }
+
   async function cnCarica(){
     try{
-      var r = await sb.from("hn_percorsi_cani").select("*").eq("battuta_svolta_id", cnBs.id).limit(1);
+      var r = await sb.from("hn_percorsi_cani").select("*").eq("battuta_svolta_id", cnBs.id);
       if(r.error) throw r.error;
-      if(r.data && r.data.length){
-        cnSalvato = r.data[0];
-        cnQuadretto = Number(cnSalvato.quadretto)||30;
-        cnBuffer = Number(cnSalvato.buffer_posta)||60;
-        cnCani = (cnSalvato.cani||[]).map(function(c){
-          return {dev:c.dev||null, nomeFile:c.nomeFile||c.nome,
-                  nome:((c.dev && cnNomiCani[c.dev]) || c.nome),
-                  colore:c.colore, palmare:!!c.palmare,
-                  punti:(c.punti||[]).map(function(q){ return {lat:q[0], lng:q[1], t:q[2]||null}; })};
+      var righe = (r.data||[]).filter(function(p){
+        return vedeTutteLeMute() || mutaMia(p.canaio_id);
+      });
+      cnPercorsi = righe;
+      cnCani = [];
+      righe.forEach(function(p){
+        if(Number(p.quadretto)) cnQuadretto = Number(p.quadretto);
+        (p.cani||[]).forEach(function(c){
+          var cane = (mutaCani||[]).find(function(x){ return x.id === c.cane_id; });
+          cnCani.push({
+            dev: c.dev||null, cane_id: c.cane_id||null,
+            nomeFile: c.nomeFile || c.nome,
+            nome: (cane ? cane.nome : (c.nome || "Collare")),
+            colore: (cane && cane.colore) || c.colore || null,
+            palmare: !!c.palmare, canaio: p.canaio_id || null, percorsoId: p.id,
+            punti: (c.punti||[]).map(function(q){ return {lat:q[0], lng:q[1], t:q[2]||null}; })
+          });
         });
-        cnInfo = cnSalvato.nome_file ? {file:cnSalvato.nome_file} : null;
-      }
-    }catch(e){ /* tabella non ancora creata o rete assente: si carica a mano */ }
+      });
+    }catch(e){ cnPercorsi = []; }
   }
 
   function cnPrepara(){
@@ -8698,6 +8795,11 @@ header .menubtn{min-width:48px; min-height:48px;}
   function cnPoste(){
     return cnArea ? (cnArea.poste||[]).filter(function(p){ return p && p.lat && p.lng; }) : [];
   }
+  function mutaAccesa(canaioId){
+    var k = canaioId || "_";
+    return cnMute[k] !== false;
+  }
+  function caneAcceso(c){ return c.visibile!==false && mutaAccesa(c.canaio); }
   function cnTuttiPunti(){
     var t=[]; cnCani.forEach(function(c){ if(!c.palmare) t=t.concat(c.punti); });
     return t;
@@ -8708,28 +8810,23 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(cnStrati) Object.keys(cnStrati).forEach(function(k){ cnStrati[k].clearLayers(); });
     var poste = cnPoste();
     var res = {perc:null, celleB:0, celleT:0, posteTot:poste.length, km:0, durata:""};
-    /* BUG TROVATO DA LUI (21/09): senza percorso si usciva di qui, e la mappa
-       restava con poste e griglia della battuta aperta prima. Adesso si va
-       avanti lo stesso: gli strati sono gia' puliti e le poste della battuta
-       giusta vengono ridisegnate. */
     var iCol=0;
-    var pts30 = [];
     cnCani.forEach(function(c){
       c.colUsato = c.colore || cnColori[(iCol++)%cnColori.length];
       var pts = cnSemplifica(c.punti, 8);
       c.disegno = pts;
-      if(!c.palmare) res.km += cnKm(c.punti);
-      if(cnStrati && c.visibile!==false){
+      c.km = cnKm(c.punti);
+      if(!c.palmare && caneAcceso(c)) res.km += c.km;
+      if(cnStrati && caneAcceso(c)){
         L.polyline(pts.map(function(p){ return [p.lat,p.lng]; }),
           {color:c.colUsato, weight:c.palmare?2:2.6, opacity:.95, dashArray:c.palmare?"5 4":null})
           .addTo(cnStrati.linee);
       }
-      if(!c.palmare && c.visibile!==false) pts30 = pts30.concat(pts);
     });
-    var conT = cnCani.filter(function(c){ return !c.palmare; });
+    var conT = cnCani.filter(function(c){ return !c.palmare && caneAcceso(c); });
     res.durata = conT.length ? cnDurata(conT[0].punti) : "";
 
-    if(poste.length >= 3 && cnCani.length){
+    if(poste.length >= 3 && conT.length){
       var poly = cnInvolucro(poste.map(function(p){ return {lat:Number(p.lat), lng:Number(p.lng)}; }));
       if(cnStrati) L.polygon(poly.map(function(p){ return [p.lat,p.lng]; }),
         {color:"#E8C86A", weight:2, fill:false, dashArray:"6 6"}).addTo(cnStrati.perimetro);
@@ -8743,16 +8840,14 @@ header .menubtn{min-width:48px; min-height:48px;}
         var cx=minX+(i+0.5)*cella, cy=minY+(j+0.5)*cella;
         if(cnDentro(cnLL(cx,cy), poly)){ dentroCelle[i+"_"+j]=true; res.celleT++; }
       }
-      /* UN CANE ALLA VOLTA: se si uniscono i punti di tutti, fra l'ultimo
-         punto di un cane e il primo dell'altro nasce un segmento che non
-         esiste e colora i quadretti in diagonale (visto il 21/09) */
-      cnCani.forEach(function(c){
-        if(c.palmare || c.visibile===false) return;
+      /* un cane alla volta: unendo i punti di tutti nascerebbe un segmento
+         inesistente fra l'ultimo punto di uno e il primo dell'altro */
+      conT.forEach(function(c){
         var suoi = c.disegno || c.punti;
         for(var k=1;k<suoi.length;k++){
           var A=cnXY(suoi[k-1]), B=cnXY(suoi[k]);
           var L2=Math.hypot(B.x-A.x,B.y-A.y);
-          if(L2 > 300) continue;               /* buco di segnale: non invento nulla */
+          if(L2 > 300) continue;
           var passi=Math.max(1,Math.ceil(L2/(cella/2)));
           for(var s=0;s<=passi;s++){
             var x=A.x+(B.x-A.x)*s/passi, y=A.y+(B.y-A.y)*s/passi;
@@ -8774,8 +8869,6 @@ header .menubtn{min-width:48px; min-height:48px;}
         });
       }
     }
-    /* le poste si disegnano e basta: quali hanno sfiorato si vede dalle linee
-       sulla mappa, il conteggio col raggio regolabile era di troppo (21/09) */
     poste.forEach(function(p){
       var ll={lat:Number(p.lat), lng:Number(p.lng)};
       if(cnStrati){
@@ -8788,7 +8881,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     return res;
   }
 
-  /* ---- a quale mappa appartiene questa registrazione? ---- */
+  /* a quale mappa appartiene questa registrazione? */
   function cnControllaTerreno(){
     var tutti = cnTuttiPunti();
     if(!tutti.length) return null;
@@ -8810,23 +8903,21 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* ---- il pannello ---- */
   function renderCani(){
     var root = document.getElementById("cani-scroll");
-    var agisce = puoGestireBattute();
+    var puoCaricare = vedeTutteLeMute() || eCanaio(me);
     var h = "";
     if(!cnCani.length){
       h += '<div class="card" style="font-size:13px; color:var(--muted); line-height:1.6; margin-bottom:10px">'
-        + 'Nessun percorso su questa battuta. Carica il file <b>.dogtracerecord</b> esportato da Dogtrace: '
-        + 'si vedono i giri dei cani, quanta mappa hanno battuto e quali poste hanno sfiorato.</div>';
-      if(agisce) h += '<button class="btn primary" id="cn-apri">\ud83d\udc15 Carica il file dei collari</button>';
-      else h += '<div style="font-size:12px; color:var(--muted)">Lo carica il capocaccia.</div>';
+        + 'Nessun percorso su questa battuta. Ogni canaio carica il file <b>.dogtracerecord</b> della sua muta: '
+        + 'si vedono i giri dei cani e quanta mappa hanno battuto.</div>';
+      if(puoCaricare) h += '<button class="btn primary" id="cn-apri">\ud83d\udc15 Carica il file dei collari</button>';
+      else h += '<div style="font-size:12px; color:var(--muted)">Lo caricano i canai.</div>';
       root.innerHTML = h;
-      var ba=document.getElementById("cn-apri");
-      if(ba) ba.onclick=function(){ document.getElementById("cn-file").click(); };
-      cnCalcola();        /* ripulisce e disegna le poste di QUESTA battuta */
-      cnInquadra();       /* e riquadra la mappa su di lei */
+      var ba0=document.getElementById("cn-apri");
+      if(ba0) ba0.onclick=cnChiediCanaio;
+      cnCalcola(); cnInquadra();
       return;
     }
     var r = cnCalcola();
-    var conT = cnCani.filter(function(c){ return !c.palmare; });
     h += '<div class="cn-num">';
     h += '<div class="b"><div class="n">'+(r.perc===null?"\u2014":r.perc+"%")+'</div><div class="t">mappa battuta</div></div>';
     h += '<div class="b"><div class="n">'+(r.durata||"\u2014")+'</div><div class="t">durata</div></div>';
@@ -8843,49 +8934,82 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     h += '</div>';
 
-    h += '<div class="sechead">Collari</div>';
-    cnCani.forEach(function(c,i){
-      h += '<div class="cn-riga" style="flex-wrap:wrap"><span class="pt" style="background:'+(c.colUsato||"#888")+'"></span>'
-        + '<span style="flex:1; min-width:110px"><span style="color:var(--cream)">'+esc(c.nome)+(c.palmare?' <span style="color:var(--muted)">(palmare)</span>':'')+'</span>'
-        + '<div class="s">'+cnKm(c.punti).toFixed(2)+' km \u00b7 '+(cnDurata(c.punti)||"senza orari")+'</div></span>'
-        + '<span style="display:flex; gap:5px">'
-        + (c.palmare||!agisce ? '' : '<button class="chip" data-cnn="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u270e Nome</button>')
-        + (c.punti.length>1 ? '<button class="chip" data-cnp="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u25b6 Percorso</button>' : '')
-        + '<button class="chip'+(c.visibile!==false?" on":"")+'" data-cnv="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">'+(c.visibile!==false?"visibile":"nascosto")+'</button>'
-        + '</span></div>';
+    /* l'elenco diviso per canaio, con l'interruttore di tutta la muta */
+    var mute = [];
+    cnCani.forEach(function(c){
+      if(!mute.some(function(m){ return m.id===c.canaio; })) mute.push({id:c.canaio, cani:[]});
     });
-    if(agisce){
-      h += '<button class="btn primary" id="cn-salva" style="margin-top:12px">'+(cnSalvato?'\ud83d\udcbe Aggiorna il percorso salvato':'\ud83d\udcbe Salva sulla battuta')+'</button>';
-      h += '<button class="btn line" id="cn-apri" style="margin-top:8px">\ud83d\udc15 Carica un altro file</button>';
-      if(cnSalvato) h += '<button class="btn line" id="cn-canc" style="margin-top:8px; border-color:#C0392B; color:#e07a6a">\ud83d\uddd1 Togli il percorso</button>';
+    cnCani.forEach(function(c,i){
+      var m = mute.find(function(x){ return x.id===c.canaio; });
+      m.cani.push({c:c, i:i});
+    });
+    mute.forEach(function(m){
+      var mio = mutaMia(m.id), tocca = puoToccareMuta(m.id);
+      var nCani = m.cani.filter(function(x){ return !x.c.palmare; }).length;
+      h += '<div class="sechead" style="display:flex; align-items:center; gap:8px">'
+        + '<span style="flex:1">' + (m.id ? esc(nomeCanaio(m.id)) : "muta") + (mio ? ' \u00b7 la tua muta' : '')
+        + ' \u00b7 ' + nCani + (nCani===1?' cane':' cani') + '</span>'
+        + (tocca ? ('<button class="chip'+(mutaAccesa(m.id)?" on":"")+'" data-cnmuta="'+(m.id||"_")+'" style="width:auto; padding:4px 9px; font-size:10.5px; text-transform:none">'
+            + (mutaAccesa(m.id)?"sulla mappa":"nascosta")+'</button>') : '')
+        + '</div>';
+      m.cani.forEach(function(x){
+        var c = x.c, i = x.i;
+        var suo = puoToccareMuta(c.canaio);
+        h += '<div class="cn-riga" style="flex-wrap:wrap'+(mutaAccesa(c.canaio)?'':'; opacity:.45')+'">'
+          + '<span class="pt" style="background:'+(c.colUsato||"#888")+'"></span>'
+          + '<span style="flex:1; min-width:110px"><span style="color:var(--cream)">'+esc(c.nome)
+          + (c.palmare?' <span style="color:var(--muted)">(palmare)</span>':'')
+          + (!c.palmare && !c.cane_id ? ' <span style="color:#e0a96a">\u00b7 cane da scegliere</span>' : '')
+          + '</span>'
+          + '<div class="s">'+(c.km||0).toFixed(2)+' km \u00b7 '+(cnDurata(c.punti)||"senza orari")
+          + (c.nomeFile && c.nomeFile!==c.nome ? (' \u00b7 nel file: '+esc(c.nomeFile)) : '')+'</div></span>'
+          + '<span style="display:flex; gap:5px">'
+          + (c.palmare||!suo ? '' : '<button class="chip" data-cnn="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u270e Cane</button>')
+          + (c.punti.length>1 ? '<button class="chip" data-cnp="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">\u25b6 Percorso</button>' : '')
+          + (suo ? ('<button class="chip'+(c.visibile!==false?" on":"")+'" data-cnv="'+i+'" style="width:auto; padding:5px 9px; font-size:11px">'+(c.visibile!==false?"visibile":"nascosto")+'</button>') : '')
+          + '</span></div>';
+      });
+    });
+
+    if(puoCaricare){
+      var mioP = cnPercorsoDi(me.membro_id);
+      h += '<button class="btn primary" id="cn-salva" style="margin-top:12px">\ud83d\udcbe Salva il percorso</button>';
+      h += '<button class="btn line" id="cn-apri" style="margin-top:8px">\ud83d\udc15 Carica un file</button>';
+      if(cnPercorsi.some(function(p){ return puoToccareMuta(p.canaio_id); }))
+        h += '<button class="btn line" id="cn-canc" style="margin-top:8px; border-color:#C0392B; color:#e07a6a">\ud83d\uddd1 Togli un percorso</button>';
     }
-    if(cnSalvato) h += '<div style="font-size:10.5px; color:var(--muted); margin-top:9px">Salvato'
-      + (cnSalvato.nome_file?(' \u00b7 '+esc(cnSalvato.nome_file)):'')
-      + (cnSalvato.creato_il?(' \u00b7 '+String(cnSalvato.creato_il).slice(8,10)+'/'+String(cnSalvato.creato_il).slice(5,7)):'')+'</div>';
     root.innerHTML = h;
 
     root.querySelectorAll("[data-cnq]").forEach(function(b){
       b.onclick=function(){ cnFermaRiproduzione(); cnQuadretto = +b.dataset.cnq; renderCani(); };
     });
+    root.querySelectorAll("[data-cnmuta]").forEach(function(b){
+      b.onclick=function(){
+        cnFermaRiproduzione();
+        var k=b.dataset.cnmuta;
+        cnMute[k] = !mutaAccesa(k==="_"?null:k) ? true : false;
+        renderCani();
+      };
+    });
     root.querySelectorAll("[data-cnv]").forEach(function(b){
       b.onclick=function(){ cnFermaRiproduzione(); var c=cnCani[+b.dataset.cnv]; c.visibile = (c.visibile===false); renderCani(); };
     });
     root.querySelectorAll("[data-cnn]").forEach(function(b){
-      b.onclick=function(){ apriNomeCane(+b.dataset.cnn); };
+      b.onclick=function(){ apriSceltaCane(+b.dataset.cnn); };
     });
     root.querySelectorAll("[data-cnp]").forEach(function(b){
       b.onclick=function(){ cnRiproduci(+b.dataset.cnp); };
     });
-
     var ba=document.getElementById("cn-apri");
-    if(ba) ba.onclick=function(){ document.getElementById("cn-file").click(); };
+    if(ba) ba.onclick=cnChiediCanaio;
     var bs=document.getElementById("cn-salva");
-    if(bs) bs.onclick=salvaPercorsoCani;
+    if(bs) bs.onclick=function(){ salvaPercorsoCani(); };
     var bc=document.getElementById("cn-canc");
-    if(bc) bc.onclick=function(){
-      chiediConferma("Togliere il percorso?", "Il file dei collari resta tuo: qui si cancella solo quello che ho salvato su questa battuta.", "\ud83d\uddd1 Togli", cancellaPercorsoCani);
-    };
+    if(bc) bc.onclick=cnChiediCancella;
     cnInquadra();
+  }
+  function cnPercorsoDi(canaioId){
+    return (cnPercorsi||[]).find(function(p){ return p.canaio_id === canaioId; }) || null;
   }
   function cnInquadra(){
     if(!cnMap) return;
@@ -8895,7 +9019,40 @@ header .menubtn{min-width:48px; min-height:48px;}
     try{ cnMap.fitBounds(L.latLngBounds(pts).pad(0.15)); }catch(e){}
   }
 
-  /* ---- caricamento del file ---- */
+  /* ---- di chi e' il file che sto per caricare ---- */
+  function cnChiediCanaio(){
+    if(!vedeTutteLeMute()){
+      cnCanaioFile = me.membro_id;
+      document.getElementById("cn-file").click();
+      return;
+    }
+    var lista = elencoCanai();
+    if(!lista.length){
+      cnCanaioFile = me.membro_id;
+      document.getElementById("cn-file").click();
+      return;
+    }
+    var h = '';
+    lista.forEach(function(m){
+      h += '<button class="btn line" data-canaio="'+m.id+'" style="text-align:left; margin-bottom:7px">'
+        + '\ud83d\udc15 <b>'+esc(m.nome)+'</b>'
+        + '<span style="display:block; font-size:11px; color:var(--muted)">'+caniDi(m.id).length+' cani nella muta</span></button>';
+    });
+    if(!lista.some(function(m){ return m.id===me.membro_id; })){
+      h += '<button class="btn line" data-canaio="'+me.membro_id+'" style="text-align:left">\ud83d\udc64 <b>Io</b>'
+        + '<span style="display:block; font-size:11px; color:var(--muted)">carico a nome mio</span></button>';
+    }
+    document.getElementById("cnc-lista").innerHTML = h;
+    document.getElementById("m-canaio").classList.add("show");
+    document.getElementById("cnc-lista").querySelectorAll("[data-canaio]").forEach(function(b){
+      b.onclick=function(){
+        cnCanaioFile = b.dataset.canaio;
+        document.getElementById("m-canaio").classList.remove("show");
+        document.getElementById("cn-file").click();
+      };
+    });
+  }
+
   async function cnFileScelto(file){
     if(!file) return;
     var root=document.getElementById("cani-scroll");
@@ -8903,110 +9060,116 @@ header .menubtn{min-width:48px; min-height:48px;}
     try{
       var buf = await file.arrayBuffer();
       var r = await cnLeggiDogtrace(buf);
-      cnCani = r.cani; cnInfo = r.info; cnInfo.file = file.name;
+      var canaio = cnCanaioFile || me.membro_id;
+      var vecchio = cnPercorsoDi(canaio);
+      /* i cani di questo canaio vengono sostituiti da quelli del file nuovo */
+      cnCani = cnCani.filter(function(c){ return c.canaio !== canaio; });
+      r.cani.forEach(function(c){
+        var gia = cnUltimoCane(canaio, c.dev);
+        cnCani.push({dev:c.dev, cane_id:(gia?gia.id:null),
+                     nomeFile:c.nomeFile, nome:(gia?gia.nome:c.nomeFile),
+                     colore:(gia&&gia.colore)||c.colore||null, palmare:c.palmare,
+                     canaio:canaio, percorsoId:(vecchio?vecchio.id:null), punti:c.punti});
+      });
+      cnInfo = r.info; cnInfo.file = file.name;
       cnPrepara();
       renderCani();
       cnAvvisaTerreno();
+      var senza = cnCani.filter(function(c){ return c.canaio===canaio && !c.palmare && !c.cane_id; }).length;
+      if(senza) toast("Adesso di' quale cane portava ogni collare: tasto \u270e Cane");
     }catch(e){
-      cnCani=[];
       renderCani();
       toast("Non riesco a leggerlo: "+(e.message||e));
     }
+  }
+  /* l'ultimo cane che ha portato questo collare, per proporlo */
+  function cnUltimoCane(canaio, dev){
+    if(!dev) return null;
+    var c = (mutaCani||[]).find(function(x){ return x.canaio_id===canaio && String(x.collare||"")===String(dev) && x.attivo!==false; });
+    return c || null;
   }
   function cnAvvisaTerreno(){
     var vicine = cnControllaTerreno();
     if(!vicine || !vicine.length) return;
     var qui = vicine.find(function(v){ return cnArea && v.area.id===cnArea.id; });
     var prima = vicine[0];
-    if(qui && qui.d <= 200) return;                       /* tutto a posto */
+    if(qui && qui.d <= 200) return;
     if(prima.d > 200){
       chiediConferma("Registrazione fuori da ogni mappa",
         "I punti dei collari sono a "+Math.round(prima.d)+" m dalla posta pi\u00f9 vicina (\u00ab"+prima.area.nome+"\u00bb).\n"
-        +"\u00c8 un terreno ancora da mappare: puoi salvare lo stesso, la traccia resta legata a questa battuta.",
+        +"\u00c8 un terreno ancora da mappare: puoi salvare lo stesso.",
         "Ho capito", function(){});
       return;
     }
     chiediConferma("\u00c8 un'altra mappa?",
       "I punti cadono su \u00ab"+prima.area.nome+"\u00bb (a "+Math.round(prima.d)+" m)"
-      + (cnArea ? (", non su \u00ab"+cnArea.nome+"\u00bb"+(qui?(" che \u00e8 a "+Math.round(qui.d)+" m"):"")) : "")
-      + ".\nUso le poste di \u00ab"+prima.area.nome+"\u00bb per i conti?",
+      + (cnArea ? (", non su \u00ab"+cnArea.nome+"\u00bb") : "") + ".\nUso le poste di \u00ab"+prima.area.nome+"\u00bb per i conti?",
       "S\u00ec, usa quella",
       function(){ cnArea = prima.area; cnPrepara(); renderCani(); });
   }
 
-
-  /* ---- NOMI DEI CANI: legati all'identificativo del collare che sta dentro
-     il file, non al singolo file. Battezzato una volta, resta in tutte le
-     registrazioni (tabella hn_cani). ---- */
-  var cnNomiCani = {};     // { "3": "Macchia" }
-  var cnNomeIdx = -1;
-  async function caricaNomiCani(){
-    try{
-      var r = await sb.from("hn_cani").select("collare,nome").eq("squadra_id", me.squadra_id);
-      if(r.error) throw r.error;
-      cnNomiCani = {};
-      (r.data||[]).forEach(function(x){ cnNomiCani[String(x.collare)] = x.nome; });
-    }catch(e){ /* tabella non ancora creata: si usano i nomi del file */ }
-  }
-  function apriNomeCane(i){
+  /* ---- quale cane portava questo collare ---- */
+  var cnCaneIdx = -1;
+  function apriSceltaCane(i){
     var c = cnCani[i];
     if(!c || c.palmare) return;
-    if(!puoGestireBattute()){ toast("Lo cambia il capocaccia"); return; }
-    cnNomeIdx = i;
+    if(!puoToccareMuta(c.canaio)){ toast("\u00c8 la muta di "+nomeCanaio(c.canaio)); return; }
+    cnCaneIdx = i;
+    var lista = caniDi(c.canaio);
     document.getElementById("nc-sotto").textContent =
-      "Nel file si chiama \u00ab" + (c.nomeFile||c.nome) + "\u00bb" + (c.dev ? (" \u00b7 collare " + c.dev) : "")
-      + ". Il nome che scrivi resta anche nelle prossime registrazioni.";
-    document.getElementById("nc-nome").value = c.nome || "";
+      "Collare " + (c.dev||"?") + (c.nomeFile ? (" \u00b7 nel file si chiama \u00ab"+c.nomeFile+"\u00bb") : "")
+      + " \u00b7 muta di " + nomeCanaio(c.canaio);
+    var h = "";
+    if(!lista.length){
+      h += '<div style="font-size:12px; color:var(--muted); line-height:1.5; margin-bottom:8px">'
+        + 'Nella muta non c\'\u00e8 ancora nessun cane: scrivi il primo qui sotto.</div>';
+    }
+    lista.forEach(function(x){
+      h += '<button class="btn line" data-cane="'+x.id+'" style="text-align:left; margin-bottom:6px'
+        + (c.cane_id===x.id ? '; border-color:var(--gold)' : '') + '">'
+        + '<span style="display:inline-block; width:11px; height:11px; border-radius:50%; background:'+(x.colore||"#888")+'; margin-right:7px"></span>'
+        + esc(x.nome) + (c.cane_id===x.id ? ' \u2713' : '') + '</button>';
+    });
+    document.getElementById("nc-lista").innerHTML = h;
+    document.getElementById("nc-nome").value = "";
     document.getElementById("m-nomecane").classList.add("show");
-    setTimeout(function(){ try{ document.getElementById("nc-nome").focus(); }catch(e){} }, 150);
+    document.getElementById("nc-lista").querySelectorAll("[data-cane]").forEach(function(b){
+      b.onclick=function(){ scegliCanePerCollare(b.dataset.cane); };
+    });
   }
-  async function salvaNomeCane(){
-    var c = cnCani[cnNomeIdx];
-    if(!c) return;
-    var nome = String(document.getElementById("nc-nome").value||"").trim();
-    if(!nome){ toast("Scrivi un nome"); return; }
+  async function scegliCanePerCollare(caneId){
+    var c = cnCani[cnCaneIdx];
+    var cane = (mutaCani||[]).find(function(x){ return x.id===caneId; });
+    if(!c || !cane) return;
+    c.cane_id = cane.id; c.nome = cane.nome;
+    if(cane.colore) c.colore = cane.colore;
     document.getElementById("m-nomecane").classList.remove("show");
-    c.nome = nome;
     cnFermaRiproduzione();
     renderCani();
-    if(!navigator.onLine){ toast("Nome cambiato \u00b7 senza rete non lo salvo"); return; }
-    /* BUG TROVATO DA LUI (21/09): il nome finiva SOLO nella tabella dei cani,
-       e se quella mancava o il collare non aveva identificativo non restava
-       niente. Adesso il nome si scrive PRIMA dentro il percorso della battuta
-       (dove sta insieme ai punti) e POI, se si puo', nella tabella dei cani
-       che lo porta anche sulle registrazioni future. */
-    var salvatoQui = false, salvatoSempre = false, errore = "";
-    if(cnSalvato){
-      try{ await salvaPercorsoCani(true); salvatoQui = !!cnSalvato; }
-      catch(e){ errore = String(e.message||e); }
+    /* mi ricordo che quel collare l'ha portato lui, per proporlo la prossima volta */
+    if(c.dev && navigator.onLine){
+      try{ await sb.from("hn_cani").update({collare:String(c.dev)}).eq("id", cane.id); }catch(e){}
     }
-    if(c.dev){
-      cnNomiCani[String(c.dev)] = nome;
-      try{
-        var r = await sb.from("hn_cani").select("id").eq("squadra_id", me.squadra_id).eq("collare", String(c.dev)).limit(1);
-        if(r.error) throw r.error;
-        if(r.data && r.data.length){
-          var u = await sb.from("hn_cani").update({nome:nome, colore:c.colore||null}).eq("id", r.data[0].id);
-          if(u.error) throw u.error;
-        }else{
-          var q = await sb.from("hn_cani").insert({squadra_id:me.squadra_id, collare:String(c.dev),
-                                                   nome:nome, colore:c.colore||null});
-          if(q.error) throw q.error;
-        }
-        salvatoSempre = true;
-      }catch(e){
-        var m = String(e.message||e);
-        errore = /hn_cani|does not exist|schema cache/.test(m)
-               ? "manca la tabella hn_cani: lancia l'SQL su Supabase" : m;
-      }
-    }else{
-      errore = "questa registrazione non dice quale collare \u00e8: ricarica il file .dogtracerecord";
+    if(c.percorsoId) await salvaPercorsoCani(true, c.canaio);
+    toast("Collare "+(c.dev||"")+": "+cane.nome);
+  }
+  async function creaCaneNuovo(){
+    var c = cnCani[cnCaneIdx];
+    if(!c) return;
+    var nome = String(document.getElementById("nc-nome").value||"").trim();
+    if(!nome){ toast("Scrivi il nome del cane"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per aggiungere un cane"); return; }
+    try{
+      var r = await sb.from("hn_cani").insert({squadra_id:me.squadra_id, canaio_id:c.canaio,
+                nome:nome, colore:c.colore||null, collare:String(c.dev||"")}).select().single();
+      if(r.error) throw r.error;
+      mutaCani = (mutaCani||[]).concat([r.data]);
+      await scegliCanePerCollare(r.data.id);
+    }catch(e){
+      var m=String(e.message||e);
+      if(/canaio_id|hn_cani/.test(m)) toast("La tabella dei cani non \u00e8 aggiornata: lancia l'SQL su Supabase");
+      else toast("Non riesco: "+m);
     }
-    if(salvatoSempre) toast("Adesso si chiama " + nome + ", anche nelle prossime registrazioni");
-    else if(salvatoQui) toast("Si chiama " + nome + " su questa battuta \u00b7 " + errore);
-    else if(!cnSalvato) toast("Nome cambiato: premi \ud83d\udcbe Salva per tenerlo");
-    else toast("Non riesco a salvare il nome: " + errore);
-    renderCani();
   }
 
   /* ---- PERCORSO ACCELERATO: la registrazione, lunga quanto vuole, viene
@@ -9082,58 +9245,310 @@ header .menubtn{min-width:48px; min-height:48px;}
     }, 40) };
   }
 
-  /* ---- salvataggio ---- */
-  async function salvaPercorsoCani(zitto){
-    if(!puoGestireBattute()){ if(!zitto) toast("Non hai il permesso"); return; }
-    if(!cnCani.length) return;
-    if(!navigator.onLine){ toast("Serve la rete per salvare"); return; }
+  /* ---- salvataggio: un percorso per canaio ---- */
+  async function salvaPercorsoCani(zitto, soloCanaio){
+    var canaio = soloCanaio || cnCanaioFile || me.membro_id;
+    if(!(vedeTutteLeMute() || mutaMia(canaio))){ if(!zitto) toast("Non \u00e8 la tua muta"); return; }
+    var suoi = cnCani.filter(function(c){ return c.canaio === canaio; });
+    if(!suoi.length){ if(!zitto) toast("Non c'\u00e8 niente da salvare"); return; }
+    if(!navigator.onLine){ if(!zitto) toast("Serve la rete per salvare"); return; }
     var r = cnCalc || cnCalcola();
-    var cani = cnCani.map(function(c){
+    var cani = suoi.map(function(c){
       var p = cnSemplifica(c.punti, 15);
-      return {dev:c.dev||null, nome:c.nome, nomeFile:c.nomeFile||c.nome,
+      return {dev:c.dev||null, cane_id:c.cane_id||null, nome:c.nome, nomeFile:c.nomeFile||c.nome,
               colore:c.colore||c.colUsato||null, palmare:!!c.palmare,
+              km:Number((c.km||cnKm(c.punti)).toFixed(2)),
               punti:p.map(function(q){ return [ +q.lat.toFixed(6), +q.lng.toFixed(6), q.t||null ]; })};
     });
-    var tutti = cnTuttiPunti();
-    var t0 = tutti.length ? tutti[0].t : null, t1 = tutti.length ? tutti[tutti.length-1].t : null;
+    var punti = [];
+    suoi.forEach(function(c){ if(!c.palmare) punti = punti.concat(c.punti); });
+    var t0 = punti.length ? punti[0].t : null, t1 = punti.length ? punti[punti.length-1].t : null;
+    var kmMuta = suoi.reduce(function(t,c){ return t + (c.palmare ? 0 : (c.km||0)); }, 0);
     var dati = {
       squadra_id: me.squadra_id,
       giornata_id: cnBs.giornata_id || null,
       battuta_svolta_id: cnBs.id,
       area_id: cnArea ? cnArea.id : null,
+      canaio_id: canaio,
       nome_file: (cnInfo && cnInfo.file) ? String(cnInfo.file).slice(0,120) : null,
       inizio: t0 ? new Date(t0).toISOString() : null,
       fine: t1 ? new Date(t1).toISOString() : null,
-      quadretto: cnQuadretto, buffer_posta: cnBuffer,
+      quadretto: cnQuadretto, buffer_posta: null,
       perc_battuta: r.perc, celle_battute: r.celleB, celle_totali: r.celleT,
       poste_sfiorate: null, poste_totali: r.posteTot,
-      km: Number(r.km.toFixed(2)),
+      km: Number(kmMuta.toFixed(2)),
       cani: cani, creato_da: me.membro_id
     };
     try{
+      var vecchio = cnPercorsoDi(canaio);
       var q;
-      if(cnSalvato) q = await sb.from("hn_percorsi_cani").update(dati).eq("id", cnSalvato.id).select().single();
+      if(vecchio) q = await sb.from("hn_percorsi_cani").update(dati).eq("id", vecchio.id).select().single();
       else q = await sb.from("hn_percorsi_cani").insert(dati).select().single();
       if(q.error) throw q.error;
-      cnSalvato = q.data;
-      if(!zitto){ toast("Percorso salvato sulla battuta"); renderCani(); }
+      var k = cnPercorsi.findIndex(function(p){ return p.canaio_id===canaio; });
+      if(k>=0) cnPercorsi[k] = q.data; else cnPercorsi.push(q.data);
+      cnCani.forEach(function(c){ if(c.canaio===canaio) c.percorsoId = q.data.id; });
+      if(!zitto){ toast("Percorso salvato \u00b7 muta di "+nomeCanaio(canaio)); renderCani(); }
     }catch(e){
       var m=String(e.message||e);
-      if(zitto) throw e;
-      if(/hn_percorsi_cani/.test(m)) toast("Manca la tabella hn_percorsi_cani: lancia l'SQL su Supabase");
+      if(zitto) return;
+      if(/canaio_id/.test(m)) toast("La tabella dei percorsi non \u00e8 aggiornata: lancia l'SQL su Supabase");
+      else if(/hn_percorsi_cani/.test(m)) toast("Manca la tabella hn_percorsi_cani: lancia l'SQL su Supabase");
       else toast("Non riesco a salvare: "+m);
     }
   }
-  async function cancellaPercorsoCani(){
-    if(!cnSalvato) return;
+
+  function cnChiediCancella(){
+    var miei = cnPercorsi.filter(function(p){ return puoToccareMuta(p.canaio_id); });
+    if(!miei.length) return;
+    if(miei.length === 1){ confermaCancellaPercorso(miei[0]); return; }
+    var h = "";
+    miei.forEach(function(p){
+      h += '<button class="btn line" data-canaio="'+p.canaio_id+'" style="text-align:left; margin-bottom:7px">'
+        + '\ud83d\uddd1 <b>'+esc(nomeCanaio(p.canaio_id))+'</b>'
+        + '<span style="display:block; font-size:11px; color:var(--muted)">'+((p.cani||[]).length)+' collari</span></button>';
+    });
+    document.getElementById("cnc-lista").innerHTML = h;
+    document.getElementById("m-canaio").classList.add("show");
+    document.getElementById("cnc-lista").querySelectorAll("[data-canaio]").forEach(function(b){
+      b.onclick=function(){
+        document.getElementById("m-canaio").classList.remove("show");
+        confermaCancellaPercorso(cnPercorsoDi(b.dataset.canaio));
+      };
+    });
+  }
+  function confermaCancellaPercorso(p){
+    if(!p) return;
+    chiediConferma("Togliere il percorso?",
+      "Muta di "+nomeCanaio(p.canaio_id)+".\nIl file dei collari resta suo: qui si cancella solo quello che \u00e8 stato salvato su questa battuta.",
+      "\ud83d\uddd1 Togli",
+      function(){ cancellaPercorsoCani(p.id); });
+  }
+  async function cancellaPercorsoCani(id){
     try{
-      var r = await sb.from("hn_percorsi_cani").delete().eq("id", cnSalvato.id);
+      var r = await sb.from("hn_percorsi_cani").delete().eq("id", id);
       if(r.error) throw r.error;
-      cnSalvato = null; cnCani = [];
+      var via = cnPercorsi.find(function(p){ return p.id===id; });
+      cnPercorsi = cnPercorsi.filter(function(p){ return p.id!==id; });
+      cnCani = cnCani.filter(function(c){ return c.percorsoId !== id; });
       if(cnStrati) Object.keys(cnStrati).forEach(function(k){ cnStrati[k].clearLayers(); });
-      toast("Percorso tolto");
+      toast("Percorso tolto"+(via?(" \u00b7 muta di "+nomeCanaio(via.canaio_id)):""));
       renderCani();
     }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+
+
+  /* ================= MUTA CANI (sezione in Home, 21/09) =================
+     Si accende come la casella del sergente: la vede chi ha il compito
+     canaio, piu' capocaccia e admin. Dentro: i cani della muta con i totali
+     (km, battute, giornate) e l'elenco delle battute in cui ha caricato i
+     dati. Il capo puo' passare da una muta all'altra. */
+
+  var mutaSel = null;        // di chi sto guardando la muta
+  var mutaPercorsi = [];     // i percorsi di quella muta
+
+  async function apriMuta(){
+    mutaSel = mutaSel || (eCanaio(me) ? me.membro_id : null);
+    if(!mutaSel && vedeTutteLeMute()){
+      var primo = elencoCanai()[0];
+      mutaSel = primo ? primo.id : me.membro_id;
+    }
+    showView("muta");
+    document.getElementById("muta-scroll").innerHTML = '<div class="loading">Carico\u2026</div>';
+    if(!membri.length){
+      try{
+        var rm = await sb.from("hn_membri").select("*").eq("squadra_id", me.squadra_id);
+        if(!rm.error) membri = rm.data || [];
+      }catch(e){}
+    }
+    await caricaMuta();
+    await caricaPercorsiMuta();
+    renderMuta();
+  }
+  async function caricaPercorsiMuta(){
+    mutaPercorsi = [];
+    if(!mutaSel) return;
+    try{
+      var r = await sb.from("hn_percorsi_cani").select("*").eq("squadra_id", me.squadra_id)
+                .eq("canaio_id", mutaSel).order("inizio", {ascending:false}).limit(200);
+      if(r.error) throw r.error;
+      mutaPercorsi = r.data || [];
+      if(!battute.length){
+        var rb = await sb.from("hn_battute").select("id,data").eq("squadra_id", me.squadra_id);
+        if(!rb.error) battute = rb.data || [];
+      }
+      if(!battuteSvolte.length || true){
+        var ids = mutaPercorsi.map(function(p){ return p.battuta_svolta_id; }).filter(Boolean);
+        if(ids.length){
+          var rs = await sb.from("hn_battute_svolte").select("id,numero,area_id,giornata_id,chiusa_il").in("id", ids);
+          if(!rs.error) mutaSvolte = rs.data || [];
+        }
+      }
+    }catch(e){ mutaPercorsi = []; }
+  }
+  var mutaSvolte = [];
+
+  function totaliCane(caneId){
+    var km = 0, battute = 0, giorni = {};
+    mutaPercorsi.forEach(function(p){
+      var suo = (p.cani||[]).find(function(c){ return c.cane_id === caneId; });
+      if(!suo) return;
+      km += Number(suo.km)||0;
+      battute++;
+      if(p.giornata_id) giorni[p.giornata_id] = true;
+    });
+    return {km:km, battute:battute, giornate:Object.keys(giorni).length};
+  }
+
+  function renderMuta(){
+    var root = document.getElementById("muta-scroll");
+    var mio = mutaMia(mutaSel);
+    var h = "";
+    document.getElementById("mt2-titolo").textContent = "Muta di " + nomeCanaio(mutaSel);
+
+    if(vedeTutteLeMute()){
+      var lista = elencoCanai();
+      if(lista.length > 1 || (lista.length && !mio)){
+        h += '<div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px">';
+        lista.forEach(function(m){
+          h += '<button class="chip'+(mutaSel===m.id?" on":"")+'" data-mutasel="'+m.id+'" style="width:auto; padding:7px 11px; font-size:12px">'
+            + esc(m.nome)+'</button>';
+        });
+        h += '</div>';
+      }
+    }
+
+    var cani = caniDi(mutaSel);
+    h += '<div class="sechead" style="margin-top:0">I cani' + (mio ? ' della tua muta' : '') + '</div>';
+    if(!cani.length){
+      h += '<div class="card" style="font-size:12.5px; color:var(--muted); line-height:1.6">'
+        + 'Nessun cane ancora. Si aggiungono caricando un percorso e dicendo quale cane portava ogni collare, '
+        + 'oppure col tasto qui sotto.</div>';
+    }
+    cani.forEach(function(c){
+      var t = totaliCane(c.id);
+      h += '<div class="card" style="margin-bottom:7px; padding:11px 12px">'
+        + '<div style="display:flex; align-items:center; gap:9px">'
+        + '<span style="width:13px; height:13px; border-radius:50%; background:'+(c.colore||"#888")+'; flex-shrink:0"></span>'
+        + '<span style="flex:1; min-width:0; font-size:14.5px; color:var(--cream); font-weight:600">'+esc(c.nome)+'</span>'
+        + (mio||vedeTutteLeMute() ? '<button class="chip" data-mutaedit="'+c.id+'" style="width:auto; padding:4px 9px; font-size:10.5px">\u270e</button>' : '')
+        + '</div>'
+        + '<div class="conta" style="margin-top:9px">'
+        + '<div class="box" style="background:var(--dark2)"><div class="n">'+t.km.toFixed(1)+'</div><div class="t" style="color:var(--muted)">km</div></div>'
+        + '<div class="box" style="background:var(--dark2)"><div class="n">'+t.battute+'</div><div class="t" style="color:var(--muted)">battute</div></div>'
+        + '<div class="box" style="background:var(--dark2)"><div class="n">'+t.giornate+'</div><div class="t" style="color:var(--muted)">giornate</div></div>'
+        + '</div>'
+        + (c.collare ? ('<div style="font-size:10.5px; color:var(--muted); margin-top:7px">ultimo collare usato: '+esc(String(c.collare))+'</div>') : '')
+        + (c.note ? ('<div style="font-size:11.5px; color:#d9c9a8; margin-top:5px; line-height:1.5">'+esc(c.note)+'</div>') : '')
+        + '</div>';
+    });
+    if(mio || vedeTutteLeMute()){
+      h += '<button class="btn line" id="muta-nuovo" style="margin-top:4px">\u2795 Aggiungi un cane</button>';
+    }
+
+    h += '<div class="sechead">Le battute della muta</div>';
+    if(!mutaPercorsi.length){
+      h += '<div style="font-size:12.5px; color:var(--muted); line-height:1.6">Nessun percorso caricato.</div>';
+    }
+    mutaPercorsi.forEach(function(p){
+      var bs = mutaSvolte.find(function(x){ return x.id===p.battuta_svolta_id; });
+      var g = battute.find(function(b){ return b.id===p.giornata_id; });
+      var a = aree.find(function(x){ return x.id===p.area_id; });
+      h += '<div class="card" data-mutabatt="'+p.battuta_svolta_id+'" style="margin-bottom:7px; cursor:pointer">'
+        + '<div style="display:flex; align-items:center; gap:9px">'
+        + '<span style="flex:1; min-width:0">'
+        + '<span style="display:block; font-size:13.5px; color:var(--cream)">'
+        + (g ? esc(fmtGiorno(daIso(String(g.data).slice(0,10)))) : 'battuta')
+        + (bs && bs.numero ? (' \u00b7 '+bs.numero+'\u00aa') : '') + '</span>'
+        + '<span style="display:block; font-size:11px; color:var(--muted); margin-top:2px">'
+        + (a ? esc(a.nome)+' \u00b7 ' : '') + ((p.cani||[]).filter(function(c){ return !c.palmare; }).length) + ' cani'
+        + (p.km ? (' \u00b7 '+Number(p.km).toFixed(1)+' km') : '')
+        + (p.perc_battuta!==null && p.perc_battuta!==undefined ? (' \u00b7 '+p.perc_battuta+'% di mappa') : '')
+        + '</span></span>'
+        + '<span style="font-size:15px; color:var(--gold)">\u203a</span></div></div>';
+    });
+    root.innerHTML = h;
+
+    root.querySelectorAll("[data-mutasel]").forEach(function(b){
+      b.onclick=async function(){ mutaSel=b.dataset.mutasel; root.innerHTML='<div class="loading">Carico\u2026</div>'; await caricaPercorsiMuta(); renderMuta(); };
+    });
+    root.querySelectorAll("[data-mutabatt]").forEach(function(b){
+      b.onclick=function(){ apriCaniDaMuta(b.dataset.mutabatt); };
+    });
+    root.querySelectorAll("[data-mutaedit]").forEach(function(b){
+      b.onclick=function(){ apriCaneMuta(b.dataset.mutaedit); };
+    });
+    var bn=document.getElementById("muta-nuovo");
+    if(bn) bn.onclick=function(){ apriCaneMuta(null); };
+  }
+
+  async function apriCaniDaMuta(bsId){
+    var bs = battuteSvolte.find(function(x){ return x.id===bsId; });
+    if(!bs){
+      try{
+        var r = await sb.from("hn_battute_svolte").select("*").eq("id", bsId).single();
+        if(r.error) throw r.error;
+        bs = r.data;
+        battuteSvolte = battuteSvolte.concat([bs]);
+      }catch(e){ toast("Battuta non trovata"); return; }
+    }
+    apriCaniBattuta(bsId);
+  }
+
+  /* aggiungere o cambiare un cane della muta */
+  var caneEdit = null;
+  function apriCaneMuta(id){
+    caneEdit = id ? (mutaCani||[]).find(function(x){ return x.id===id; }) : null;
+    document.getElementById("mc2-tit").textContent = caneEdit ? "Cane della muta" : "Nuovo cane";
+    document.getElementById("mc2-nome").value = caneEdit ? (caneEdit.nome||"") : "";
+    document.getElementById("mc2-note").value = caneEdit ? (caneEdit.note||"") : "";
+    document.getElementById("mc2-colore").value = (caneEdit && caneEdit.colore) || "#FF6B35";
+    document.getElementById("mc2-togli").style.display = caneEdit ? "block" : "none";
+    document.getElementById("m-canemuta").classList.add("show");
+  }
+  async function salvaCaneMuta(){
+    var nome = String(document.getElementById("mc2-nome").value||"").trim();
+    if(!nome){ toast("Scrivi il nome"); return; }
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var dati = {nome:nome, note:String(document.getElementById("mc2-note").value||"").trim()||null,
+                colore:document.getElementById("mc2-colore").value||null};
+    try{
+      var r;
+      if(caneEdit) r = await sb.from("hn_cani").update(dati).eq("id", caneEdit.id).select().single();
+      else{
+        dati.squadra_id = me.squadra_id; dati.canaio_id = mutaSel;
+        r = await sb.from("hn_cani").insert(dati).select().single();
+      }
+      if(r.error) throw r.error;
+      if(caneEdit){
+        var k=(mutaCani||[]).findIndex(function(x){ return x.id===caneEdit.id; });
+        if(k>=0) mutaCani[k]=r.data;
+      }else mutaCani = (mutaCani||[]).concat([r.data]);
+      document.getElementById("m-canemuta").classList.remove("show");
+      renderMuta();
+      toast(caneEdit ? "Cane aggiornato" : "Cane aggiunto alla muta");
+    }catch(e){
+      var m=String(e.message||e);
+      if(/canaio_id|hn_cani/.test(m)) toast("La tabella dei cani non \u00e8 aggiornata: lancia l'SQL su Supabase");
+      else toast("Non riesco: "+m);
+    }
+  }
+  function togliCaneMuta(){
+    if(!caneEdit) return;
+    chiediConferma("Togliere il cane dalla muta?",
+      esc(caneEdit.nome)+"\nI percorsi gi\u00e0 caricati restano come sono: il cane sparisce solo dall'elenco.",
+      "Togli",
+      async function(){
+        try{
+          var r = await sb.from("hn_cani").update({attivo:false}).eq("id", caneEdit.id);
+          if(r.error) throw r.error;
+          var k=(mutaCani||[]).findIndex(function(x){ return x.id===caneEdit.id; });
+          if(k>=0) mutaCani[k].attivo=false;
+          document.getElementById("m-canemuta").classList.remove("show");
+          renderMuta();
+          toast("Tolto dalla muta");
+        }catch(e){ toast("Non riesco: "+(e.message||e)); }
+      });
   }
 
   /* ================= ARCHIVIO E TOTALI DELLE BATTUTE (21/09) =================
@@ -19242,8 +19657,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("m-dest-annulla").onclick=function(){ document.getElementById("m-dest").classList.remove("show"); };
     document.getElementById("mv-segnala").onclick=function(){ apriSegnala(); };
     document.getElementById("nc-annulla").onclick=function(){ document.getElementById("m-nomecane").classList.remove("show"); };
-    document.getElementById("nc-salva").onclick=salvaNomeCane;
-    document.getElementById("nc-nome").addEventListener("keydown", function(ev){ if(ev.key==="Enter") salvaNomeCane(); });
+    document.getElementById("cnc-annulla").onclick=function(){ document.getElementById("m-canaio").classList.remove("show"); };
+    document.getElementById("mc2-annulla").onclick=function(){ document.getElementById("m-canemuta").classList.remove("show"); };
+    document.getElementById("mc2-salva").onclick=salvaCaneMuta;
+    document.getElementById("mc2-togli").onclick=togliCaneMuta;
+    document.getElementById("nc-salva").onclick=creaCaneNuovo;
+    document.getElementById("nc-nome").addEventListener("keydown", function(ev){ if(ev.key==="Enter") creaCaneNuovo(); });
     document.getElementById("cn-file").onchange=function(ev){
       var f=(ev.target.files||[])[0];
       ev.target.value="";
@@ -22203,6 +22622,7 @@ function fineA(){
     {k:"classifica", ic:"\ud83c\udfc6", nm:"Classifica",       ds:"Punteggi e storici",          go:"classifica"},
     {k:"presenze",   ic:"📅", nm:"Le mie presenze",  ds:"Giornate, capi e registro ATC", go:"presenze"},
     {k:"sergente",   ic:"\ud83c\udf96\ufe0f", nm:"Sergente Mario", ds:"Giudice di giornata",     go:"sergente"},
+    {k:"muta",       ic:"\ud83d\udc15", nm:"Muta cani",        ds:"I tuoi cani e le loro battute", azione:"muta", soloCanaio:true},
     {k:"squadra",    ic:"\ud83d\udc65", nm:"Squadra",          ds:"Componenti e ruoli",          go:"squadra"},
     {k:"mappa",      ic:"\ud83d\uddfa\ufe0f", nm:"Mappa",      ds:"Satellite, schema, bussola",  go:"mappa", spentaDiDefault:true},
     {k:"sondaggi",   ic:"\ud83d\udcca", nm:"Sondaggi",         ds:"Si decide insieme",           soon:"Sondaggi"},
@@ -22301,6 +22721,8 @@ function fineA(){
       /* la casella dell'osservazione la vede chi ha il visore (e i capi):
          agli altri non serve e occuperebbe posto */
       if(c.soloVisore && typeof eVisore==="function" && !eVisore()) return;
+      /* la muta la vede il canaio, il capocaccia e l'admin */
+      if(c.soloCanaio && typeof vedeMutaCani==="function" && !vedeMutaCani()) return;
       var attr = c.soon ? 'data-soon="'+esc(c.soon)+'"'
                : c.azione ? 'data-azione="'+c.azione+'"'
                : 'data-go="'+c.go+'"';
@@ -22340,6 +22762,7 @@ function fineA(){
       t.onclick=function(){
         if(t.dataset.azione==="mezzo") apriFinestraAuto();
         else if(t.dataset.azione==="segnala") apriSegnala();
+        else if(t.dataset.azione==="muta") apriMuta();
       };
     });
   }
