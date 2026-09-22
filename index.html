@@ -3705,7 +3705,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.49";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.50";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -10504,7 +10504,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var box = document.getElementById("str-apri");
     if(!box) return;
     if(!strApri){ box.innerHTML = ""; return; }
-    if(strApri === "pres"){ box.innerHTML = htmlPresenze(); agganciaPresenze(box); return; }
+    if(strApri === "pres"){ box.innerHTML = htmlPresenze(); agganciaStrisciaPresenze(box); return; }
     if(strApri === "trac"){
       var h = '<div class="card" style="margin-top:9px">';
       var trac = adesioni.filter(function(a){ return a.viene && a.tracciatore; });
@@ -10643,7 +10643,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     return h;
   }
-  function agganciaPresenze(box){
+  /* ATTENZIONE: si chiamava agganciaPresenze come quella della sezione
+     Presenze ATC piu' in basso, e quella vinceva: i tasti di questa striscia
+     non venivano agganciati a niente (bug trovato il 21/09). */
+  function agganciaStrisciaPresenze(box){
     box.querySelectorAll("[data-fil2]").forEach(function(b){
       b.onclick = function(){ cvFiltro2 = b.dataset.fil2; disegnaStriscia(); };
     });
@@ -10766,6 +10769,24 @@ header .menubtn{min-width:48px; min-height:48px;}
       var ap=root.querySelector("#gi-apri");
       if(ap) ap.onclick=apriAdesioni;
       return;
+    }
+
+    /* REVISIONE DI UNA GIORNATA CONCLUSA (sua richiesta 21/09): non si riapre
+       la giornata come fosse il giorno della caccia, si entra in revisione e
+       si mette dentro quello che quel giorno non si e' fatto in tempo a
+       segnare: presenze, poste, capi, incarichi. */
+    if(capo && b.stato==="conclusa"){
+      if(giornSbloccata()){
+        h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:12px">'
+          +'<div style="font-size:13.5px; color:var(--gold); font-weight:600">\u270f\ufe0f Giornata in revisione</div>'
+          +'<div style="font-size:11.5px; color:#e8d9bb; margin-top:4px; line-height:1.5">'
+          +'Puoi segnare presenze, poste, incarichi e capi anche sulle battute chiuse. '
+          +'Quello che tocchi entra nello storico, nelle quote e nella classifica.</div>'
+          +'<button class="btn primary" id="gi-finerev" style="margin-top:10px">\u2713 Fine revisione</button></div>';
+      }else if(giornataCorreggibile()){
+        h+='<button class="btn line" id="gi-rivedi" style="margin-bottom:12px; border-color:var(--gold); color:var(--gold)">'
+          +'\u270f\ufe0f Rivedi la giornata</button>';
+      }
     }
 
     // --- stato ---
@@ -11421,6 +11442,21 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-vg]").forEach(function(bt){
       bt.onclick=function(){ vistaGiornata=bt.dataset.vg; renderGiornata(); };
     });
+    var brv=root.querySelector("#gi-rivedi");
+    if(brv) brv.onclick=function(){
+      chiediConferma("Rivedere la giornata?",
+        "La giornata resta conclusa: si apre solo per mettere dentro quello che non si \u00e8 fatto in tempo a segnare.\nQuello che cambi entra nelle quote e nella classifica.",
+        "\u270f\ufe0f Entra in revisione",
+        function(){
+          giornCorrezione = giornataAperta.id;
+          cvFiltro2 = "tutti";
+          strApri = "pres";
+          renderGiornata();
+          toast("Giornata in revisione");
+        });
+    };
+    var bfr=root.querySelector("#gi-finerev");
+    if(bfr) bfr.onclick=function(){ giornCorrezione=null; bsCorrezione=null; renderGiornata(); toast("Revisione chiusa"); };
     var sg1=root.querySelector("#gi-segnala"), sg2=root.querySelector("#gi-segnala2");
     if(sg1) sg1.onclick=apriSegnala;
     if(sg2) sg2.onclick=apriSegnala;
@@ -13053,6 +13089,8 @@ header .menubtn{min-width:48px; min-height:48px;}
   function bsModificabile(bs){
     if(!bs) return false;
     if(!bs.chiusa_il) return true;
+    /* in revisione della giornata si toccano tutte le sue battute */
+    if(typeof giornSbloccata==="function" && giornSbloccata()) return true;
     return bsCorrezione === bs.id;
   }
   function bloccataAvvisa(bs){
