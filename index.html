@@ -3032,6 +3032,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       <button class="btn line" id="mp-numero">🔢 Cambia numero</button>
     </div>
     <!-- spostare e togliere una posta: solo chi puo' mappare (20/09) -->
+    <!-- MODO BATTUTA: il giorno della caccia dalla posta si assegna e basta -->
+    <div id="mp-battuta" style="display:none; margin-bottom:10px">
+      <button class="btn primary" id="mp-assegna" style="width:100%">👤 Metti un cacciatore su questa posta</button>
+      <div id="mp-storia" style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-top:9px"></div>
+    </div>
     <div class="btnrow" id="mp-riga-mod" style="margin-bottom:8px; display:none">
       <button class="btn line" id="mp-sposta">↔️ Sposta la posta</button>
       <button class="btn line" id="mp-cancella" style="border-color:#C0392B; color:#e07a6a">🗑 Cancella</button>
@@ -3705,7 +3710,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.50";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.51";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6104,8 +6109,24 @@ header .menubtn{min-width:48px; min-height:48px;}
       cs.textContent = "coordinate GPS"+(p.alt!=null&&isFinite(p.alt)?" \u00b7 "+Math.round(p.alt)+" m slm":"")+" \u00b7 tocca: centra \u00b7 tieni premuto: copia";
       document.getElementById("mp-coord").style.display="flex";
     }else{ document.getElementById("mp-coord").style.display="none"; }
+    /* DUE MOMENTI DIVERSI (sua regola 21/09): dalla sezione Mappe la posta si
+       modifica; dentro una battuta di una giornata aperta invece si assegna e
+       basta, niente tasti di modifica — quelli stanno in Mappe. */
+    var inBattuta = modoBattutaPosta(p);
     document.getElementById("mp-dati").style.display = vedeComeCapo() ? "block" : "none";
-    document.getElementById("mp-riga-mod").style.display = puoMappare() ? "flex" : "none";
+    document.getElementById("mp-riga-mod").style.display = (!inBattuta && puoMappare()) ? "flex" : "none";
+    document.getElementById("mp-numero").style.display = inBattuta ? "none" : "block";
+    document.getElementById("mp-modifica").style.display = inBattuta ? "none" : "block";
+    document.getElementById("mp-verifica").style.display =
+      (!inBattuta && p.da_verificare && puoMappare()) ? "block" : "none";
+    var bB = document.getElementById("mp-battuta");
+    bB.style.display = inBattuta ? "block" : "none";
+    if(inBattuta){
+      var chi = assegnazioni.find(function(x){ return x.posta_id===p.id; });
+      document.getElementById("mp-assegna").textContent =
+        chi ? ("\ud83d\udc64 " + nomeIncarico(chi) + " \u00b7 cambia") : "\ud83d\udc64 Metti un cacciatore su questa posta";
+      document.getElementById("mp-storia").innerHTML = htmlStoriaPosta(p);
+    }
     var cv0=document.getElementById("mp-schema"); if(cv0) cv0.__posta=p;   /* subito: i tasti Dati e coordinate lo usano */
     document.getElementById("m-posta-info").classList.add("show");
     miniReset("mp-schema");
@@ -6494,6 +6515,38 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   var mvMap=null, mvLayer=null, mvMode="sat";
 
+  /* si entra dalla mappa e dentro si trova la propria posta (21/09) */
+  /* siamo dentro una battuta della giornata aperta e non in Mappe? */
+  function modoBattutaPosta(p){
+    if(!p || !giornataAperta) return false;
+    if(!puoGestireBattute()) return false;
+    var bs = battutaInCorso();
+    if(!bs) return false;
+    return bs.area_id === p.area_id;
+  }
+  /* chi c'e' stato di piu' e chi c'era l'ultima volta */
+  function htmlStoriaPosta(p){
+    var st = (storicoPoste||[]).filter(function(x){ return x.posta_id === p.id && x.membro_id; });
+    if(!st.length) return "Nessuno \u00e8 mai stato segnato su questa posta.";
+    var conta = {};
+    st.forEach(function(x){ conta[x.membro_id] = (conta[x.membro_id]||0) + 1; });
+    var top = Object.keys(conta).sort(function(a,b){ return conta[b]-conta[a]; })[0];
+    var ult = ultimoQui(p.id);
+    var h = "";
+    if(top) h += '<div>\ud83c\udfc5 Ci \u00e8 stato di pi\u00f9: <b style="color:var(--cream)">'+esc(nomeDi(top))+'</b> \u00b7 '
+               + conta[top] + (conta[top]===1?' volta':' volte') + '</div>';
+    if(ult) h += '<div>\u23ee L\'ultima volta: <b style="color:var(--cream)">'+esc(nomeDi(ult.membro_id))+'</b></div>';
+    return h;
+  }
+
+  function apriMiaPostaDaGiornata(postaId, areaId){
+    var a = aree.find(function(x){ return x.id===areaId; });
+    var p = a && a.poste ? a.poste.find(function(x){ return x.id===postaId; }) : null;
+    if(!p){ toast("Posta non trovata"); return; }
+    areaAttivaId = areaId;
+    postaAperta = p;
+    apriVistaPostaiolo();
+  }
   function apriVistaPostaiolo(){
     if(!postaAperta) return;
     var p=postaAperta;
@@ -11100,7 +11153,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='<button class="btn line" id="gi-segnala2" style="margin-top:10px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Segnala un punto al capo</button>';
       h+='</div>';
     }
-    if(mia0 && mia0.posta_id){
+    var inCorsoMia = battutaInCorso();
+    if(mia0 && mia0.posta_id && inCorsoMia && mia0.battuta_svolta_id === inCorsoMia.id){
       var arP = aree.find(function(x){ return x.id === mia0.area_id; });
       var pP = arP && arP.poste ? arP.poste.find(function(x){ return x.id === mia0.posta_id; }) : null;
       if(pP){
@@ -11137,6 +11191,38 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<button class="btn line" id="gi-segnala" style="margin-top:7px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Segnala un punto al capo</button>';
         h+='</div>';
       }
+    }
+
+    /* LE MIE POSTE DELLA GIORNATA (sua regola 21/09): in una giornata ci sono
+       piu' battute e quindi piu' poste. La cella grande vale per la battuta in
+       corso; qui sotto ci sono tutte, mappa per mappa, e restano anche a
+       giornata conclusa. Si entra dalla mappa e dentro c'e' la propria posta. */
+    var miePoste = (assegnazioni||[]).filter(function(x){
+      if(x.membro_id !== me.membro_id || !x.posta_id) return false;
+      var bs = battuteSvolte.find(function(z){ return z.id === x.battuta_svolta_id; });
+      return !(bs && !bs.chiusa_il && !svoltaPartita(bs));   /* le preparate non si mostrano */
+    }).sort(function(x,y){
+      var bx = battuteSvoltaNum(x.battuta_svolta_id), by = battuteSvoltaNum(y.battuta_svolta_id);
+      return bx - by;
+    });
+    if(miePoste.length && (miePoste.length > 1 || !(mia0 && inCorsoMia && mia0.battuta_svolta_id===inCorsoMia.id))){
+      h+='<div class="sechead">Le tue poste di oggi</div>';
+      miePoste.forEach(function(x){
+        var bsX = battutaSvoltaDi(x.battuta_svolta_id);
+        var arX = aree.find(function(z){ return z.id === x.area_id; });
+        var pX = arX && arX.poste ? arX.poste.find(function(z){ return z.id === x.posta_id; }) : null;
+        var viva = bsX && !bsX.chiusa_il;
+        h+='<div class="card" data-miaposta="'+x.posta_id+'|'+x.area_id+'" style="margin-bottom:7px; cursor:pointer">'
+          +'<div style="display:flex; align-items:center; gap:11px">'
+          +'<span style="background:'+(viva?"#8a2f2f":"#4a4133")+'; color:#fff; font-size:15px; font-weight:700; width:36px; height:36px; '
+          +'border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0">'+(pX?(pX.numero||"?"):"?")+'</span>'
+          +'<span style="flex:1; min-width:0">'
+          +'<span style="display:block; font-size:14px; color:var(--cream)">'+esc(arX?arX.nome:"mappa")+'</span>'
+          +'<span style="display:block; font-size:11px; color:var(--muted); margin-top:2px">'
+          +(bsX&&bsX.numero?(bsX.numero+"\u00aa battuta \u00b7 "):"")
+          +(viva?"in corso":"chiusa")+(pX&&pX.nome?(" \u00b7 "+esc(pX.nome)):"")+'</span></span>'
+          +'<span style="font-size:15px; color:var(--gold)">\u203a</span></div></div>';
+      });
     }
 
     // --- CI SONO DAVVERO: la presenza, solo il giorno della battuta ---
@@ -11441,6 +11527,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(ra) ra.onclick=riapriAdesioni;
     root.querySelectorAll("[data-vg]").forEach(function(bt){
       bt.onclick=function(){ vistaGiornata=bt.dataset.vg; renderGiornata(); };
+    });
+    root.querySelectorAll("[data-miaposta]").forEach(function(b){
+      b.onclick=function(){
+        var p=b.dataset.miaposta.split("|");
+        apriMiaPostaDaGiornata(p[0], p[1]);
+      };
     });
     var brv=root.querySelector("#gi-rivedi");
     if(brv) brv.onclick=function(){
@@ -12862,11 +12954,13 @@ header .menubtn{min-width:48px; min-height:48px;}
   function daMettereInPosta(){
     /* Gli OSPITI presenti si mettono in posta come gli altri: senza di loro
        la mappa non si chiude, ed e' il motivo per cui li registriamo. */
-    var prima = giornataPrima();
-    var v = adesioni.filter(function(a){ return prima ? (a.viene===true) : a.presente; })
+    /* SUA SCELTA 21/09: in posta si mettono i presenti E chi ha detto si',
+       anche se non e' ancora stato segnato presente: il giorno della caccia
+       si distribuisce prima e si segna dopo. */
+    var v = adesioni.filter(function(a){ return a.presente || a.viene===true; })
               .map(function(a){ return {tipo:"membro", id:a.membro_id}; });
     (ospiti||[]).forEach(function(o){
-      if(prima ? (o.viene!==false) : o.presente) v.push({tipo:"ospite", id:o.id});
+      if(o.presente || o.viene!==false) v.push({tipo:"ospite", id:o.id});
     });
     return v;
   }
@@ -13694,6 +13788,10 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   /* la mia posta e' quella della battuta IN CORSO; se non ce n'e' una aperta
      prendo l'ultima, cosi' a fine battuta resta scritto dov'ero */
+  function battuteSvoltaNum(bsId){
+    var bs = battuteSvolte.find(function(x){ return x.id===bsId; });
+    return bs ? (Number(bs.numero)||0) : 0;
+  }
   function laMiaPosta(){
     if(!me || !assegnazioni.length) return null;
     /* le poste di una battuta PREPARATA (mai partita) non si mostrano: la
@@ -18099,52 +18197,81 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   /* --- QUOTE DI GIORNATA: calendario --- */
   var qcAnno=2026, qcMese=9;
-  function renderQuoteCalendario(root){
-    if(giornoQuote){ renderQuoteGiorno(root); return; }
-    var primo=new Date(qcAnno, qcMese, 1);
-    var ultimo=new Date(qcAnno, qcMese+1, 0);
-    var offset=(primo.getDay()+6)%7;
-
-    var h='<div class="calnav">';
-    h+='<button id="qc-prev">‹</button>';
-    h+='<div class="mese"><div class="a">'+MESI[qcMese].charAt(0).toUpperCase()+MESI[qcMese].slice(1)+' '+qcAnno+'</div>';
-    h+='<div class="b">quote versate per giornata</div></div>';
-    h+='<button id="qc-next">›</button></div>';
-
-    h+='<div class="calhead">';
-    ["L","M","M","G","V","S","D"].forEach(function(g,i){
-      h+='<div class="'+((i===3||i===5||i===6)?"utile":"")+'">'+g+'</div>';
+  /* ===== QUOTE DI GIORNATA IN VERTICALE (sua richiesta 21/09) =====
+     Al posto del calendario, l'elenco delle giornate della stagione, dalla
+     piu' recente: su ogni riga quanto doveva entrare, quanto e' entrato e
+     quanto manca. Se la giornata e' conclusa e qualcuno non ha versato, il
+     pallino rosso dice quanti sono e quanto devono. */
+  function contiGiornata(b){
+    var quota = Number(config.quota_giornata)||0;
+    var ades = adesioni.filter(function(a){ return a.battuta_id===b.id; });
+    var gente = (b.stato==="conclusa")
+      ? ades.filter(function(a){ return a.presente; })
+      : ades.filter(function(a){ return a.viene; });
+    var atteso = gente.length * quota, dato = 0, debitori = 0;
+    gente.forEach(function(a){
+      var v = movimenti.filter(function(m){ return m.causale==="giornata" && m.rif_id===b.id && m.membro_id===a.membro_id; })
+                       .reduce(function(s,m){ return s+(Number(m.importo)||0); }, 0);
+      dato += v;
+      if(v < quota) debitori++;
     });
-    h+='</div><div class="calgrid">';
-    for(var i=0;i<offset;i++) h+='<div class="cell vuota"></div>';
-    for(var g=1; g<=ultimo.getDate(); g++){
-      var d=new Date(qcAnno,qcMese,g);
-      var k=iso(d);
-      var b=battutaDi(k);
-      var cls="cell";
-      var dentro=String(g);
-      if(b){
-        var vers=movimenti.filter(function(m){return m.causale==="giornata" && m.rif_id===b.id;}).length;
-        cls+= vers ? " aperta" : " chiusa";
-        dentro='<span class="n">'+g+'</span>'+(vers?'<span class="si">'+vers+'</span>':'');
-      }else if(isGiornoCaccia(d)){
-        cls+=" caccia";
-      }
-      h+='<div class="'+cls+'" '+(b?'data-qg="'+k+'"':'')+'>'+dentro+'</div>';
+    return {gente:gente.length, atteso:atteso, dato:dato,
+            debito:Math.max(0, atteso-dato), debitori:debitori, conclusa:b.stato==="conclusa"};
+  }
+
+  async function renderQuoteCalendario(root){
+    if(giornoQuote){ renderQuoteGiorno(root); return; }
+    var st = stagioneCorrente();
+    var gior = battute.filter(function(b){
+      return b.stato!=="nuova" && stagioneDi(String(b.data).slice(0,10))===st;
+    }).sort(function(x,y){ return String(x.data) > String(y.data) ? -1 : 1; });
+
+    /* le adesioni di tutte le giornate servono per i conti */
+    var manca = gior.filter(function(b){ return !adesioni.some(function(a){ return a.battuta_id===b.id; }); });
+    if(manca.length && navigator.onLine){
+      root.innerHTML = '<div class="loading">Carico\u2026</div>';
+      try{
+        var r = await sb.from("hn_adesioni").select("*").in("battuta_id", manca.map(function(b){ return b.id; }));
+        if(!r.error) (r.data||[]).forEach(function(a){
+          if(!adesioni.find(function(x){ return x.id===a.id; })) adesioni.push(a);
+        });
+      }catch(e){}
     }
-    h+='</div>';
 
-    // totali
-    var totG=totPerCausale("giornata");
-    h+='<div class="pann" style="margin-top:16px">';
-    h+='<div class="p" style="border-left:3px solid #1D9E75"><div class="t">Raccolto in totale</div><div class="v">'+eur(totG)+'</div></div>';
-    h+='<div class="p" style="border-left:3px solid #C0392B"><div class="t">Battute registrate</div><div class="v">'+battute.length+'</div></div>';
-    h+='</div>';
-    h+='<div class="card" style="font-size:11px; color:var(--muted); line-height:1.5">Tocca una giornata con la battuta per segnare chi ha versato.</div>';
+    var h = '<div class="sechead" style="margin-top:0">Giornate \u00b7 stagione '+st+'</div>';
+    if(!gior.length){
+      h += '<div class="card" style="font-size:12.5px; color:var(--muted); line-height:1.6">Nessuna giornata in questa stagione.</div>';
+      root.innerHTML = h; return;
+    }
+    var totAtteso=0, totDato=0, totDebito=0;
+    gior.forEach(function(b){
+      var c = contiGiornata(b);
+      totAtteso += c.atteso; totDato += c.dato; totDebito += c.debito;
+      var allarme = c.conclusa && c.debito > 0;
+      h += '<div class="card" data-qg="'+String(b.data).slice(0,10)+'" style="margin-bottom:7px; cursor:pointer'
+         + (allarme ? '; border:1px solid #C0392B88' : '') + '">'
+        + '<div style="display:flex; align-items:center; gap:10px">'
+        + '<span style="flex:1; min-width:0">'
+        + '<span style="display:block; font-size:14px; color:var(--cream)">'+esc(fmtGiorno(daIso(String(b.data).slice(0,10))))
+        + (c.conclusa ? '' : ' <span style="font-size:11px; color:var(--gold)">\u00b7 aperta</span>') + '</span>'
+        + '<span style="display:block; font-size:11.5px; color:var(--muted); margin-top:3px">'
+        + c.gente + (c.gente===1?' persona':' persone') + ' \u00b7 totale ' + eur(c.atteso)
+        + ' \u00b7 dati <b style="color:#7be0a8">' + eur(c.dato) + '</b>'
+        + (c.debito > 0 ? (' \u00b7 <b style="color:#e07a6a">' + eur(c.debito) + ' da avere</b>') : ' \u00b7 <b style="color:#7be0a8">tutto versato</b>')
+        + '</span></span>'
+        + (allarme
+            ? ('<span class="pallino-deb" style="background:#C0392B; color:#fff; border-radius:12px; padding:4px 9px; font-size:11px; white-space:nowrap">'
+               + c.debitori + ' \u00b7 ' + eur(c.debito) + '</span>')
+            : '<span style="font-size:15px; color:var(--gold)">\u203a</span>')
+        + '</div></div>';
+    });
+    h += '<div class="pann" style="margin-top:14px">';
+    h += '<div class="p" style="border-left:3px solid #1D9E75"><div class="t">Raccolto nella stagione</div><div class="v">'+eur(totDato)+'</div></div>';
+    h += '<div class="p" style="border-left:3px solid #C0392B"><div class="t">Ancora da avere</div><div class="v">'+eur(totDebito)+'</div></div>';
+    h += '</div>';
+    h += '<div class="card" style="font-size:11px; color:var(--muted); line-height:1.5">Tocca una giornata per segnare chi ha versato.</div>';
 
-    root.innerHTML=h;
-    root.querySelector("#qc-prev").onclick=function(){ qcMese--; if(qcMese<0){qcMese=11;qcAnno--;} renderQuoteCalendario(root); };
-    root.querySelector("#qc-next").onclick=function(){ qcMese++; if(qcMese>11){qcMese=0;qcAnno++;} renderQuoteCalendario(root); };
+    root.innerHTML = h;
     root.querySelectorAll("[data-qg]").forEach(function(el){
       el.onclick=function(){ giornoQuote=el.dataset.qg; renderQuoteCalendario(root); };
     });
@@ -19981,6 +20108,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     document.getElementById("mp-numero").onclick=apriNumeroPosta;
     document.getElementById("mp-sposta").onclick=apriSpostaPosta;
+    document.getElementById("mp-assegna").onclick=function(){
+      if(!postaAperta) return;
+      document.getElementById("m-posta-info").classList.remove("show");
+      var bs = battutaInCorso();
+      if(bs && bsAperta !== bs.id){ bsAperta = bs.id; apAreaId = bs.area_id; }
+      toccataPostaDaAssegnare(postaAperta.id);
+    };
     document.getElementById("mp-cancella").onclick=chiediCancellaPosta;
     document.getElementById("sp-annulla").onclick=function(){ document.getElementById("m-spostaposta").classList.remove("show"); };
     document.getElementById("sp-mappa").onclick=iniziaSpostaSuMappa;
