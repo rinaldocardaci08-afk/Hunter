@@ -1921,6 +1921,15 @@ header .menubtn{min-width:48px; min-height:48px;}
       <div class="scroll" id="sergente-scroll"><div class="loading">Carico…</div></div>
     </section>
 
+    <!-- REGISTRO DEI CAPI -->
+    <section class="view" id="v-registro">
+      <div class="backbar">
+        <button id="rg-indietro" title="Indietro" aria-label="Indietro">❮</button>
+        <div class="ttl">Registro dei capi</div>
+      </div>
+      <div class="scroll" id="registro-scroll"><div class="loading">Carico…</div></div>
+    </section>
+
     <!-- CASSA -->
     <section class="view" id="v-cassa">
       <div class="backbar">
@@ -3121,6 +3130,28 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: la scheda di un capo abbattuto -->
+<div class="modal" id="m-capo">
+  <div class="sheet" style="max-height:88vh; overflow-y:auto">
+    <h3 id="cp-tit">Capo abbattuto</h3>
+    <p class="hint" id="cp-sotto">—</p>
+    <label>Sesso</label>
+    <div id="cp-sesso" style="display:flex; gap:6px"></div>
+    <label>Classe</label>
+    <div id="cp-classe"></div>
+    <label>Peso in chili</label>
+    <!-- type=text: con type=number la virgola viene buttata via e il peso si perde -->
+    <input id="cp-peso" type="text" inputmode="decimal" placeholder="si può mettere dopo">
+    <label>Nota</label>
+    <input id="cp-nota" type="text" maxlength="60" placeholder="zanne, segni particolari">
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="cp-annulla">Annulla</button>
+      <button class="btn primary" id="cp-salva">Salva</button>
+    </div>
+    <button class="btn line" id="cp-togli" style="margin-top:8px; border-color:#C0392B; color:#e07a6a; display:none">Togli dal registro</button>
+  </div>
+</div>
+
 <!-- MODALE: un cane della muta -->
 <div class="modal" id="m-canemuta">
   <div class="sheet">
@@ -3710,7 +3741,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.51";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.52";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -16908,6 +16939,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     renderSergente();
   }
 
+  function bindRegistroCapi(root){
+    var b = root.querySelector("#sg-registro");
+    if(b) b.onclick = apriRegistroCapi;
+  }
   function renderSergente(){
     var root = document.getElementById("sergente-scroll");
     var h = "";
@@ -16918,6 +16953,9 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     var giudice = puoGiudicare();
     var medagliere = puoDareMedaglie();
+    if(vedeRegistroCapi()){
+      h += '<button class="btn line" id="sg-registro" style="margin-bottom:14px">\ud83d\udcd2 Registro dei capi</button>';
+    }
 
     // --- QUELLO CHE VEDONO TUTTI: la presentazione e i suoi verbali ---
     if(!medagliere){
@@ -17235,6 +17273,8 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   function bindSergente(){
+    var broot = document.getElementById("sergente-scroll");
+    if(broot) bindRegistroCapi(broot);
     var root = document.getElementById("sergente-scroll");
     root.querySelectorAll("[data-smb]").forEach(function(b){
       b.onclick = function(){ smBattutaId = b.dataset.smb; smBsId = null; caricaSergente(); };
@@ -17428,11 +17468,271 @@ header .menubtn{min-width:48px; min-height:48px;}
                  }).select().single();
         if(ri.error) throw ri.error;
         smFatti.push(ri.data);
+        f = ri.data;
       }
       renderSergente();
+      /* ogni capo ha la sua scheda: sesso, classe, peso (21/09) */
+      if(tipo === "uccisione"){
+        var fAg = contesa ? smFatti.find(function(x){ return x.tipo===tipo && !x.membro_id; })
+                          : fattoDi(mid, tipo);
+        if(delta > 0 && fAg){
+          apriSchedaCapo({fatto_id:fAg.id, membro_id:(contesa?null:mid),
+                          battuta_id:smBattutaId, battuta_svolta_id:(smBsId||null), quale:nuovo});
+        }else if(delta < 0){
+          var resti = capiDelFatto(f || fAg);
+          var ultimo = resti[resti.length-1];
+          if(ultimo){
+            chiediConferma("Tolgo anche la scheda del capo?",
+              (ultimo.peso!=null ? kg(ultimo.peso) : "senza peso")
+              + " \u00b7 " + (ultimo.sesso || "sesso non segnato") + " \u00b7 " + nomeClasse(ultimo.classe)
+              + "\nResta nel registro finch\u00e9 non la togli.",
+              "Togli la scheda",
+              async function(){
+                try{
+                  var rr = await sb.from("hn_capi").delete().eq("id", ultimo.id);
+                  if(rr.error) throw rr.error;
+                  capi = capi.filter(function(x){ return x.id!==ultimo.id; });
+                  renderSergente();
+                  toast("Scheda tolta");
+                }catch(e2){ toast("Non riesco: "+(e2.message||e2)); }
+              });
+          }
+        }
+      }
     }catch(e){ toast("Serve la rete per salvare"); }
   }
 
+
+
+  /* ================= IL REGISTRO DEI CAPI (21/09) =================
+     Il conteggio del sergente dice QUANTI; qui si dice COM'ERANO. A ogni
+     capo aggiunto si apre la scheda dell'animale: sesso, classe d'eta'
+     (piccolo fino a 1 anno, giovane entro i 3, adulto dai 3 in su) e peso,
+     che si puo' anche saltare e mettere dopo dal registro. Una riga per
+     capo nella tabella hn_capi, legata al fatto e alla battuta. */
+
+  var CAPO_CLASSI = [
+    {k:"piccolo", n:"Piccolo", d:"fino a 1 anno"},
+    {k:"giovane", n:"Giovane", d:"entro i 3 anni"},
+    {k:"adulto",  n:"Adulto",  d:"dai 3 anni in su"}
+  ];
+  var capi = [];              // i capi della stagione
+  var capoEdit = null;        // {fatto_id, membro_id, id} quello che sto scrivendo
+  var capoSesso = null, capoClasse = null;
+
+  function vedeRegistroCapi(){
+    return !!(me && (me.is_admin===true || isSergente() || me.ruolo==="capocaccia"
+                     || me.ruolo==="vicecapocaccia" || me.ruolo==="vicecapobattuta"));
+  }
+  function kg(v){
+    if(v===null || v===undefined || v==="") return "";
+    var n = Number(v);
+    if(!isFinite(n)) return "";
+    return (n % 1 ? n.toFixed(1) : String(Math.round(n))).replace(".", ",") + " kg";
+  }
+  function nomeClasse(k){
+    var c = CAPO_CLASSI.find(function(x){ return x.k===k; });
+    return c ? c.n : "\u2014";
+  }
+  async function caricaCapi(){
+    try{
+      var r = await sb.from("hn_capi").select("*").eq("squadra_id", me.squadra_id)
+                .order("creato_il", {ascending:false}).limit(500);
+      if(r.error) throw r.error;
+      capi = r.data || [];
+    }catch(e){ capi = []; }
+  }
+
+  /* --- la scheda dell'animale --- */
+  function apriSchedaCapo(dati){
+    capoEdit = dati || null;
+    if(!capoEdit) return;
+    var esistente = capoEdit.id ? capi.find(function(x){ return x.id===capoEdit.id; }) : null;
+    capoSesso  = esistente ? esistente.sesso  : null;
+    capoClasse = esistente ? esistente.classe : null;
+    document.getElementById("cp-tit").textContent = esistente ? "Il capo" : "Capo abbattuto";
+    document.getElementById("cp-sotto").textContent =
+      (capoEdit.membro_id ? nomeDi(capoEdit.membro_id) : "capo della squadra")
+      + (capoEdit.quale ? (" \u00b7 il " + capoEdit.quale + "\u00ba di questa battuta") : "");
+    document.getElementById("cp-peso").value = (esistente && esistente.peso!=null) ? String(esistente.peso) : "";
+    document.getElementById("cp-nota").value = (esistente && esistente.nota) || "";
+    document.getElementById("cp-togli").style.display = esistente ? "block" : "none";
+    renderSceltaCapo();
+    document.getElementById("m-capo").classList.add("show");
+  }
+  function renderSceltaCapo(){
+    var hs = "";
+    [{k:"maschio", n:"\u2642 Maschio"}, {k:"femmina", n:"\u2640 Femmina"}].forEach(function(x){
+      hs += '<button class="chip'+(capoSesso===x.k?" on":"")+'" data-cpsesso="'+x.k+'" style="flex:1; justify-content:center; padding:10px">'+x.n+'</button>';
+    });
+    document.getElementById("cp-sesso").innerHTML = hs;
+    var hc = "";
+    CAPO_CLASSI.forEach(function(x){
+      hc += '<button class="btn line'+(capoClasse===x.k?"":"")+'" data-cpclasse="'+x.k+'" style="text-align:left; margin-bottom:6px; line-height:1.35'
+          + (capoClasse===x.k ? '; border-color:var(--gold); background:#3a2f1a' : '') + '">'
+          + '<b>'+x.n+'</b><span style="display:block; font-size:11px; color:var(--muted)">'+x.d+'</span></button>';
+    });
+    document.getElementById("cp-classe").innerHTML = hc;
+    document.getElementById("cp-sesso").querySelectorAll("[data-cpsesso]").forEach(function(b){
+      b.onclick=function(){ capoSesso = (capoSesso===b.dataset.cpsesso) ? null : b.dataset.cpsesso; renderSceltaCapo(); };
+    });
+    document.getElementById("cp-classe").querySelectorAll("[data-cpclasse]").forEach(function(b){
+      b.onclick=function(){ capoClasse = (capoClasse===b.dataset.cpclasse) ? null : b.dataset.cpclasse; renderSceltaCapo(); };
+    });
+  }
+  async function salvaCapo(){
+    if(!capoEdit) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var pesoTxt = String(document.getElementById("cp-peso").value||"").replace(",",".").trim();
+    var peso = pesoTxt ? Number(pesoTxt) : null;
+    if(pesoTxt && (!isFinite(peso) || peso<=0 || peso>400)){ toast("Il peso non torna"); return; }
+    var dati = {
+      sesso: capoSesso || null, classe: capoClasse || null,
+      peso: peso, nota: String(document.getElementById("cp-nota").value||"").trim() || null
+    };
+    try{
+      var r;
+      if(capoEdit.id){
+        r = await sb.from("hn_capi").update(dati).eq("id", capoEdit.id).select().single();
+        if(r.error) throw r.error;
+        var k = capi.findIndex(function(x){ return x.id===capoEdit.id; });
+        if(k>=0) capi[k] = r.data;
+      }else{
+        dati.squadra_id = me.squadra_id;
+        dati.battuta_id = capoEdit.battuta_id || null;
+        dati.battuta_svolta_id = capoEdit.battuta_svolta_id || null;
+        dati.fatto_id = capoEdit.fatto_id || null;
+        dati.membro_id = capoEdit.membro_id || null;
+        dati.registrato_da = me.membro_id;
+        r = await sb.from("hn_capi").insert(dati).select().single();
+        if(r.error) throw r.error;
+        capi.unshift(r.data);
+      }
+      document.getElementById("m-capo").classList.remove("show");
+      capoEdit = null;
+      toast(peso ? ("Segnato \u00b7 " + kg(peso)) : "Segnato \u00b7 peso da mettere");
+      if(document.getElementById("v-sergente").classList.contains("active")) renderSergente();
+      if(document.getElementById("v-registro").classList.contains("active")) renderRegistroCapi();
+    }catch(e){
+      var m = String(e.message||e);
+      if(/hn_capi|does not exist|schema cache/.test(m)) toast("Manca la tabella hn_capi: lancia l'SQL su Supabase");
+      else toast("Non riesco: "+m);
+    }
+  }
+  function togliCapo(){
+    if(!capoEdit || !capoEdit.id) return;
+    var c = capi.find(function(x){ return x.id===capoEdit.id; });
+    chiediConferma("Togliere questo capo dal registro?",
+      "Resta nel conteggio del sergente, sparisce solo la sua scheda con peso e sesso.",
+      "Togli",
+      async function(){
+        try{
+          var r = await sb.from("hn_capi").delete().eq("id", capoEdit.id);
+          if(r.error) throw r.error;
+          capi = capi.filter(function(x){ return x.id!==capoEdit.id; });
+          document.getElementById("m-capo").classList.remove("show");
+          capoEdit = null;
+          toast("Tolto dal registro");
+          if(document.getElementById("v-registro").classList.contains("active")) renderRegistroCapi();
+          if(document.getElementById("v-sergente").classList.contains("active")) renderSergente();
+        }catch(e){ toast("Non riesco: "+(e.message||e)); }
+      });
+  }
+  function capiDelFatto(f){
+    if(!f) return [];
+    return capi.filter(function(c){ return c.fatto_id === f.id; })
+               .sort(function(a,b){ return String(a.creato_il) > String(b.creato_il) ? 1 : -1; });
+  }
+
+  /* --- il registro --- */
+  async function apriRegistroCapi(){
+    if(!vedeRegistroCapi()){ toast("Non hai il permesso"); return; }
+    showView("registro");
+    document.getElementById("registro-scroll").innerHTML = '<div class="loading">Carico\u2026</div>';
+    if(!membri.length){
+      try{
+        var rm = await sb.from("hn_membri").select("*").eq("squadra_id", me.squadra_id);
+        if(!rm.error) membri = rm.data || [];
+      }catch(e){}
+    }
+    if(!battute.length){
+      try{
+        var rb = await sb.from("hn_battute").select("id,data").eq("squadra_id", me.squadra_id);
+        if(!rb.error) battute = rb.data || [];
+      }catch(e){}
+    }
+    await caricaCapi();
+    renderRegistroCapi();
+  }
+  function renderRegistroCapi(){
+    var root = document.getElementById("registro-scroll");
+    var st = stagioneCorrente();
+    var miei = capi.filter(function(c){
+      var b = battute.find(function(x){ return x.id===c.battuta_id; });
+      var d = b ? String(b.data).slice(0,10) : String(c.creato_il).slice(0,10);
+      return stagioneDi(d) === st;
+    });
+    var maschi = miei.filter(function(c){ return c.sesso==="maschio"; }).length;
+    var femmine = miei.filter(function(c){ return c.sesso==="femmina"; }).length;
+    var pesati = miei.filter(function(c){ return c.peso!=null; });
+    var pesoTot = pesati.reduce(function(s,c){ return s + Number(c.peso||0); }, 0);
+    var h = '<div class="cn-num">'
+      + '<div class="b"><div class="n">'+miei.length+'</div><div class="t">capi</div></div>'
+      + '<div class="b"><div class="n">'+maschi+'/'+femmine+'</div><div class="t">maschi / femmine</div></div>'
+      + '<div class="b"><div class="n">'+(pesoTot?Math.round(pesoTot):"\u2014")+'</div><div class="t">kg in tutto</div></div>'
+      + '</div>';
+    h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:10px">Stagione '+st
+      + (pesati.length ? (' \u00b7 peso medio ' + kg((pesoTot/pesati.length).toFixed(1)) + ' su ' + pesati.length + ' pesati') : '')
+      + (miei.length - pesati.length ? (' \u00b7 <span style="color:#e0a96a">' + (miei.length-pesati.length) + ' senza peso</span>') : '')
+      + '</div>';
+    CAPO_CLASSI.forEach(function(x){
+      var n = miei.filter(function(c){ return c.classe===x.k; }).length;
+      if(n) h += '<span class="sost" style="margin-right:5px">'+x.n+': '+n+'</span>';
+    });
+    var senzaC = miei.filter(function(c){ return !c.classe; }).length;
+    if(senzaC) h += '<span class="sost" style="color:#e0a96a">senza classe: '+senzaC+'</span>';
+
+    /* raggruppo per giornata */
+    var perGiorno = {};
+    miei.forEach(function(c){
+      var b = battute.find(function(x){ return x.id===c.battuta_id; });
+      var d = b ? String(b.data).slice(0,10) : String(c.creato_il).slice(0,10);
+      (perGiorno[d] = perGiorno[d] || []).push(c);
+    });
+    var giorni = Object.keys(perGiorno).sort().reverse();
+    if(!giorni.length){
+      h += '<div class="card" style="margin-top:14px; font-size:12.5px; color:var(--muted); line-height:1.6">'
+        + 'Nessun capo registrato in questa stagione. Si segnano dal sergente, quando si assegnano le uccisioni.</div>';
+      root.innerHTML = h; return;
+    }
+    giorni.forEach(function(d){
+      var lista = perGiorno[d];
+      h += '<div class="sechead">'+esc(fmtGiorno(daIso(d)))+' \u00b7 '+lista.length+(lista.length===1?' capo':' capi')+'</div>';
+      lista.forEach(function(c){
+        var col = c.sesso==="maschio" ? "#6a95c9" : (c.sesso==="femmina" ? "#c97fa8" : "#6b5b3e");
+        h += '<div class="card" data-capo="'+c.id+'" style="margin-bottom:6px; cursor:pointer; padding:10px 12px">'
+          + '<div style="display:flex; align-items:center; gap:10px">'
+          + '<span style="width:34px; height:34px; border-radius:50%; background:'+col+'; color:#fff; display:flex; '
+          + 'align-items:center; justify-content:center; font-size:15px; flex-shrink:0">'
+          + (c.sesso==="maschio" ? "\u2642" : (c.sesso==="femmina" ? "\u2640" : "?")) + '</span>'
+          + '<span style="flex:1; min-width:0">'
+          + '<span style="display:block; font-size:13.5px; color:var(--cream)">'
+          + (c.peso!=null ? kg(c.peso) : '<span style="color:#e0a96a">peso da mettere</span>')
+          + ' \u00b7 ' + nomeClasse(c.classe) + '</span>'
+          + '<span style="display:block; font-size:11px; color:var(--muted); margin-top:2px">'
+          + (c.membro_id ? esc(nomeDi(c.membro_id)) : "capo della squadra")
+          + (c.nota ? (' \u00b7 ' + esc(c.nota)) : '') + '</span></span>'
+          + '<span style="font-size:14px; color:var(--gold)">\u270e</span></div></div>';
+      });
+    });
+    root.innerHTML = h;
+    root.querySelectorAll("[data-capo]").forEach(function(b){
+      b.onclick=function(){
+        var c = capi.find(function(x){ return x.id===b.dataset.capo; });
+        if(c) apriSchedaCapo({id:c.id, membro_id:c.membro_id});
+      };
+    });
+  }
 
   /* ---- LA CERIMONIA DELLE MEDAGLIE ----
      Si sceglie la medaglia, poi il cacciatore, poi si scrive il perche'.
@@ -20062,6 +20362,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("nc-annulla").onclick=function(){ document.getElementById("m-nomecane").classList.remove("show"); };
     document.getElementById("cnc-annulla").onclick=function(){ document.getElementById("m-canaio").classList.remove("show"); };
     document.getElementById("mc2-annulla").onclick=function(){ document.getElementById("m-canemuta").classList.remove("show"); };
+    document.getElementById("cp-annulla").onclick=function(){ document.getElementById("m-capo").classList.remove("show"); capoEdit=null; };
+    document.getElementById("cp-salva").onclick=salvaCapo;
+    document.getElementById("cp-togli").onclick=togliCapo;
+    document.getElementById("rg-indietro").onclick=function(){ tornaIndietro(); };
     document.getElementById("mc2-salva").onclick=salvaCaneMuta;
     document.getElementById("mc2-togli").onclick=togliCaneMuta;
     document.getElementById("nc-salva").onclick=creaCaneNuovo;
