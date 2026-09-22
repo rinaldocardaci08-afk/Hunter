@@ -3755,7 +3755,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.56";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.57";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -10308,12 +10308,26 @@ header .menubtn{min-width:48px; min-height:48px;}
     var h = '<div class="sechead">Riepilogo del giorno</div>';
     h += '<div style="font-size:11px; color:var(--muted); margin:-4px 0 8px">'
       + chiuse+' battut'+(chiuse===1?'a':'e')+(minTot?' \u00b7 '+durataTesto(minTot)+' in tutto':'')+'</div>';
+    /* Il numero dei capi viene dal conteggio del capocaccia; di CHI sono lo
+       dice il sergente. Se i due non tornano lo scrivo, invece di mostrare
+       numeri diversi in sezioni diverse senza spiegare (suo, 22/09). */
+    var assegnatiG = gioFatti.filter(function(f){ return f.tipo==="uccisione"; })
+                             .reduce(function(t,f){ return t+(Number(f.quanti)||1); }, 0);
     h += '<div class="conta">';
     h += '<div class="box" style="background:#4a3320"><div class="n" style="color:var(--gold)">'+capi+'</div><div class="t" style="color:var(--gold)">capi</div></div>';
     h += '<div class="box" style="background:#3a2a3a"><div class="n" style="color:#FF8A75">'+visti+'</div><div class="t" style="color:#e0a090">visti col visore</div></div>';
     h += '<div class="box" style="background:var(--dark2)"><div class="n" style="color:var(--cream)">'+padelle+'</div><div class="t" style="color:var(--muted)">padelle</div></div>';
     h += '<div class="box" style="background:#1d3a2a"><div class="n" style="color:#7be0a8">'+presenti+'</div><div class="t" style="color:#7bd3b0">presenti</div></div>';
     h += '</div>';
+    if(capi !== assegnatiG){
+      h += '<div class="card" style="background:#4a3320; border:1px solid #C0392B88; margin-top:8px; font-size:11.5px; color:#e8d9bb; line-height:1.5">'
+        + (capi > assegnatiG
+            ? ('\u26a0\ufe0f ' + (capi-assegnatiG) + ' cap' + ((capi-assegnatiG)===1?'o':'i') + ' non ancora assegnat'
+               + ((capi-assegnatiG)===1?'o':'i') + ' a nessuno: finch\u00e9 il sergente non li d\u00e0, in classifica non contano.')
+            : ('\u26a0\ufe0f Il sergente ha assegnato ' + (assegnatiG-capi) + ' cap'
+               + ((assegnatiG-capi)===1?'o':'i') + ' in pi\u00f9 di quelli segnati nelle battute.'))
+        + '</div>';
+    }
 
     /* il podio: chi ha sparato, oro argento bronzo */
     var perM = {}, senza = 0;
@@ -10828,6 +10842,12 @@ header .menubtn{min-width:48px; min-height:48px;}
   function avvisaZoneDaScaricare(){
     if(!giornataAperta || !giornataAperta.id) return;
     if(!navigator.onLine) return;              // senza rete l'avviso non serve a niente
+    /* su una giornata gia' conclusa o passata non si va da nessuna parte: si
+       stanno solo mettendo dentro dei dati (suo, 22/09) */
+    if(giornataAperta.stato === "conclusa") return;
+    if(typeof giornSbloccata === "function" && giornSbloccata()) return;
+    var gg = String(giornataAperta.data||"").slice(0,10);
+    if(gg && gg < oggiISO()) return;
     if(avvisoGiaDato(giornataAperta.id)) return;
     if(document.getElementById("m-scaricazona").classList.contains("show")) return;
     var mancano = mappeDaScaricare();
@@ -16541,6 +16561,9 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(a.tracciatore) r.tracciate++;
     });
     clFatti.forEach(function(f){
+      /* una CONTESA non ha padrone: prima finiva in classifica come riga
+         senza nome, e i suoi capi comparivano dal nulla (trovato il 22/09) */
+      if(!f.membro_id) return;
       var r = riga(f.membro_id);
       var q = Number(f.quanti || 1);
       if(f.tipo === "uccisione") r.uccisioni += q;
