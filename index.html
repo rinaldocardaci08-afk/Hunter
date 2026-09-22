@@ -3741,7 +3741,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.52";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.53";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -10864,8 +10864,11 @@ header .menubtn{min-width:48px; min-height:48px;}
         h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:12px">'
           +'<div style="font-size:13.5px; color:var(--gold); font-weight:600">\u270f\ufe0f Giornata in revisione</div>'
           +'<div style="font-size:11.5px; color:#e8d9bb; margin-top:4px; line-height:1.5">'
-          +'Puoi segnare presenze, poste, incarichi e capi anche sulle battute chiuse. '
           +'Quello che tocchi entra nello storico, nelle quote e nella classifica.</div>'
+          +'<div style="font-size:11.5px; color:#e8d9bb; margin-top:7px; line-height:1.6">'
+          +'\u2022 <b>Presenze</b>: qui sotto, con l\'elenco su tutti.<br>'
+          +'\u2022 <b>Poste, incarichi, capi abbattuti e scappati</b>: tocca una battuta chiusa, o la matita.<br>'
+          +'\u2022 <b>Uccisioni e padelle per cacciatore</b>: dal Sergente, riaprendo la battuta gi\u00e0 segnata.</div>'
           +'<button class="btn primary" id="gi-finerev" style="margin-top:10px">\u2713 Fine revisione</button></div>';
       }else if(giornataCorreggibile()){
         h+='<button class="btn line" id="gi-rivedi" style="margin-bottom:12px; border-color:var(--gold); color:var(--gold)">'
@@ -11060,6 +11063,10 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='</div>';
           if(!viva && capoReale){
             h+='<button class="inf" data-bscani="'+bs.id+'" title="Percorso dei cani" style="width:auto; padding:0 10px; height:28px; font-size:13px">\ud83d\udc15</button>';
+          }
+          if(!viva && agisce && conclusa && giornSbloccata()){
+            /* in revisione si entra nelle poste e nei capi della battuta chiusa */
+            h+='<button class="inf" data-bsrev="'+bs.id+'" title="Poste e capi" style="width:auto; padding:0 10px; height:28px; font-size:12px; border-color:var(--gold); color:var(--gold)">\u270e</button>';
           }
           if(!viva && agisce && !conclusa){
             /* una battuta chiusa si deve poter riaprire: se ci si accorge dopo
@@ -11622,6 +11629,12 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
     root.querySelectorAll("[data-bsapri]").forEach(function(b){
       b.onclick=function(){ apriAssegnazioni(b.dataset.bsapri); };
+    });
+    root.querySelectorAll("[data-bsrev]").forEach(function(b){
+      b.onclick=function(ev){
+        if(ev && ev.stopPropagation) ev.stopPropagation();
+        apriAssegnazioni(b.dataset.bsrev);
+      };
     });
     root.querySelectorAll("[data-carne]").forEach(function(c){
       c.onclick=function(ev){ if(ev&&ev.stopPropagation) ev.stopPropagation(); apriCarne(c.dataset.carne); };
@@ -13240,12 +13253,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     var h = "";
 
     var soloVice = !puoGestireBattute();
-    var sbloccata = chiusa && bsCorrezione === bs.id;
+    var sbloccata = chiusa && bsModificabile(bs);
     if(sbloccata){
       h += '<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:12px">'
         + '<div style="font-size:13px; color:var(--gold); font-weight:600">\u270f\ufe0f Stai correggendo una battuta chiusa</div>'
         + '<div style="font-size:11.5px; color:#e8d9bb; margin-top:4px; line-height:1.5">'
-        + 'Quello che cambi qui entra nello storico e nella classifica. Quando hai finito premi Fine correzione.</div></div>';
+        + 'Puoi mettere i cacciatori in posta, dare gli incarichi e correggere i capi abbattuti e scappati. '
+        + (giornSbloccata() ? 'La revisione si chiude dalla giornata.' : 'Quando hai finito premi Fine correzione.') + '</div></div>';
     }
     h += '<div class="card" style="margin-bottom:12px">';
     h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">'
@@ -13284,7 +13298,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<div style="font-size:11px; color:var(--muted); margin-top:6px; line-height:1.5">'
          + 'Serve quando di corsa non si \u00e8 fatto in tempo a segnare chi era in posta o i capi.</div>';
     }
-    if(sbloccata){
+    if(sbloccata && !giornSbloccata()){
       h += '<button class="btn primary" id="ap-finecorr" style="margin-top:8px">\u2713 Fine correzione</button>';
     }
     if(!chiusa && puoGestireBattute() && prepQ){
