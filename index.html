@@ -3616,6 +3616,20 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: aggiungere una battuta gia' fatta (revisione) -->
+<div class="modal" id="m-aggbat">
+  <div class="sheet">
+    <h3>➕ Aggiungi una battuta fatta</h3>
+    <p class="hint">Quella che quel giorno non si è fatto in tempo a segnare.</p>
+    <select id="m-ab-mappa" style="width:100%; background:var(--dark2); border:1px solid var(--dark3); color:var(--cream); border-radius:11px; padding:13px"></select>
+    <div id="m-ab-nota" class="hint" style="margin-top:10px"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="m-ab-annulla">Annulla</button>
+      <button class="btn primary" id="m-ab-ok">Aggiungi</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: su quale mappa si fa la battuta -->
 <div class="modal" id="m-iniziabat">
   <div class="sheet">
@@ -3741,7 +3755,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.53";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.54";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -11040,7 +11054,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       var inCorso0 = battutaInCorso() || battutaPreparata();
       var mieAree = (b.aree_segnalate || []);
 
-      if(battuteSvolte.length){
+      if(battuteSvolte.length || (agisce && giornSbloccata())){
         h+='<div class="sechead">Battute di oggi</div>';
         battuteSvolte.forEach(function(bs){
           var arB = aree.find(function(x){ return x.id === bs.area_id; });
@@ -11077,6 +11091,12 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='<span style="font-size:15px; color:var(--muted)">\u203a</span>';
           h+='</div></div>';
         });
+        if(agisce && giornSbloccata()){
+          /* una battuta fatta e mai segnata si aggiunge da qui: nasce gia'
+             chiusa, con la data della giornata (sua richiesta 21/09) */
+          h+='<button class="btn line" id="gi-aggbat" style="margin-top:4px; border-style:dashed; border-color:var(--gold); color:var(--gold)">'
+            +'\u2795 Aggiungi una battuta fatta</button>';
+        }
       }
 
       /* LA CARNE: si divide appena c'e' una battuta chiusa (sua regola 12/09),
@@ -11572,6 +11592,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         apriMiaPostaDaGiornata(p[0], p[1]);
       };
     });
+    var bag=root.querySelector("#gi-aggbat");
+    if(bag) bag.onclick=apriAggiungiBattuta;
     var brv=root.querySelector("#gi-rivedi");
     if(brv) brv.onclick=function(){
       chiediConferma("Rivedere la giornata?",
@@ -12829,6 +12851,51 @@ header .menubtn{min-width:48px; min-height:48px;}
       ? ("Oggi sono gi\u00e0 state fatte " + battuteSvolte.length + " battute. Questa sar\u00e0 la " + (battuteSvolte.length+1) + "ª.")
       : "Sar\u00e0 la prima battuta di oggi.";
     document.getElementById("m-iniziabat").classList.add("show");
+  }
+
+  /* ===== AGGIUNGERE UNA BATTUTA GIA' FATTA (revisione, 21/09) =====
+     Succede di segnarla in ritardo o di dimenticarla: nasce chiusa, con la
+     data della giornata, e poi si riempie come tutte le altre. */
+  function apriAggiungiBattuta(){
+    if(!giornataAperta || !puoGestireBattute()) return;
+    if(!giornSbloccata()){ toast("Entra prima in revisione"); return; }
+    var h = "";
+    (aree||[]).slice().sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome)); })
+      .forEach(function(ar){
+        var fatte = battuteSvolte.filter(function(x){ return x.area_id === ar.id; }).length;
+        h += '<option value="'+ar.id+'">' + esc(ar.nome)
+           + ' \u00b7 ' + ((ar.poste||[]).length) + ' poste'
+           + (fatte ? ' \u00b7 gi\u00e0 battuta oggi' : '') + '</option>';
+      });
+    if(!h){ toast("Non ci sono mappe"); return; }
+    document.getElementById("m-ab-mappa").innerHTML = h;
+    document.getElementById("m-ab-nota").textContent =
+      "Sar\u00e0 la " + (battuteSvolte.length+1) + "\u00aa battuta di " + fmtGiorno(daIso(String(giornataAperta.data).slice(0,10)))
+      + ". Nasce gi\u00e0 chiusa: i capi e le poste li metti dopo.";
+    document.getElementById("m-aggbat").classList.add("show");
+  }
+  async function salvaBattutaAggiunta(){
+    var areaId = document.getElementById("m-ab-mappa").value;
+    var a = aree.find(function(x){ return x.id===areaId; });
+    if(!a) return;
+    if(!navigator.onLine){ toast("Serve la rete"); return; }
+    var d = String(giornataAperta.data).slice(0,10);
+    var ora = function(hh,mm){ var x=new Date(d+"T00:00:00"); x.setHours(hh,mm,0,0); return x.toISOString(); };
+    var dati = {
+      squadra_id: me.squadra_id, giornata_id: giornataAperta.id, area_id: areaId,
+      numero: (battuteSvolte.length + 1),
+      aperta_il: ora(7,0), chiusa_il: ora(10,30),
+      aperta_da: me.membro_id, capi_abbattuti: 0, capi_scappati: 0
+    };
+    try{
+      var r = await sb.from("hn_battute_svolte").insert(dati).select().single();
+      if(r.error) throw r.error;
+      battuteSvolte.push(r.data);
+      document.getElementById("m-aggbat").classList.remove("show");
+      toast("Battuta aggiunta \u00b7 " + a.nome);
+      renderGiornata();
+      apriAssegnazioni(r.data.id);
+    }catch(e){ toast("Non riesco: "+(e.message||e)); }
   }
 
   async function apriBattutaSuMappa(areaId){
@@ -20377,6 +20444,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("cnc-annulla").onclick=function(){ document.getElementById("m-canaio").classList.remove("show"); };
     document.getElementById("mc2-annulla").onclick=function(){ document.getElementById("m-canemuta").classList.remove("show"); };
     document.getElementById("cp-annulla").onclick=function(){ document.getElementById("m-capo").classList.remove("show"); capoEdit=null; };
+    document.getElementById("m-ab-annulla").onclick=function(){ document.getElementById("m-aggbat").classList.remove("show"); };
+    document.getElementById("m-ab-ok").onclick=salvaBattutaAggiunta;
     document.getElementById("cp-salva").onclick=salvaCapo;
     document.getElementById("cp-togli").onclick=togliCapo;
     document.getElementById("rg-indietro").onclick=function(){ tornaIndietro(); };
