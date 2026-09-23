@@ -3767,7 +3767,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.62";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.63";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -24457,9 +24457,19 @@ function fineA(){
         carnePres.push({tipo:"ospite", id:o.id, nome:o.nome, det:"ospite"});
       });
     }catch(e){}
+    /* SUA REGOLA 22/09: la carne la prendono quasi tutti. Se nessuno e'
+       ancora stato segnato, si parte con TUTTI i presenti a s\u00ec e si tolgono
+       i pochi che non la vogliono: e' molto piu' svelto che spuntarne venti. */
+    if(!gia.membri.length && !gia.ospiti.length){
+      carnePres.forEach(function(p){
+        carneSel[p.tipo==="ospite" ? "ospiti" : "membri"][p.id] = true;
+      });
+    }
     var capi = uccisioniDi(b.id);
     document.getElementById("cn-sotto").textContent =
-      fmtGiorno(daIso(b.data)) + " \u00b7 " + capi + " cap" + (capi===1?"o":"i") + " abbattut" + (capi===1?"o":"i");
+      fmtGiorno(daIso(b.data)) + " \u00b7 " + capi + " cap" + (capi===1?"o":"i") + " abbattut" + (capi===1?"o":"i")
+      + ((!gia.membri.length && !gia.ospiti.length && carnePres.length)
+          ? " \u00b7 tutti i presenti sono gi\u00e0 a s\u00ec: togli chi non la vuole" : "");
     righeCarne();
   }
   function righeCarne(){
