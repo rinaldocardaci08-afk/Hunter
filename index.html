@@ -3767,7 +3767,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.60";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.61";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -17345,10 +17345,17 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<div style="display:flex; gap:7px; margin-top:10px">';
       h += cont("CINGHIALI", "#7be0a8", smNUcc, "ucc", (smNUcc >= restaPerLui));
       h += cont("PADELLE", "#e0a87b", smNPad, "pad", false);
-      h += '<div style="width:86px; text-align:center; background:var(--dark2); border-radius:10px; padding:7px 4px">'
+      /* la medaglia deve sembrare un tasto da premere, non una stellina
+         decorativa: sfondo, bordo e la medaglia dentro (suo, 22/09) */
+      h += '<div style="width:92px; text-align:center; background:var(--dark2); border-radius:10px; padding:7px 4px">'
          + '<div style="font-size:11px; color:#c9b3e0; margin-bottom:4px">MEDAGLIA</div>'
-         + '<button class="smq" id="sm-medsel" style="width:100%; border:none; background:none; color:'+(medScelta?"#c9b3e0":"#7a6f5a")+'; font-size:'+(medScelta?"10.5px":"19px")+'; line-height:1.3">'
-         + (medScelta ? esc(medScelta.nome) : "\u2606") + '</button></div>';
+         + '<button id="sm-medsel" style="width:100%; min-height:30px; border-radius:9px; line-height:1.15; '
+         + 'border:1px solid '+(medScelta?"#c9b3e0":"#6b5b7e")+'; background:'+(medScelta?"#3a2f4a":"#2b2436")+'; '
+         + 'color:'+(medScelta?"#e6d8f5":"#c9b3e0")+'; font-size:'+(medScelta?"10px":"12px")+'; padding:5px 4px">'
+         + (medScelta
+             ? ('\ud83c\udf96\ufe0f<span style="display:block; margin-top:2px">'+esc(medScelta.nome)+'</span>')
+             : '\ud83c\udf96\ufe0f<span style="display:block; font-size:9.5px; color:#9e8fb5; margin-top:1px">scegli</span>')
+         + '</button></div>';
       h += '</div>';
       h += '<button class="btn primary" id="sm-registra" style="margin-top:10px">\u2713 Registra</button>';
       h += '</div>';
