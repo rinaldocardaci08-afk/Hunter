@@ -3767,7 +3767,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.61";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.62";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -12924,10 +12924,30 @@ header .menubtn{min-width:48px; min-height:48px;}
           assegnazioni = assegnazioni.filter(function(x){ return x.battuta_svolta_id!==bsId; });
           battuteSvolte = battuteSvolte.filter(function(x){ return x.id!==bsId; });
           if(bsAperta===bsId) bsAperta=null;
+          await rinumeraBattuteGiornata();
           toast("Battuta tolta");
           renderGiornata();
         }catch(e){ toast("Non riesco: "+(e.message||e)); }
       });
+  }
+
+  /* tolta una battuta, le altre scalano: se resta solo Calipsi non puo'
+     continuare a chiamarsi la 2a (suo, 22/09) */
+  async function rinumeraBattuteGiornata(){
+    var sue = battuteSvolte.slice().sort(function(a,b){
+      var na=Number(a.numero)||0, nb=Number(b.numero)||0;
+      if(na!==nb) return na-nb;
+      return String(a.aperta_il||a.creata_il||"") > String(b.aperta_il||b.creata_il||"") ? 1 : -1;
+    });
+    for(var i=0;i<sue.length;i++){
+      var giusto = i+1;
+      if(Number(sue[i].numero) === giusto) continue;
+      try{
+        var r = await sb.from("hn_battute_svolte").update({numero:giusto}).eq("id", sue[i].id);
+        if(r.error) throw r.error;
+        sue[i].numero = giusto;
+      }catch(e){ toast("Numeri delle battute da controllare"); return; }
+    }
   }
 
   /* ===== AGGIUNGERE UNA BATTUTA GIA' FATTA (revisione, 21/09) =====
@@ -12960,7 +12980,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var ora = function(hh,mm){ var x=new Date(d+"T00:00:00"); x.setHours(hh,mm,0,0); return x.toISOString(); };
     var dati = {
       squadra_id: me.squadra_id, giornata_id: giornataAperta.id, area_id: areaId,
-      numero: (battuteSvolte.length + 1),
+      numero: (battuteSvolte.reduce(function(t,x){ return Math.max(t, Number(x.numero)||0); }, 0) + 1),
       aperta_il: ora(7,0), chiusa_il: ora(10,30),
       aperta_da: me.membro_id, capi_abbattuti: 0, capi_scappati: 0
     };
