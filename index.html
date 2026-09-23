@@ -601,6 +601,15 @@
   .clrow .inf{background:none; border:1px solid var(--dark3); color:var(--muted);
     border-radius:50%; width:24px; height:24px; font-size:12px; flex-shrink:0;}
   .clmini{font-size:10px; color:var(--muted); margin-top:2px;}
+  /* scelta della medaglia dalla riga del sergente: schede grandi che
+     scorrono di lato, una sotto il pollice (sua richiesta 22/09) */
+  #m-medaglia-lista.laterale{display:flex; gap:10px; overflow-x:auto; overflow-y:hidden;
+    padding:4px 2px 10px; scroll-snap-type:x mandatory; -webkit-overflow-scrolling:touch;}
+  #m-medaglia-lista.laterale .medcard{flex:0 0 62%; min-width:190px; scroll-snap-align:center;
+    flex-direction:column; text-align:center; gap:8px; margin:0; padding:16px 12px;}
+  #m-medaglia-lista.laterale .medcard img{width:74px; height:74px;}
+  #m-medaglia-lista.laterale .medcard .mi{width:74px; height:74px; font-size:34px;}
+  #m-medaglia-lista.laterale .medcard > div{width:100%;}
   .medcard{display:flex; align-items:center; gap:10px; background:var(--dark2);
     border:1px solid var(--dark3); border-radius:11px; padding:10px; margin-bottom:6px;}
   .medcard img{width:40px; height:40px; object-fit:contain; flex-shrink:0;}
@@ -3728,7 +3737,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 <div class="modal" id="m-medaglia">
   <div class="sheet">
     <h3 id="m-medaglia-nome">Assegna una medaglia</h3>
-    <p class="hint">Scegli l'onore della giornata. Si può togliere dopo.</p>
+    <p class="hint" id="m-medaglia-hint">Scegli l'onore della giornata. Si può togliere dopo.</p>
     <div id="m-medaglia-lista" style="max-height:50vh; overflow-y:auto"></div>
     <div class="btnrow" style="margin-top:14px">
       <button class="btn line" id="m-medaglia-chiudi">Chiudi</button>
@@ -3758,7 +3767,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.58";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.59";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -16472,7 +16481,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   var smConSvolte = {};       // giornate con almeno una battuta chiusa
   var smTutte = [];           // TUTTE le battute chiuse della squadra: il lavoro del sergente
   var smMostraFatte = false;
-  var smChi = "", smNUcc = 0, smNPad = 0, smMedSel = null;   /* la riga di assegnazione */  // l'elenco delle gia' fatte sta chiuso
+  var smChi = "", smNUcc = 0, smNPad = 0, smMedSel = null, smMedPerRiga = false;   /* la riga di assegnazione */  // l'elenco delle gia' fatte sta chiuso
   var smCerca = "", smExtraAperto = {};
   var smBsId = null;          // e quale battuta di quella giornata
   var smBattute = [];         // le battute della giornata scelta
@@ -17378,7 +17387,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     /* NIENTE ELENCO COMPLETO dentro la battuta: era il doppione della riga
        (suo, 22/09). Resta solo fuori dalla battuta o per chi non giudica. */
-    if(!chiusaSm && !(giudice && bsOra)){
+    if(!chiusaSm && !giudice){
     h += '<div class="sechead">'+(giudice ? 'Uccisioni e padelle' : 'La giornata')+'</div>';
     if(!giudice){
       h += '<div class="card" style="font-size:11px; color:var(--muted); line-height:1.5; margin-bottom:8px">'
@@ -18189,14 +18198,31 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '</div>';
     });
     var box = document.getElementById("m-medaglia-lista");
+    box.className = smMedPerRiga ? "laterale" : "";
+    box.style.maxHeight = smMedPerRiga ? "none" : "50vh";
+    document.getElementById("m-medaglia-hint").textContent = smMedPerRiga
+      ? "Scorri di lato e tocca quella giusta: si registra insieme al resto della riga."
+      : "Scegli l'onore della giornata. Si pu\u00f2 togliere dopo.";
     box.innerHTML = h;
     box.querySelectorAll("[data-scegli]").forEach(function(el){
       el.onclick = function(){
         var p = el.dataset.scegli.split("|");
+        /* scelta dalla riga del sergente: la tengo da parte e la scrivo
+           quando premo Registra, insieme a cinghiali e padelle (22/09) */
+        if(smMedPerRiga){
+          smMedSel = p[0]; smMedPerRiga = false;
+          document.getElementById("m-medaglia").classList.remove("show");
+          renderSergente();
+          return;
+        }
         assegnaMedaglia(p[1], p[0]);
       };
     });
     document.getElementById("m-medaglia").classList.add("show");
+  }
+  function chiudiMedaglia(){
+    smMedPerRiga = false;
+    document.getElementById("m-medaglia").classList.remove("show");
   }
 
   async function assegnaMedaglia(mid, medId){
@@ -18209,6 +18235,14 @@ header .menubtn{min-width:48px; min-height:48px;}
       function(n){ scriviMedaglia(mid, medId, n); });
   }
 
+  /* dalla riga: si scrive senza chiedere la motivazione */
+  async function assegnaMedagliaA(mid, medId){
+    var gia = smFatti.find(function(f){
+      return f.membro_id===mid && f.tipo==="medaglia" && f.medaglia_id===medId;
+    });
+    if(gia) return;
+    await scriviMedaglia(mid, medId, null);
+  }
   async function scriviMedaglia(mid, medId, nota){
     try{
       var r = await sb.from("hn_fatti").insert({
@@ -20697,7 +20731,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("m-punti-chiudi").onclick=function(){ document.getElementById("m-punti").classList.remove("show"); };
     document.getElementById("m-barema-annulla").onclick=function(){ document.getElementById("m-barema").classList.remove("show"); };
     document.getElementById("m-barema-salva").onclick=salvaBarema;
-    document.getElementById("m-medaglia-chiudi").onclick=function(){ document.getElementById("m-medaglia").classList.remove("show"); };
+    document.getElementById("m-medaglia-chiudi").onclick=chiudiMedaglia;
     document.getElementById("m-verbale-annulla").onclick=function(){ document.getElementById("m-verbale").classList.remove("show"); };
     document.getElementById("m-verbale-salva").onclick=salvaVerbale;
     document.getElementById("pres-no").onclick=chiudiModalePresenza;
