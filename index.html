@@ -3767,7 +3767,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.59";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.60";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -17505,7 +17505,9 @@ header .menubtn{min-width:48px; min-height:48px;}
          + 'uccisioni e padelle invece si segnano subito, battuta per battuta.</div>';
       root.innerHTML = h; bindSergente(); return;
     }
-    h += htmlMedaglieSergente();
+    /* La sezione "Medaglie della giornata" e' sparita: era la terza volta che
+       si sceglieva un cacciatore. La medaglia si da' dalla riga, con la
+       stella, e la motivazione si chiede dopo il Registra (suo, 22/09). */
     if(b && b.verbale){
       h += '<div class="card" style="font-size:13px; color:var(--cream); line-height:1.6; white-space:pre-wrap">'+esc(b.verbale)+'</div>';
       if(giudice) h += '<button class="btn line" id="sm-verbale" style="margin-top:7px">✏️ Modifica il verbale</button>';
@@ -18240,8 +18242,38 @@ header .menubtn{min-width:48px; min-height:48px;}
     var gia = smFatti.find(function(f){
       return f.membro_id===mid && f.tipo==="medaglia" && f.medaglia_id===medId;
     });
-    if(gia) return;
-    await scriviMedaglia(mid, medId, null);
+    if(gia){ toast("Ce l'ha gi\u00e0 per questa giornata"); return; }
+    var m = medaglie.find(function(x){ return x.id===medId; });
+    /* una medaglia che non si racconta non vale niente: si chiede il perche'
+       e finisce in bacheca, come faceva la vecchia cerimonia */
+    chiediTesto("Perch\u00e9 la " + (m ? m.nome : "medaglia") + " a " + nomeBreveDi(mid) + "?",
+      "La motivazione finisce in bacheca. Puoi anche lasciare vuoto.", "", "text",
+      function(nota){ scriviMedagliaEBacheca(mid, medId, nota); });
+  }
+  async function scriviMedagliaEBacheca(mid, medId, nota){
+    var m = medaglie.find(function(x){ return x.id===medId; });
+    nota = (nota||"").trim();
+    try{
+      var r = await sb.from("hn_fatti").insert({
+        squadra_id:me.squadra_id, battuta_id:smBattutaId, membro_id:mid,
+        tipo:"medaglia", quanti:1, medaglia_id:medId,
+        nota: nota || null, assegnato_da:me.membro_id
+      }).select().single();
+      if(r.error) throw r.error;
+      smFatti.push(r.data);
+      var b = battute.find(function(x){ return x.id===smBattutaId; });
+      var ra = await sb.from("hn_annunci").insert({
+        squadra_id: me.squadra_id,
+        titolo: "\ud83c\udf96\ufe0f " + (m ? m.nome : "Medaglia") + " a " + nomeDi(mid),
+        testo: (nota ? nota + "\n\n" : "")
+             + "Assegnata da " + me.nome + (b ? (" per la giornata del " + fmtGiorno(daIso(b.data))) : "") + ".",
+        autore_id: me.user_id, autore_nome: me.nome, urgente: false
+      }).select().single();
+      if(!ra.error && ra.data) annunci.unshift(ra.data);
+      toast("Medaglia a " + nomeBreveDi(mid) + " \u00b7 pubblicata in bacheca");
+      renderSergente();
+      if(typeof aggiornaBadgeMedaglie==="function") aggiornaBadgeMedaglie();
+    }catch(e){ toast("Non riesco a salvare: serve la rete"); }
   }
   async function scriviMedaglia(mid, medId, nota){
     try{
