@@ -3767,7 +3767,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.63";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.65";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3963,6 +3963,34 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
   }
 
+  /* ===== ENTRARE SENZA CAMPO (22/09) =====
+     In montagna si mappa, e per mappare bisogna essere dentro. Se il permesso
+     di accesso e' scaduto mentre sei senza rete, non ha senso sbatterti fuori:
+     il profilo e le mappe sono gia' sul telefono e le poste nuove finiscono
+     nella coda, che sale appena torna il campo. */
+  async function entraSenzaRete(salvato){
+    me = salvato;
+    meReale = salvato;
+    applicaProfilo();
+    showApp();
+    showView("home");
+    initMapOnce();
+    aggiornaBarraAzioni();
+    caricaParcheggio();
+    if(gpsPerAuto()) serveGPS("auto"); else nonServeGPS();
+    caricaOrdineHome();
+    renderCaselleHome();
+    caricaRadio();
+    caricaMeteo();
+    renderAuto();
+    mostraSenzaRete(true);
+    await caricaAree();
+    try{ await caricaBattute(); }catch(e){}
+  }
+  function profiloSalvato(){
+    try{ return JSON.parse(localStorage.getItem(ME_KEY)); }catch(e){ return null; }
+  }
+
   async function afterLogin(){
     // getSession legge dal telefono e NON va in rete: funziona anche offline
     var s=await sb.auth.getSession();
@@ -3981,34 +4009,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       var salvato=null;
       try{ salvato=JSON.parse(localStorage.getItem(ME_KEY)); }catch(e2){}
       if(salvato && salvato.user_id===u.id){
-        /* SENZA RETE l'app deve funzionare lo stesso. Prima qui mancavano
-           le caselle della Home (che dalla v1.85 le disegna il codice) e
-           tutto il resto: si vedeva una schermata vuota. */
-        me=salvato;
-        applicaProfilo();
-        showApp();
-        showView("home");
-        initMapOnce();
-        aggiornaBarraAzioni();
-        /* il GPS NON si accende per abitudine: solo se la macchina e' parcheggiata
-           (serve la freccia del rientro). Altrove lo accende chi ne ha bisogno.
-           Tenerlo acceso in Home succhia batteria per niente. */
-        caricaParcheggio();
-        if(gpsPerAuto()) serveGPS("auto"); else nonServeGPS();
-        caricaOrdineHome();               // LE CASELLE della Home
-        renderCaselleHome();
-        caricaRadio();                    // dalla memoria del telefono
-        caricaMeteo();                    // dall'ultima previsione salvata
-        renderAuto();
-        mostraSenzaRete(true);
-        await caricaAree();               // usa la cache delle mappe
-        try{ await caricaBattute(); }catch(e9){}
+        await entraSenzaRete(salvato);
         return;
       }
       showLogin("Serve la rete per il primo accesso");
       return;
     }
-
     if(!rm.data || !rm.data.length){ await sb.auth.signOut(); showLogin("Utente non associato a nessuna squadra"); return; }
     var m=rm.data[0];
 
@@ -14175,6 +14181,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     var a = aree.find(function(x){ return x.id === id; });
     if(!a) return;
     areaDett = id;
+    podioTutte = false;
+    if(!podioArea || podioArea.areaId !== id) podioArea = null;
     caricaNascosti();
     document.getElementById("ad-titolo").textContent = a.nome;
     document.getElementById("areadett-scroll").innerHTML = '<div class="loading">Carico…</div>';
@@ -14197,6 +14205,147 @@ header .menubtn{min-width:48px; min-height:48px;}
     renderSchedaArea();
   }
 
+
+  /* ================= PODIO DELLE POSTE (22/09) =================
+     L'uccisione non porta scritta la posta: e' legata al cacciatore e alla
+     battuta. La posta si ricava incrociando chi era dove: capo di Nino nella
+     2a battuta + Nino sulla posta 7 = capo della posta 7. Cosi' vale anche
+     su tutto lo storico gia' registrato. I capi CONTESI e quelli di chi non
+     era in posta (battitori, canai) finiscono in "senza posta", altrimenti
+     sparirebbero dal conto. Ultime tre stagioni, sua scelta. */
+
+  var podioArea = null;      // {areaId, poste:[...], senza:n, battute:n}
+  var podioTutte = false;    // classifica aperta o solo podio
+
+  function vedePodioPoste(){
+    return !!(me && (me.is_admin===true || me.ruolo==="capocaccia"
+                     || me.ruolo==="vicecapocaccia" || me.ruolo==="vicecapobattuta"));
+  }
+  function annoStagione(s){ return parseInt(String(s).slice(0,4), 10) || 0; }
+  function stagioniRecenti(){
+    var ora = annoStagione(stagioneCorrente());
+    return [ora, ora-1, ora-2];
+  }
+
+  async function caricaPodioPoste(areaId){
+    if(podioArea && podioArea.areaId === areaId) return podioArea;
+    var a = aree.find(function(x){ return x.id===areaId; });
+    if(!a) return null;
+    var dati = {areaId:areaId, poste:[], senza:0, battute:0};
+    try{
+      var rs = await sb.from("hn_battute_svolte").select("id,giornata_id,area_id")
+                 .eq("area_id", areaId);
+      if(rs.error) throw rs.error;
+      var svolte = rs.data || [];
+      if(!svolte.length){ podioArea = dati; return dati; }
+      var gids = svolte.map(function(x){ return x.giornata_id; })
+                       .filter(function(v,i,arr){ return v && arr.indexOf(v)===i; });
+      var date = {};
+      if(gids.length){
+        var rg = await sb.from("hn_battute").select("id,data").in("id", gids);
+        (rg.data||[]).forEach(function(g){ date[g.id] = String(g.data).slice(0,10); });
+      }
+      var ok = stagioniRecenti();
+      svolte = svolte.filter(function(x){
+        var d = date[x.giornata_id];
+        return d && ok.indexOf(annoStagione(stagioneDi(d))) >= 0;
+      });
+      if(!svolte.length){ podioArea = dati; return dati; }
+      dati.battute = svolte.length;
+      var sids = svolte.map(function(x){ return x.id; });
+      var ra = await sb.from("hn_assegnazioni").select("posta_id,battuta_svolta_id,membro_id,ospite_id")
+                 .in("battuta_svolta_id", sids);
+      var ass = (ra.data||[]).filter(function(x){ return x.posta_id; });
+      var rf = await sb.from("hn_fatti").select("membro_id,battuta_svolta_id,quanti,tipo")
+                 .in("battuta_svolta_id", sids).eq("tipo","uccisione");
+      var fatti = rf.data || [];
+
+      var per = {};
+      ass.forEach(function(x){
+        if(!per[x.posta_id]) per[x.posta_id] = {volte:0, capi:0};
+        per[x.posta_id].volte++;
+      });
+      fatti.forEach(function(f){
+        var q = Number(f.quanti)||1;
+        var chi = f.membro_id;
+        var suo = chi ? ass.find(function(x){ return x.battuta_svolta_id===f.battuta_svolta_id && x.membro_id===chi; }) : null;
+        if(suo){
+          if(!per[suo.posta_id]) per[suo.posta_id] = {volte:0, capi:0};
+          per[suo.posta_id].capi += q;
+        }else dati.senza += q;
+      });
+      dati.poste = Object.keys(per).map(function(pid){
+        var p = (a.poste||[]).find(function(x){ return x.id===pid; });
+        return {id:pid, numero: p ? (p.numero||"?") : "?", nome: p ? p.nome : "posta tolta",
+                viva: !!p, volte: per[pid].volte, capi: per[pid].capi,
+                resa: per[pid].volte ? (per[pid].capi/per[pid].volte) : 0};
+      }).sort(function(x,y){ return (y.capi-x.capi) || (y.resa-x.resa); });
+    }catch(e){ /* senza rete si mostra quello che c'e' */ }
+    podioArea = dati;
+    return dati;
+  }
+
+  function htmlPodioPoste(){
+    var d = podioArea;
+    if(!d || !d.poste.length){
+      return '<div class="sechead">Le poste che rendono</div>'
+        + '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6">'
+        + (d && d.battute ? 'Nessun capo assegnato a una posta in questa mappa.'
+                          : 'Ancora nessuna battuta chiusa su questa mappa.')
+        + '</div>';
+    }
+    var tre = d.poste.slice(0,3);
+    var resaMedia = d.battute ? (d.poste.reduce(function(t,p){ return t+p.capi; },0) / d.battute) : 0;
+    var col = function(p, medaglia, alto, sfondo, bordo){
+      if(!p) return '<div style="flex:1"></div>';
+      return '<div style="flex:'+(medaglia==="\ud83e\udd47"?"1.15":"1")+'; text-align:center">'
+        + '<div style="font-size:'+(medaglia==="\ud83e\udd47"?"24px":"20px")+'">'+medaglia+'</div>'
+        + '<div style="background:'+sfondo+'; border:1px solid '+bordo+'; border-radius:10px 10px 0 0; padding:'+alto+'; margin-top:4px">'
+        + '<div style="width:'+(medaglia==="\ud83e\udd47"?"40px":"34px")+'; height:'+(medaglia==="\ud83e\udd47"?"40px":"34px")+'; border-radius:50%; background:var(--gold); color:#241d13; '
+        + 'font-size:'+(medaglia==="\ud83e\udd47"?"17px":"15px")+'; font-weight:700; display:flex; align-items:center; justify-content:center; margin:0 auto">'+esc(String(p.numero))+'</div>'
+        + '<div style="font-size:'+(medaglia==="\ud83e\udd47"?"20px":"16px")+'; color:#fff; margin-top:6px">'+p.capi+'</div>'
+        + '<div style="font-size:10.5px; color:'+(medaglia==="\ud83e\udd47"?"#ffcbb0":"var(--muted)")+'">cap'+(p.capi===1?'o':'i')+'</div>'
+        + '<div style="font-size:10px; color:var(--muted); margin-top:2px">'+p.resa.toFixed(1).replace(".",",")+' a battuta</div>'
+        + '</div></div>';
+    };
+    var h = '<div class="sechead">Le poste che rendono</div>';
+    h += '<div style="display:flex; align-items:flex-end; gap:8px; margin-bottom:10px">';
+    h += col(tre[1], "\ud83e\udd48", "10px 4px 12px", "var(--dark2)", "var(--dark3)");
+    h += col(tre[0], "\ud83e\udd47", "14px 4px 18px", "#5A2418", "#C0392B88");
+    h += col(tre[2], "\ud83e\udd49", "8px 4px 9px", "var(--dark2)", "var(--dark3)");
+    h += '</div>';
+    h += '<div style="font-size:11.5px; color:var(--muted); line-height:1.5; margin-bottom:10px">'
+      + 'Su ' + d.battute + (d.battute===1?' battuta fatta qui':' battute fatte qui')
+      + ' \u00b7 ultime tre stagioni. La media della mappa \u00e8 ' + resaMedia.toFixed(1).replace(".",",") + ' capi a battuta.'
+      + '</div>';
+    h += '<button class="btn line" id="ad-podio" style="font-size:12.5px; padding:10px">'
+      + (podioTutte ? '\u2304 Chiudi la classifica' : 'Classifica di tutte le poste \u203a') + '</button>';
+    if(podioTutte){
+      h += '<div style="margin-top:10px">';
+      d.poste.forEach(function(p){
+        h += '<div style="display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--dark3)'
+          + (p.capi?'':'; opacity:.6') + '">'
+          + '<span style="width:26px; height:26px; border-radius:50%; background:'+(p.capi?"var(--gold)":"#6b5b3e")+'; color:'+(p.capi?"#241d13":"#fff")+'; '
+          + 'font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0">'+esc(String(p.numero))+'</span>'
+          + '<span style="flex:1; min-width:0">'
+          + '<span style="display:block; font-size:13px; color:var(--cream)">'+esc(p.nome||("Posta "+p.numero))+(p.viva?'':' <span style="color:var(--muted)">(tolta)</span>')+'</span>'
+          + '<span style="display:block; font-size:10.5px; color:var(--muted)">occupata '+p.volte+(p.volte===1?' volta':' volte')
+          + (p.capi ? (' \u00b7 '+p.resa.toFixed(1).replace(".",",")+' a battuta') : ' \u00b7 mai un capo') + '</span></span>'
+          + '<span style="font-size:15px; color:'+(p.capi?"#ffcbb0":"var(--muted)")+'">'+p.capi+'</span></div>';
+      });
+      if(d.senza){
+        h += '<div style="display:flex; align-items:center; gap:9px; padding:8px 0">'
+          + '<span style="width:26px; height:26px; border-radius:50%; background:#5A2418; color:#ffcbb0; font-size:13px; '
+          + 'display:flex; align-items:center; justify-content:center; flex-shrink:0">\u2694\ufe0f</span>'
+          + '<span style="flex:1; min-width:0"><span style="display:block; font-size:13px; color:var(--cream)">Senza posta</span>'
+          + '<span style="display:block; font-size:10.5px; color:var(--muted)">contesi, battitori e canai</span></span>'
+          + '<span style="font-size:15px; color:#ffcbb0">'+d.senza+'</span></div>';
+      }
+      h += '</div>';
+    }
+    return h;
+  }
+
   function renderSchedaArea(){
     var a = aree.find(function(x){ return x.id === areaDett; });
     if(!a) return;
@@ -14210,6 +14359,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var lin = tracceDi(a.id);
     var ab = abbattimentiArea(a.id);
     var h = "";
+    var podio = (vedePodioPoste() && podioArea && podioArea.areaId===a.id) ? htmlPodioPoste() : "";
 
     h += '<div class="cubi" style="margin-bottom:14px">';
     h += '<div class="cubo"><div class="et">Poste</div><div class="rg"><span class="n">'+poste.length+'</span></div></div>';
@@ -14318,8 +14468,13 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '</div></div>';
     });
 
-    root.innerHTML = h;
+    root.innerHTML = h + podio;
+    if(vedePodioPoste() && (!podioArea || podioArea.areaId!==a.id)){
+      caricaPodioPoste(a.id).then(function(){ if(areaDett===a.id) renderSchedaArea(); });
+    }
     bindSchedaArea();
+    var bp = document.getElementById("ad-podio");
+    if(bp) bp.onclick = function(){ podioTutte = !podioTutte; renderSchedaArea(); };
     montaMeteoMappa(a, "ad");
   }
 
@@ -21272,9 +21427,18 @@ header .menubtn{min-width:48px; min-height:48px;}
     registraSW();
     sorvegliaRientro();
     avviaControlloVersione();
-    var s=await sb.auth.getSession();
-    if(s.data && s.data.session){ await afterLogin(); }
-    else showLogin();
+    var s=null;
+    try{ s = await sb.auth.getSession(); }catch(e){}
+    if(s && s.data && s.data.session){ await afterLogin(); return; }
+    /* nessuna sessione valida: se e' solo colpa della rete e il profilo e'
+       gia' sul telefono, si entra lo stesso e si lavora in locale */
+    var sal = profiloSalvato();
+    if(sal && sal.membro_id && !navigator.onLine){
+      await entraSenzaRete(sal);
+      toast("Senza rete \u00b7 stai lavorando con i dati del telefono");
+      return;
+    }
+    showLogin(navigator.onLine ? "" : "Senza rete e senza un accesso salvato su questo telefono");
   }
 
   /* ================= GIOCHI · CACCIA AL CINGHIALE =================
