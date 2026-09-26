@@ -332,6 +332,11 @@
   .pills{display:flex; gap:5px; pointer-events:auto; background:rgba(44,36,24,.88);
     padding:4px; border-radius:11px; backdrop-filter:blur(4px);}
   .pill{font-size:12px; padding:7px 11px; border-radius:8px; color:var(--muted); border:none; background:transparent;}
+  /* il tasto della vista vive da solo sulla barra: gli serve il tocco suo,
+     altrimenti la barra (pointer-events:none) se lo mangia (trovato 22/09) */
+  #btn-vista{pointer-events:auto; background:rgba(44,36,24,.88); backdrop-filter:blur(4px);
+    color:var(--cream); border:1px solid rgba(255,255,255,.10); flex-shrink:0;
+    font-size:12.5px; padding:8px 12px; border-radius:10px; line-height:1;}
   .pill.on{background:var(--brown); color:var(--cream);}
   .lente{pointer-events:auto; background:rgba(44,36,24,.88); backdrop-filter:blur(4px);
     border:none; border-radius:9px; padding:7px 10px; font-size:15px; line-height:1;
@@ -2197,11 +2202,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         <button id="sz-me">◎</button>
       </div>
       <div class="mapbar">
-        <button class="pill on" id="btn-vista" style="padding:8px 12px">🛰️ Satellite</button>
-        <div class="pills" id="pills" style="display:none">
-          <button class="pill on" data-mode="sat" id="pill-sat">Satellite</button>
-          <button class="pill" data-mode="schema" id="pill-schema">Schema</button>
-        </div>
+        <button id="btn-vista">🛰️ Satellite</button>
+
         <button class="lente" id="btn-cerca" title="Cerca un luogo">&#128269;</button>
         <div class="areatag" id="areatag">Mappa</div>
       </div>
@@ -3792,7 +3794,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.68";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.69";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4992,9 +4994,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
   function setMode(m){
     mode=m;
-    var ps=document.getElementById("pill-sat"), psc=document.getElementById("pill-schema");
-    if(ps) ps.classList.toggle("on", m==="sat");
-    if(psc) psc.classList.toggle("on", m==="schema");
+    if(typeof aggiornaTastoVista==="function") aggiornaTastoVista();
     document.getElementById("map").style.display = m==="sat"?"block":"none";
     document.getElementById("schema").style.display = m==="schema"?"block":"none";
     // controlli zoom: quelli di Leaflet in satellite, i miei nello schema
@@ -5007,9 +5007,10 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
   // i pulsanti Mappa/Schema esistono SOLO quando un'area è aperta
   function aggiornaPills(){
-    var p=document.getElementById("pills");
-    if(p) p.style.display = areaApertaInMappa ? "flex" : "none";
+    /* i due pulsanti Satellite/Schema non ci sono piu': la vista si sceglie
+       dalla finestra a tre caselle, uno solo posto per tutte e tre */
     if(!areaApertaInMappa && mode==="schema") setMode("sat");
+    aggiornaTastoVista();
   }
   function refreshMapArea(){
     var a=areaAttiva();
@@ -21286,7 +21287,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     // il Mezzo: agganciato DOPO il ciclo della barra, cosi' nessuno lo copre
     document.getElementById("tab-auto").onclick=apriFinestraAuto;
 
-    document.querySelectorAll(".pill").forEach(function(b){ b.onclick=function(){ setMode(b.dataset.mode); }; });
+    /* i vecchi pulsanti Satellite/Schema non esistono piu': questo ciclo
+       prendeva anche il tasto nuovo e gli metteva setMode(undefined) */
     document.getElementById("sz-piu").onclick=function(){ schemaZoom(1.5); };
     document.getElementById("sz-meno").onclick=function(){ schemaZoom(0.67); };
     document.getElementById("sz-me").onclick=schemaCentraSuDiMe;
