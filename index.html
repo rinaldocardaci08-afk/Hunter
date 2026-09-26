@@ -2228,6 +2228,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       <div id="miapostabar"></div>
       <div id="maptools">
         <button id="mt-indietro" title="Indietro" aria-label="Indietro">❮</button>
+        <button id="mt-sfondo" title="Cambia sfondo">⛰️</button>
         <button id="mt-modifica" title="Modifica la mappa" aria-label="Modifica">✎</button>
         <div class="sep"></div>
         <button id="mt-sez" title="Sezioni" aria-label="Mostra o nascondi le sezioni">▦</button>
@@ -3142,6 +3143,18 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: quale sfondo scaricare per l'offline -->
+<div class="modal" id="m-sfondozona">
+  <div class="sheet">
+    <h3 id="sfz-tit">Scarica la zona</h3>
+    <p class="hint">Quale sfondo vuoi avere senza campo? Puoi scaricarli anche tutti e due, uno per volta.</p>
+    <div id="sfz-lista"></div>
+    <div class="btnrow" style="margin-top:12px">
+      <button class="btn line" id="sfz-annulla">Annulla</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: la scheda di un capo abbattuto -->
 <div class="modal" id="m-capo">
   <div class="sheet" style="max-height:88vh; overflow-y:auto">
@@ -3767,7 +3780,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.65";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.66";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4619,6 +4632,54 @@ header .menubtn{min-width:48px; min-height:48px;}
     deg.textContent=Math.round(heading)+"° "+cardinale(heading);
   }
 
+  /* ================= GLI SFONDI DELLA MAPPA (22/09) =================
+     Il satellite fa riconoscere macchie e radure; la topografica porta curve
+     di livello, sentieri e i nomi dei valloni, che sul satellite non ci sono.
+     Si cambia al volo e l'app si ricorda l'ultimo usato. */
+  var SFONDO_KEY = "hunter_sfondo";
+  var SFONDI = {
+    satellite: { nome:"Satellite", em:"\ud83d\udef0\ufe0f",
+      url:"https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      max:19, attr:"Esri" },
+    topo: { nome:"Topografica", em:"\u26f0\ufe0f",
+      url:"https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+      max:17, attr:"OpenTopoMap \u00b7 OpenStreetMap" }
+  };
+  function sfondoScelto(){
+    try{ var v = localStorage.getItem(SFONDO_KEY); if(SFONDI[v]) return v; }catch(e){}
+    return "satellite";
+  }
+  function scriviSfondo(k){ try{ localStorage.setItem(SFONDO_KEY, k); }catch(e){} }
+  /* mette lo sfondo su una mappa e si ricorda il livello per poterlo cambiare */
+  function mettiSfondo(mappa, quale){
+    if(!mappa) return null;
+    var k = quale || sfondoScelto();
+    var s = SFONDI[k] || SFONDI.satellite;
+    if(mappa.__sfondo){ try{ mappa.removeLayer(mappa.__sfondo); }catch(e){} }
+    var L2 = L.tileLayer(s.url, {maxZoom:19, maxNativeZoom:s.max, attribution:s.attr});
+    L2.addTo(mappa);
+    try{ L2.bringToBack(); }catch(e){}
+    mappa.__sfondo = L2;
+    mappa.__sfondoK = k;
+    return L2;
+  }
+  function cambiaSfondo(){
+    var k = sfondoScelto()==="satellite" ? "topo" : "satellite";
+    scriviSfondo(k);
+    [map, mvMap, cnMap, (typeof mvMap2!=="undefined"?mvMap2:null)].forEach(function(m){
+      if(m) mettiSfondo(m, k);
+    });
+    aggiornaTastoSfondo();
+    toast(SFONDI[k].nome);
+  }
+  function aggiornaTastoSfondo(){
+    var b = document.getElementById("mt-sfondo");
+    if(!b) return;
+    var altro = sfondoScelto()==="satellite" ? SFONDI.topo : SFONDI.satellite;
+    b.textContent = altro.em;
+    b.title = "Passa a " + altro.nome;
+  }
+
   /* ================= MAPPA ================= */
   var mapReady=false;
   var LASTPOS_KEY="hunter_ultima_pos";
@@ -4636,7 +4697,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var zoom  = (pos || ultimaPosNota()) ? 16 : 12;
     map=L.map("map",{zoomControl:false, attributionControl:false}).setView([start.lat,start.lng], zoom);
     L.control.zoom({position:"topright"}).addTo(map);
-    L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(map);
+    mettiSfondo(map);
     areeLayer=L.layerGroup().addTo(map);    // i poligoni delle aree (sotto)
     posteLayer=L.layerGroup().addTo(map);   // le poste (sopra)
     segnLayer=L.layerGroup().addTo(map);    // le frecce di entrata e uscita
@@ -6714,7 +6775,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var a=areaAttiva(); if(!a) return;
     if(!mvMap){
       mvMap=L.map("mv-map",{zoomControl:true, attributionControl:false});
-      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19}).addTo(mvMap);
+      mettiSfondo(mvMap);
       mvLayer=L.layerGroup().addTo(mvMap);
     }
     mvMap.invalidateSize();
@@ -8921,8 +8982,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!cnMap){
       try{
         cnMap = L.map("canimap", {zoomControl:true}).setView([cnC0.lat, cnC0.lng], 16);
-        L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-          {maxZoom:19, maxNativeZoom:19, attribution:"Esri"}).addTo(cnMap);
+        mettiSfondo(cnMap);
         cnStrati = {griglia:L.layerGroup().addTo(cnMap), perimetro:L.layerGroup().addTo(cnMap),
                     linee:L.layerGroup().addTo(cnMap), soste:L.layerGroup().addTo(cnMap),
                     poste:L.layerGroup().addTo(cnMap)};
@@ -10890,7 +10950,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("sz-elenco").querySelectorAll("[data-zora]").forEach(function(b){
       b.onclick = function(){
         document.getElementById("m-scaricazona").classList.remove("show");
-        salvaZona(b.dataset.zora);
+        chiediSfondoZona(b.dataset.zora);
       };
     });
   }
@@ -14493,13 +14553,13 @@ header .menubtn{min-width:48px; min-height:48px;}
       b.onclick = function(){ mostraPosteSezione(b.dataset.sezapri); };
     });
     root.querySelectorAll("[data-zonasalva]").forEach(function(b){
-      b.onclick = function(){ salvaZona(b.dataset.zonasalva); };
+      b.onclick = function(){ chiediSfondoZona(b.dataset.zonasalva); };
     });
     root.querySelectorAll("[data-zonatogli]").forEach(function(b){
       b.onclick = function(){ togliZona(b.dataset.zonatogli); };
     });
     root.querySelectorAll("[data-zonarifai]").forEach(function(b){
-      b.onclick = function(){ salvaZona(b.dataset.zonarifai, true); };
+      b.onclick = function(){ chiediSfondoZona(b.dataset.zonarifai, true); };
     });
     var aPoi = aree.find(function(x){ return x.id === areaDett; }); if(aPoi) agganciaPoiScheda(root, aPoi);
     var bon = root.querySelector("#ad-ossnuovo");
@@ -20965,6 +21025,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("nc-annulla").onclick=function(){ document.getElementById("m-nomecane").classList.remove("show"); };
     document.getElementById("cnc-annulla").onclick=function(){ document.getElementById("m-canaio").classList.remove("show"); };
     document.getElementById("mc2-annulla").onclick=function(){ document.getElementById("m-canemuta").classList.remove("show"); };
+    document.getElementById("sfz-annulla").onclick=function(){ document.getElementById("m-sfondozona").classList.remove("show"); };
     document.getElementById("cp-annulla").onclick=function(){ document.getElementById("m-capo").classList.remove("show"); capoEdit=null; };
     document.getElementById("m-ab-annulla").onclick=function(){ document.getElementById("m-aggbat").classList.remove("show"); };
     document.getElementById("m-ab-ok").onclick=salvaBattutaAggiunta;
@@ -20989,6 +21050,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("mt-azioni").onclick=function(){
       if(areaAttivaId){ settoriAperti = null; traccaAperta = areaAttivaId; apriTracceDaMappa(); }
     };
+    document.getElementById("mt-sfondo").onclick=cambiaSfondo;
     document.getElementById("mt-indietro").onclick=tornaIndietroDaMappa;
     document.getElementById("gm-indietro").onclick=tornaIndietro;
     document.getElementById("mt-modifica").onclick=function(){
@@ -25274,6 +25336,15 @@ function fineA(){
   var TESSERE_CACHE = "hunter-tessere";
   var ZONE_KEY = "hunter_zone_salvate";
   var URL_TESSERA = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/";
+  /* quale sfondo si sta scaricando: lo chiede ogni volta (sua scelta 22/09) */
+  var sfondoScarico = "satellite";
+  function indirizzoTessera(z, y, x){
+    if(sfondoScarico === "topo"){
+      var s = ["a","b","c"][(x+y) % 3];
+      return "https://" + s + ".tile.opentopomap.org/" + z + "/" + x + "/" + y + ".png";
+    }
+    return URL_TESSERA + z + "/" + y + "/" + x;
+  }
   var ZMIN = 14, ZMAX = 18;
 
   function zoneSalvate(){
@@ -25347,7 +25418,7 @@ function fineA(){
       var y1=yDaLat(r.la2,z), y2=yDaLat(r.la1,z);   // la latitudine cresce all'incontrario
       for(var x=x1; x<=x2; x++){
         for(var y=y1; y<=y2; y++){
-          v.push(URL_TESSERA + z + "/" + y + "/" + x);
+          v.push(indirizzoTessera(z, y, x));
         }
       }
     }
@@ -25375,7 +25446,12 @@ function fineA(){
         var x1=xDaLng(r.ln1,zz), x2=xDaLng(r.ln2,zz);
         var y1=yDaLat(r.la2,zz), y2=yDaLat(r.la1,zz);
         for(var x=x1; x<=x2; x++)
-          for(var y=y1; y<=y2; y++) elenco.push(URL_TESSERA + zz + "/" + y + "/" + x);
+          for(var y=y1; y<=y2; y++){
+            var vecchio = sfondoScarico;
+            sfondoScarico = "satellite"; elenco.push(indirizzoTessera(zz, y, x));
+            sfondoScarico = "topo";      elenco.push(indirizzoTessera(zz, y, x));
+            sfondoScarico = vecchio;
+          }
       }
     }
     /* piu' quelle di adesso, per non lasciarne in giro */
@@ -25396,6 +25472,32 @@ function fineA(){
   /* sostituisci = true: le tessere vecchie si buttano e si riscaricano.
      Serve quando la mappa e' cambiata (poste nuove, riquadro diverso) o quando
      il satellite ha foto piu' recenti. */
+  /* CHIEDE OGNI VOLTA quale sfondo scaricare (sua scelta 22/09): scaricarli
+     tutti e due occupa il doppio, e spesso serve solo quello che si usa. */
+  function chiediSfondoZona(areaId, sostituisci){
+    var a = aree.find(function(x){ return x.id === areaId; });
+    if(!a) return;
+    var h = "";
+    [["satellite","\ud83d\udef0\ufe0f Satellite","per riconoscere macchie e radure"],
+     ["topo","\u26f0\ufe0f Topografica","curve di livello, sentieri e nomi"]].forEach(function(x){
+      var vecchio = sfondoScarico; sfondoScarico = x[0];
+      var n = elencoTessere(a).length, peso = pesoStimato(n);
+      sfondoScarico = vecchio;
+      h += '<button class="btn line" data-sfz="'+x[0]+'" style="text-align:left; margin-bottom:7px; line-height:1.4">'
+        + '<b>'+x[1]+'</b><span style="display:block; font-size:11px; color:var(--muted)">'+x[2]
+        + ' \u00b7 ' + n + ' tessere, circa ' + peso + '</span></button>';
+    });
+    document.getElementById("sfz-lista").innerHTML = h;
+    document.getElementById("sfz-tit").textContent = (sostituisci ? "Riscarica " : "Scarica ") + a.nome;
+    document.getElementById("m-sfondozona").classList.add("show");
+    document.getElementById("sfz-lista").querySelectorAll("[data-sfz]").forEach(function(b){
+      b.onclick = function(){
+        sfondoScarico = b.dataset.sfz;
+        document.getElementById("m-sfondozona").classList.remove("show");
+        salvaZona(areaId, sostituisci);
+      };
+    });
+  }
   async function salvaZona(areaId, sostituisci){
     var a = aree.find(function(x){ return x.id === areaId; });
     if(!a) return;
@@ -25404,11 +25506,16 @@ function fineA(){
     if(!lista.length){ toast("Questa mappa non ha coordinate: non so cosa scaricare"); return; }
     if(!navigator.onLine){ toast("Per salvare la zona serve la rete: fallo a casa"); return; }
     var zm = zoomMassimoPer(a);
-    if(!confirm((sostituisci ? "Riscaricare la zona di \u00ab" : "Salvare la zona di \u00ab")+a.nome+"\u00bb?\n\n"
-      + lista.length + " tessere, circa " + pesoStimato(lista.length) + "\n"
-      + "Dettaglio: " + dettaglioAParole(zm) + ".\n\n"
-      + (sostituisci ? "Le vecchie si buttano: fallo col wifi."
-                     : "Falla col wifi: dopo la mappa si vede anche senza campo."))) return;
+    /* niente confirm del browser: nell'app sull'iPhone a volte non compare */
+    var vaAvanti = await new Promise(function(ok){
+      chiediConferma((sostituisci ? "Riscaricare " : "Scaricare ") + SFONDI[sfondoScarico].nome.toLowerCase() + " di \u00ab"+a.nome+"\u00bb?",
+        lista.length + " tessere, circa " + pesoStimato(lista.length) + "\n"
+        + "Dettaglio: " + dettaglioAParole(zm) + ".\n"
+        + (sostituisci ? "Le vecchie si buttano: fallo col wifi."
+                       : "Falla col wifi: dopo la mappa si vede anche senza campo."),
+        "\u2b07\ufe0f Scarica", function(){ ok(true); }, function(){ ok(false); });
+    });
+    if(!vaAvanti) return;
 
     scaricando = true;
     var box = document.getElementById("zonabar");
