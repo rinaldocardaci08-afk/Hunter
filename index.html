@@ -2197,6 +2197,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <button id="sz-me">◎</button>
       </div>
       <div class="mapbar">
+        <button class="pill on" id="btn-vista" style="padding:8px 12px">🛰️ Satellite</button>
         <div class="pills" id="pills" style="display:none">
           <button class="pill on" data-mode="sat" id="pill-sat">Satellite</button>
           <button class="pill" data-mode="schema" id="pill-schema">Schema</button>
@@ -2228,7 +2229,6 @@ header .menubtn{min-width:48px; min-height:48px;}
       <div id="miapostabar"></div>
       <div id="maptools">
         <button id="mt-indietro" title="Indietro" aria-label="Indietro">❮</button>
-        <button id="mt-sfondo" title="Cambia sfondo">⛰️</button>
         <button id="mt-modifica" title="Modifica la mappa" aria-label="Modifica">✎</button>
         <div class="sep"></div>
         <button id="mt-sez" title="Sezioni" aria-label="Mostra o nascondi le sezioni">▦</button>
@@ -3143,6 +3143,18 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
+<!-- MODALE: scegli il tipo di vista della mappa -->
+<div class="modal" id="m-vista3">
+  <div class="sheet">
+    <h3>Scegli il tipo di vista</h3>
+    <p class="hint" id="v3-hint">Lo sfondo resta quello scelto anche riaprendo l'app.</p>
+    <div id="v3-caselle" style="display:flex; gap:8px"></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="v3-chiudi">Chiudi</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODALE: quale sfondo scaricare per l'offline -->
 <div class="modal" id="m-sfondozona">
   <div class="sheet">
@@ -3780,7 +3792,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.66";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.68";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -14715,11 +14727,70 @@ header .menubtn{min-width:48px; min-height:48px;}
     try{ localStorage.setItem(VIS_KEY, JSON.stringify(vistaMappa)); }catch(e){}
   }
 
+  /* ===== LE TRE VISTE DELLA MAPPA (22/09) =====
+     Satellite, Topografica e Schema in una finestra sola, raggiungibile anche
+     quando la mappa si apre dalla barra in basso: li' la colonna degli
+     strumenti non c'e', e il tasto dello sfondo restava irraggiungibile. */
+  function apriSceltaVista(){
+    var apertaUnArea = areaApertaInMappa && !!areaAttiva();
+    var attuale = (mode === "schema") ? "schema" : sfondoScelto();
+    var box = document.getElementById("v3-caselle");
+    var voci = [
+      {k:"satellite", em:"\uD83D\uDEF0\uFE0F", n:"Satellite", d:"macchie e radure"},
+      {k:"topo",      em:"\u26F0\uFE0F",       n:"Topografica", d:"curve, sentieri e nomi"},
+      {k:"schema",    em:"\u25A6",              n:"Schema", d: apertaUnArea ? "solo le poste, pulito" : "apri una mappa"}
+    ];
+    var h = "";
+    voci.forEach(function(v){
+      var spento = (v.k==="schema" && !apertaUnArea);
+      h += '<button data-vista3="'+v.k+'" style="flex:1; border-radius:14px; padding:14px 6px; line-height:1.3; '
+        + 'border:2px solid '+(attuale===v.k ? "var(--gold)" : "var(--dark3)")+'; '
+        + 'background:'+(attuale===v.k ? "#4a3320" : "var(--dark2)")+'; color:var(--cream);'
+        + (spento ? " opacity:.45;" : "") + '">'
+        + '<span style="display:block; font-size:26px">'+v.em+'</span>'
+        + '<span style="display:block; font-size:12.5px; margin-top:6px">'+v.n+'</span>'
+        + '<span style="display:block; font-size:10px; color:var(--muted); margin-top:2px">'+v.d+'</span>'
+        + '</button>';
+    });
+    box.innerHTML = h;
+    document.getElementById("v3-hint").textContent = apertaUnArea
+      ? "La scelta resta anche riaprendo l'app."
+      : "Lo schema si vede solo dentro una mappa salvata.";
+    document.getElementById("m-vista3").classList.add("show");
+    box.querySelectorAll("[data-vista3]").forEach(function(b){
+      b.onclick = function(){
+        var k = b.dataset.vista3;
+        if(k === "schema"){
+          if(!apertaUnArea){ toast("Apri prima una mappa: lo schema disegna le sue poste"); return; }
+          setMode("schema");
+        }else{
+          if(mode === "schema") setMode("sat");
+          scriviSfondo(k);
+          mettiSfondo(map, k);
+          if(typeof mvMap!=="undefined" && mvMap) mettiSfondo(mvMap, k);
+          if(typeof cnMap!=="undefined" && cnMap) mettiSfondo(cnMap, k);
+          if(typeof aggiornaTastoSfondo==="function") aggiornaTastoSfondo();
+        }
+        document.getElementById("m-vista3").classList.remove("show");
+        aggiornaTastoVista();
+        toast(k==="schema" ? "Schema" : SFONDI[k].nome);
+      };
+    });
+  }
+  function aggiornaTastoVista(){
+    var b = document.getElementById("btn-vista");
+    if(!b) return;
+    if(mode === "schema"){ b.textContent = "\u25A6 Schema"; return; }
+    var k = sfondoScelto();
+    b.textContent = (k==="topo" ? "\u26F0\uFE0F Topografica" : "\uD83D\uDEF0\uFE0F Satellite");
+  }
+
   function aggiornaComandiMappa(){
     var box = document.getElementById("maptools");
     if(!box) return;
     var suMappa = document.getElementById("v-mappa").classList.contains("active");
     box.classList.toggle("show", suMappa && !mappaSolaVista);
+    aggiornaTastoVista();
     if(!suMappa || mappaSolaVista) return;
 
     var apertaUnArea = areaApertaInMappa && !!areaAttiva();
@@ -21050,7 +21121,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("mt-azioni").onclick=function(){
       if(areaAttivaId){ settoriAperti = null; traccaAperta = areaAttivaId; apriTracceDaMappa(); }
     };
-    document.getElementById("mt-sfondo").onclick=cambiaSfondo;
+    document.getElementById("btn-vista").onclick=apriSceltaVista;
+    document.getElementById("v3-chiudi").onclick=function(){ document.getElementById("m-vista3").classList.remove("show"); };
     document.getElementById("mt-indietro").onclick=tornaIndietroDaMappa;
     document.getElementById("gm-indietro").onclick=tornaIndietro;
     document.getElementById("mt-modifica").onclick=function(){
