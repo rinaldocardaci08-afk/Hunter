@@ -821,6 +821,20 @@
     background:var(--dark3); padding:2px 6px; border-radius:5px;}
   .tile.wide{grid-column:1 / -1; flex-direction:row; align-items:center; min-height:0; gap:12px;}
   /* LA DOMANDA in Home (18/09): "Sabato 3, partecipi?" con Sì e No, una riga per giornata aperta */
+  /* la giornata di oggi, sotto la bacheca */
+  .giohome{grid-column:1/-1; background:linear-gradient(135deg,#1f2b38,#243447);
+    border:1px solid #3d5f80; border-radius:16px; padding:11px 13px; text-align:left;
+    cursor:pointer; margin:2px 0 6px;}
+  .giohome .tt{font-size:13.5px; color:#cfe6f7; font-weight:600; margin-bottom:8px;}
+  .giohome .rr{display:flex; gap:8px;}
+  .giohome .q{flex:1; display:flex; align-items:center; gap:7px; border-radius:11px;
+    padding:8px 10px; background:rgba(0,0,0,.22);}
+  .giohome .q .e{font-size:15px;}
+  .giohome .q .l{flex:1; min-width:0; font-size:11.5px; color:#b9cddd; text-transform:uppercase; letter-spacing:.4px;}
+  .giohome .q .v{font-family:'Arial Narrow',Impact,sans-serif; font-size:21px; color:#fff; line-height:1;}
+  .giohome .q .v i{font-style:normal; font-size:13px; color:#9db3c4;}
+  .giohome .q.verde{background:rgba(29,158,117,.22);}
+  .giohome .q.verde .v{color:#7be0a8;}
   .domanda{grid-column:1 / -1; background:#3a2e1c; border:1px solid var(--gold); border-radius:15px; padding:11px 13px;}
   .domanda .q{font-size:15px; color:var(--cream); margin-bottom:8px;}
   .domanda .q b{color:#fff;}
@@ -3794,7 +3808,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.69";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.70";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7924,8 +7938,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.innerHTML=h;
     root.querySelectorAll("[data-tg-si]").forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); rispondiTG(b.dataset.tgSi,true); }; });
     root.querySelectorAll("[data-tg-no]").forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); rispondiTG(b.dataset.tgNo,false); }; });
-    root.querySelectorAll("[data-tg-apri2]").forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); var g=battute.find(function(x){return x.id===b.dataset.tgApri2;}); if(g) apriGiornata(g); }; });
-    root.querySelectorAll("[data-tg-apri]").forEach(function(c){ c.onclick=function(){ var g=battute.find(function(x){return x.id===c.dataset.tgApri;}); if(g) apriGiornata(g); }; });
+    /* BUG (trovato il 27/09): qui si passava l'OGGETTO della giornata a una
+       funzione che vuole la DATA. Il capo non se ne accorgeva, il cacciatore
+       si prendeva "Adesioni non ancora aperte" e non entrava piu'. */
+    root.querySelectorAll("[data-tg-apri2]").forEach(function(b){ b.onclick=function(ev){ ev.stopPropagation(); var g=battute.find(function(x){return x.id===b.dataset.tgApri2;}); if(g) apriGiornata(String(g.data).slice(0,10)); }; });
+    root.querySelectorAll("[data-tg-apri]").forEach(function(c){ c.onclick=function(){ var g=battute.find(function(x){return x.id===c.dataset.tgApri;}); if(g) apriGiornata(String(g.data).slice(0,10)); }; });
     document.getElementById("tg-cal").onclick=function(){ calendarioForzato=true; renderCalendario(); };
     caricaDatiTueGiornate(aperte, prossima, ultima);
   }
@@ -10318,6 +10335,8 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   async function apriGiornata(dataIso){
+    /* accetta la data o direttamente la giornata: cosi' nessuno ci ricasca */
+    if(dataIso && typeof dataIso === "object" && dataIso.data) dataIso = String(dataIso.data).slice(0,10);
     var b=battutaDi(dataIso);
     // il cacciatore normale entra solo se le adesioni sono aperte
     if(!b && !puoGestireBattute()){ toast("Adesioni non ancora aperte"); return; }
@@ -11223,7 +11242,10 @@ header .menubtn{min-width:48px; min-height:48px;}
       /* LA CARNE: si divide appena c'e' una battuta chiusa (sua regola 12/09),
          non solo a giornata conclusa. Sta sulla giornata: e' il totale del giorno. */
       var cChiusa = battuteSvolte.some(function(x){ return !!x.chiusa_il; });
-      if(agisce && (conclusa || cChiusa)){
+      /* SUA REGOLA 27/09: finche' non e' caduto un capo non ci sono buste da
+         fare, quindi il tasto della carne non deve nemmeno comparire. */
+      var capiOggi = uccisioniPeriodo(b.id, gioFatti, battuteSvolte);
+      if(agisce && (conclusa || cChiusa) && capiOggi > 0){
         var ncG = quantiCarne(b);
         h+='<button class="btn" data-carne="'+b.id+'" style="margin:8px 0 10px; border:1px solid var(--gold)'
           +(ncG?'; background:#2d5a3f; border-color:#3d7a55; color:#fff':'')+'">'
@@ -24149,6 +24171,38 @@ function fineA(){
      a cui non ho risposto, la domanda diretta con Sì e No. Il Sì vale
      "ci sono, non tracciatore": tracciatore e ospiti si aggiungono in Battute. */
   var DOMANDE_HOME = [];
+  /* ===== LA GIORNATA DI OGGI IN HOME (sua regola 27/09) =====
+     Due momenti: PRENOTATO, quanti hanno detto si' sui componenti della
+     squadra; PRESENTE, quanti sono arrivati sui prenotati. Il secondo numero
+     compare solo il giorno della battuta, quando le presenze hanno senso. */
+  function htmlGiornataHome(){
+    var oggi = oggiISO();
+    var b = (battute||[]).find(function(x){
+      return String(x.data||"").slice(0,10) === oggi && x.stato !== "annullata";
+    });
+    if(!b) b = (battute||[]).filter(function(x){
+      return String(x.data||"").slice(0,10) > oggi && x.stato === "aperta";
+    }).sort(function(x,y){ return String(x.data) < String(y.data) ? -1 : 1; })[0];
+    if(!b) return "";
+    var dataB = String(b.data).slice(0,10);
+    var eOggi = dataB === oggi;
+    var quanti = (membri||[]).filter(function(m){ return m.attivo !== false; }).length || 0;
+    var pren = Number(b.n_si)||0;
+    var pres = Number(b.n_presenti);
+    if(!isFinite(pres)) pres = (adesioni||[]).filter(function(a){ return a.battuta_id===b.id && a.presente; }).length;
+    var h = '<div class="giohome" data-giohome="'+dataB+'">';
+    h += '<div class="tt">'+esc(fmtGiorno(daIso(dataB)).replace(/^./,function(c){return c.toUpperCase();}))
+       + (eOggi ? ' \u00b7 oggi' : '') + '</div>';
+    h += '<div class="rr">';
+    h += '<div class="q blu"><span class="e">\ud83d\udcc5</span><span class="l">Prenotato</span>'
+       + '<span class="v">'+pren+'<i>/'+quanti+'</i></span></div>';
+    if(eOggi){
+      h += '<div class="q verde"><span class="e">\u2713</span><span class="l">Presente</span>'
+         + '<span class="v">'+pres+'<i>/'+(pren||0)+'</i></span></div>';
+    }
+    h += '</div></div>';
+    return h;
+  }
   function htmlDomandeHome(){
     if(!DOMANDE_HOME.length) return "";
     var h="";
@@ -24204,11 +24258,15 @@ function fineA(){
           ? '<div class="ic">'+c.ic+'</div><div class="tx"><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>'+sunto+'</div>'+foto
           : '<div class="ic">'+c.ic+'</div><div class="nm">'+esc(c.nm)+'</div><div class="ds">'+esc(c.ds)+'</div>'+sunto)
        + '</button>';
+      if(k==="bacheca") h+=htmlGiornataHome();
       if(k==="battute") h+=htmlDomandeHome();
     });
     g.innerHTML=h;
     agganciaCaselleHome(g);
     if(typeof calcolaSegnaliSegn==="function") calcolaSegnaliSegn();
+    g.querySelectorAll("[data-giohome]").forEach(function(b){
+      b.onclick=function(){ apriGiornata(b.dataset.giohome); };
+    });
     g.querySelectorAll("[data-dom-si]").forEach(function(b){ b.onclick=function(){ rispondiDaHome(b.dataset.domSi, true); }; });
     g.querySelectorAll("[data-dom-no]").forEach(function(b){ b.onclick=function(){ rispondiDaHome(b.dataset.domNo, false); }; });
   }
