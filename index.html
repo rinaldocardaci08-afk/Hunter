@@ -3812,7 +3812,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.74";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.75";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -19089,6 +19089,13 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(!r3.error) partObiettivo=r3.data||[];
       var r4=await sb.from("hn_config").select("*").eq("squadra_id",me.squadra_id).limit(1);
       if(!r4.error && r4.data && r4.data.length) config=r4.data[0];
+      /* v3.75: per i conti servono i soci, le giornate e chi c'era */
+      if(!membri.length) await caricaMembriSilenzioso();
+      if(!battute.length){
+        var rb=await sb.from("hn_battute").select("*").eq("squadra_id",me.squadra_id).order("data");
+        if(!rb.error) battute=rb.data||[];
+      }
+      await caricaAdesioniCassa(!isCassiere());
       try{
         localStorage.setItem("hunter_cache_cassa", JSON.stringify({movimenti:movimenti, obiettivi:obiettivi, part:partObiettivo, config:config}));
       }catch(e){}
@@ -19101,66 +19108,158 @@ header .menubtn{min-width:48px; min-height:48px;}
     renderCassa();
   }
 
-  /* --- calcoli --- */
+  /* --- calcoli ---
+     v3.75 - CONTI PER CAUSALE, per la squadra e per il singolo (sua richiesta 28/09):
+     - QUOTA ASSOCIATIVA: una per STAGIONE, per ogni socio (non ospite). Conta cio'
+       che e' stato versato nella stagione (dalla data del versamento).
+     - QUOTA DI GIORNATA: per ogni giornata CONCLUSA della stagione in cui si e'
+       PRESENTI. La quota e' quella della giornata (hn_battute.quota_giornata): di
+       norma 2 euro, ogni 15 giorni 10 euro; se la giornata non ne ha una, vale quella
+       delle impostazioni. Chi ha gia' versato per una giornata la deve anche se non
+       risulta presente (ha pagato: c'era). Le giornate non concluse non si devono.
+     - OBIETTIVI: le quote degli obiettivi aperti a cui si partecipa.
+     - ANTICIPI: una spesa sostenuta "anticipata da" un cacciatore non esce dalla
+       cassa: e' un CREDITO suo. Il credito scende coi rimborsi (uscite "rimborso_a"),
+       che invece escono dalla cassa. La compensazione e' un rimborso che paga le sue
+       quote: entrate e uscita si annullano, la cassa non si muove.
+     Prima: la quota di giornata versata contava come credito (il dovuto non c'era),
+     la associativa valeva per sempre, il "da incassare" ignorava le giornate. */
+  var cassaAdes = [];   // le adesioni delle giornate della stagione, SOLO per i conti della cassa
+
+  function somma(arr){ return arr.reduce(function(s,m){ return s + (Number(m.importo)||0); }, 0); }
   function totPerCausale(causale, tipo){
-    return movimenti
-      .filter(function(m){ return m.causale===causale && m.tipo===(tipo||"entrata"); })
-      .reduce(function(s,m){ return s + (Number(m.importo)||0); }, 0);
+    return somma(movimenti.filter(function(m){ return m.causale===causale && m.tipo===(tipo||"entrata"); }));
   }
-  function totEntrate(){ return movimenti.filter(function(m){return m.tipo==="entrata";}).reduce(function(s,m){return s+(Number(m.importo)||0);},0); }
-  // solo le spese GIÀ PAGATE escono dalla cassa; le programmate no
-  function totUscite(){ return movimenti.filter(function(m){return m.tipo==="uscita" && !m.programmata;}).reduce(function(s,m){return s+(Number(m.importo)||0);},0); }
-  function totProgrammate(){ return movimenti.filter(function(m){return m.tipo==="uscita" && m.programmata;}).reduce(function(s,m){return s+(Number(m.importo)||0);},0); }
+  function eAnticipo(m){ return m.tipo==="uscita" && !m.programmata && !!m.anticipata_da; }
+  function totEntrate(){ return somma(movimenti.filter(function(m){ return m.tipo==="entrata"; })); }
+  // escono dalla cassa le spese GIA' PAGATE dalla cassa (e i rimborsi); le programmate e gli anticipi no
+  function totUscite(){ return somma(movimenti.filter(function(m){ return m.tipo==="uscita" && !m.programmata && !m.anticipata_da; })); }
+  function totProgrammate(){ return somma(movimenti.filter(function(m){ return m.tipo==="uscita" && m.programmata; })); }
   function inCassa(){ return totEntrate() - totUscite(); }
 
-  // quanto manca: quote associative non versate + quote giornata non versate + obiettivi
-  function daIncassare(){
-    var m=0;
-    // associative
-    var qa=Number(config.quota_associativa)||0;
-    if(qa){
-      var soci=membri.filter(function(x){return x.tipo!=="ospite";});
-      soci.forEach(function(s){
-        var pagata=movimenti.some(function(mv){ return mv.causale==="associativa" && mv.membro_id===s.id; });
-        if(!pagata) m+=qa;
-      });
-    }
-    // obiettivi
-    obiettivi.filter(function(o){return !o.chiuso;}).forEach(function(o){
-      var parts=partObiettivo.filter(function(p){return p.obiettivo_id===o.id;});
-      parts.forEach(function(p){
-        var versato=movimenti.filter(function(mv){ return mv.causale==="obiettivo" && mv.rif_id===o.id && mv.membro_id===p.membro_id; })
-                             .reduce(function(s,mv){return s+(Number(mv.importo)||0);},0);
-        var quota=Number(p.quota)||0;
-        if(versato<quota) m += (quota-versato);
+  function dataDi(m){ return m && m.data ? String(m.data).slice(0,10) : iso(new Date()); }
+  function quotaDiGiornata(b){
+    var q = (b && b.quota_giornata!==null && b.quota_giornata!==undefined && b.quota_giornata!=="") ? Number(b.quota_giornata) : NaN;
+    return isFinite(q) ? q : (Number(config.quota_giornata)||0);
+  }
+  function giornateStagioneCassa(){
+    var st = stagioneCorrente();
+    return battute.filter(function(b){ return b.stato!=="nuova" && stagioneDi(String(b.data).slice(0,10))===st; });
+  }
+  /* le adesioni di una giornata: quelle della giornata aperta (vive) e quelle della cassa */
+  function adesioniDi(bId){
+    var out = adesioni.filter(function(a){ return a.battuta_id===bId; });
+    cassaAdes.forEach(function(a){
+      if(a.battuta_id===bId && !out.some(function(x){ return x.membro_id===a.membro_id; })) out.push(a);
+    });
+    return out;
+  }
+  async function caricaAdesioniCassa(soloMie){
+    var ids = giornateStagioneCassa().map(function(b){ return b.id; });
+    if(!ids.length || !navigator.onLine) return;
+    try{
+      var q = sb.from("hn_adesioni").select("*").in("battuta_id", ids);
+      if(soloMie) q = q.eq("membro_id", me.membro_id);
+      var r = await q;
+      if(r.error) return;
+      cassaAdes = cassaAdes.filter(function(a){
+        return ids.indexOf(a.battuta_id) < 0 || (soloMie && a.membro_id !== me.membro_id);
+      }).concat(r.data || []);
+    }catch(e){}
+  }
+  function versatoGiornata(bId, mId){
+    return somma(movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="giornata" && m.rif_id===bId && m.membro_id===mId; }));
+  }
+  /* una riga per ogni persona che deve (o ha versato) la quota di quella giornata */
+  function righeGiornata(b){
+    var q = quotaDiGiornata(b), concl = (b.stato==="conclusa");
+    var presenti = adesioniDi(b.id).filter(function(a){ return concl && a.presente; }).map(function(a){ return a.membro_id; });
+    var ids = presenti.slice();
+    movimenti.forEach(function(m){
+      if(m.tipo==="entrata" && m.causale==="giornata" && m.rif_id===b.id && m.membro_id && ids.indexOf(m.membro_id)<0) ids.push(m.membro_id);
+    });
+    return ids.map(function(mId){
+      var dato = versatoGiornata(b.id, mId);
+      var dovuto = (presenti.indexOf(mId)>=0 || dato>0) ? q : 0;
+      return {battuta:b, membro_id:mId, dovuto:dovuto, dato:dato, manca:Math.max(0, dovuto-dato)};
+    });
+  }
+  function eSocio(mId){
+    var m = membri.find(function(x){ return x.id===mId; });
+    return !m || m.tipo!=="ospite";
+  }
+  function versatoAssociativa(mId, st){
+    return somma(movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="associativa" && m.membro_id===mId && stagioneDi(dataDi(m))===st; }));
+  }
+  function righeObiettivi(mId){
+    var out = [];
+    obiettivi.filter(function(o){ return !o.chiuso; }).forEach(function(o){
+      partObiettivo.filter(function(p){ return p.obiettivo_id===o.id && (!mId || p.membro_id===mId); }).forEach(function(p){
+        var dato = somma(movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="obiettivo" && m.rif_id===o.id && m.membro_id===p.membro_id; }));
+        var q = Number(p.quota)||0;
+        out.push({obiettivo:o, membro_id:p.membro_id, dovuto:q, dato:dato, manca:Math.max(0, q-dato)});
       });
     });
-    return m;
+    return out;
+  }
+  function anticipatoDa(mId){ return somma(movimenti.filter(function(m){ return eAnticipo(m) && m.anticipata_da===mId; })); }
+  function rimborsatoA(mId){ return somma(movimenti.filter(function(m){ return m.tipo==="uscita" && !m.programmata && m.rimborso_a===mId; })); }
+  function creditoDi(mId){ return Math.max(0, anticipatoDa(mId) - rimborsatoA(mId)); }
+  function creditiAperti(){
+    var ids = [];
+    movimenti.forEach(function(m){ if(eAnticipo(m) && ids.indexOf(m.anticipata_da)<0) ids.push(m.anticipata_da); });
+    return ids.map(function(id){ return {membro_id:id, credito:creditoDi(id)}; }).filter(function(x){ return x.credito > 0.004; });
   }
 
-  function mioSaldo(){
-    var dovuto=0, versato=0;
-    // quota associativa
-    var qa=Number(config.quota_associativa)||0;
-    if(qa){
-      dovuto+=qa;
-      var pa=movimenti.filter(function(m){return m.causale==="associativa" && m.membro_id===me.membro_id;})
-                      .reduce(function(s,m){return s+(Number(m.importo)||0);},0);
-      versato+=pa;
-    }
-    // obiettivi a cui partecipo
-    partObiettivo.filter(function(p){return p.membro_id===me.membro_id;}).forEach(function(p){
-      dovuto+=Number(p.quota)||0;
-      var v=movimenti.filter(function(m){return m.causale==="obiettivo" && m.rif_id===p.obiettivo_id && m.membro_id===me.membro_id;})
-                     .reduce(function(s,m){return s+(Number(m.importo)||0);},0);
-      versato+=v;
+  /* IL CONTO DI UNA PERSONA nella stagione corrente */
+  function contoMembro(mId){
+    var st = stagioneCorrente(), qa = Number(config.quota_associativa)||0;
+    var ass = {dovuto:(qa && eSocio(mId)) ? qa : 0, dato:versatoAssociativa(mId, st)};
+    ass.manca = Math.max(0, ass.dovuto - ass.dato);
+    var gio = {dovuto:0, dato:0, manca:0, n:0, righe:[]};
+    giornateStagioneCassa().forEach(function(b){
+      righeGiornata(b).forEach(function(r){
+        if(r.membro_id!==mId) return;
+        gio.dovuto += r.dovuto; gio.dato += r.dato; gio.manca += r.manca;
+        if(r.dovuto > 0) gio.n++;
+        gio.righe.push(r);
+      });
     });
-    // quote giornata
-    var qg=movimenti.filter(function(m){return m.causale==="giornata" && m.membro_id===me.membro_id;})
-                    .reduce(function(s,m){return s+(Number(m.importo)||0);},0);
-    versato+=qg;
-    return { dovuto:dovuto, versato:versato, saldo:versato-dovuto };
+    var ro = righeObiettivi(mId);
+    var obi = {dovuto:0, dato:0, manca:0, righe:ro};
+    ro.forEach(function(r){ obi.dovuto += r.dovuto; obi.dato += r.dato; obi.manca += r.manca; });
+    var anticipato = anticipatoDa(mId), rimborsato = rimborsatoA(mId), credito = creditoDi(mId);
+    var dovuto = ass.dovuto + gio.dovuto + obi.dovuto, dato = ass.dato + gio.dato + obi.dato;
+    return {ass:ass, gio:gio, obi:obi, anticipato:anticipato, rimborsato:rimborsato, credito:credito,
+            dovuto:dovuto, dato:dato, debito:ass.manca + gio.manca + obi.manca,
+            netto:(ass.manca + gio.manca + obi.manca) - credito};
   }
+  /* I CONTI DELLA SQUADRA per causale, nella stagione corrente */
+  function contiCassaSquadra(){
+    var st = stagioneCorrente(), qa = Number(config.quota_associativa)||0;
+    var soci = membri.filter(function(m){ return m.tipo!=="ospite"; });
+    var ass = {dovuto:qa*soci.length, dato:0, manca:0, pagati:0, soci:soci.length};
+    ass.dato = somma(movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="associativa" && stagioneDi(dataDi(m))===st; }));
+    soci.forEach(function(s){
+      var v = versatoAssociativa(s.id, st);
+      if(qa && v >= qa - 0.004) ass.pagati++;
+      ass.manca += Math.max(0, qa - v);
+    });
+    if(!qa) ass.manca = 0;
+    var gio = {dovuto:0, dato:0, manca:0, giornate:0};
+    giornateStagioneCassa().forEach(function(b){
+      var rr = righeGiornata(b);
+      if(b.stato==="conclusa") gio.giornate++;
+      rr.forEach(function(r){ gio.dovuto += r.dovuto; gio.dato += r.dato; gio.manca += r.manca; });
+    });
+    var obi = {dovuto:0, dato:0, manca:0, attivi:obiettivi.filter(function(o){ return !o.chiuso; }).length};
+    righeObiettivi(null).forEach(function(r){ obi.dovuto += r.dovuto; obi.dato += r.dato; obi.manca += r.manca; });
+    var cr = creditiAperti();
+    return {ass:ass, gio:gio, obi:obi,
+            daRimborsare: cr.reduce(function(s,x){ return s + x.credito; }, 0), crediti:cr};
+  }
+  function daIncassare(){ var c = contiCassaSquadra(); return c.ass.manca + c.gio.manca + c.obi.manca; }
+  function mioSaldo(){ var c = contoMembro(me.membro_id); return {dovuto:c.dovuto, versato:c.dato, saldo:-c.netto}; }
 
   /* --- RENDER: due viste diverse --- */
   // le giornate in cui sono delegato (e non sono cassiere)
@@ -19206,32 +19305,42 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     h+='</div>';
 
-    // PANNELLI PER CAUSALE
-    var ass=totPerCausale("associativa");
-    var gio=totPerCausale("giornata");
-    var obi=totPerCausale("obiettivo");
-    var nSoci=membri.filter(function(m){return m.tipo!=="ospite";}).length;
-    var nPagAss=new Set(movimenti.filter(function(m){return m.causale==="associativa";}).map(function(m){return m.membro_id;})).size;
-
-    h+='<div class="sechead">Per causale</div>';
-    h+='<div class="pann">';
-    h+='<div class="p" style="border-left:3px solid #D4537E"><div class="t">Quote associative</div>';
-    h+='<div class="v">'+eur(ass)+'</div>';
-    h+='<div class="s" style="color:'+(nPagAss>=nSoci?"#7be0a8":"#e0a0a0")+'">'+nPagAss+' su '+nSoci+' versate</div></div>';
-    h+='<div class="p" style="border-left:3px solid #1D9E75"><div class="t">Quote giornata</div>';
-    h+='<div class="v">'+eur(gio)+'</div>';
-    h+='<div class="s" style="color:var(--muted)">'+movimenti.filter(function(m){return m.causale==="giornata";}).length+' versamenti</div></div>';
-    h+='</div>';
-
-    var obiAperti=obiettivi.filter(function(o){return !o.chiuso;}).length;
-    h+='<div class="pann">';
-    h+='<div class="p" style="border-left:3px solid #E0922B"><div class="t">Obiettivi</div>';
-    h+='<div class="v">'+eur(obi)+'</div>';
-    h+='<div class="s" style="color:var(--muted)">'+obiAperti+' attiv'+(obiAperti===1?'o':'i')+'</div></div>';
-    h+='<div class="p" style="border-left:3px solid #C0392B"><div class="t">Spese sostenute</div>';
-    h+='<div class="v" style="color:#e0a0a0">'+eur(uscite)+'</div>';
-    h+='<div class="s" style="color:var(--muted)">'+movimenti.filter(function(m){return m.tipo==="uscita";}).length+' uscite</div></div>';
-    h+='</div>';
+    // PANNELLI PER CAUSALE (v3.75): per ognuna da incassare, incassato e quanto manca
+    var cs = contiCassaSquadra();
+    var obiAperti = cs.obi.attivi;
+    if(cs.daRimborsare > 0.004){
+      h = h.replace(/<\/div>$/, '');
+      h += '<div style="margin-top:9px; padding-top:9px; border-top:1px solid rgba(123,224,168,.2); font-size:11px; color:#e0b878">';
+      h += '\u26a0 '+eur(cs.daRimborsare)+' anticipati dai cacciatori, da rimborsare</div></div>';
+    }
+    function pannelloCausale(tit, sotto, col, c){
+      var perc = c.dovuto > 0 ? Math.min(100, Math.round(c.dato / c.dovuto * 100)) : 0;
+      var x = '<div class="card" style="border-left:3px solid '+col+'; border-radius:0 12px 12px 0; margin-bottom:8px; padding:11px 12px">';
+      x += '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px">'
+        +  '<span style="font-size:13.5px; color:var(--cream); font-weight:600">'+tit+'</span>'
+        +  '<span style="font-size:11px; color:var(--muted)">'+sotto+'</span></div>';
+      x += '<div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; text-align:center">'
+        +  '<div><div style="font-size:10.5px; color:var(--muted)">da incassare</div><div style="font-size:15px; color:var(--cream); font-weight:600">'+eur(c.dovuto)+'</div></div>'
+        +  '<div><div style="font-size:10.5px; color:#7bd3b0">incassato</div><div style="font-size:15px; color:#7be0a8; font-weight:600">'+eur(c.dato)+'</div></div>'
+        +  '<div><div style="font-size:10.5px; color:#e0a0a0">manca</div><div style="font-size:15px; color:'+(c.manca>0.004?'#e0a0a0':'#7be0a8')+'; font-weight:600">'+eur(c.manca)+'</div></div>'
+        +  '</div>';
+      if(c.dovuto > 0) x += '<div style="height:5px; border-radius:3px; background:var(--dark3); margin-top:9px; overflow:hidden"><div style="height:100%; width:'+perc+'%; background:#1D9E75"></div></div>';
+      return x + '</div>';
+    }
+    h+='<div class="sechead">Per causale \u00b7 stagione '+stagioneCorrente()+'</div>';
+    h+=pannelloCausale("Quote associative", cs.ass.pagati+' su '+cs.ass.soci+' in regola', "#D4537E", cs.ass);
+    h+=pannelloCausale("Quote giornata", cs.gio.giornate+' giornat'+(cs.gio.giornate===1?'a':'e')+' concluse', "#1D9E75", cs.gio);
+    h+=pannelloCausale("Obiettivi", obiAperti+' attiv'+(obiAperti===1?'o':'i'), "#E0922B", cs.obi);
+    var nSostenute = movimenti.filter(function(m){ return m.tipo==="uscita" && !m.programmata; }).length;
+    h+='<div class="card" style="border-left:3px solid #C0392B; border-radius:0 12px 12px 0; margin-bottom:8px; padding:11px 12px">';
+    h+='<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px">'
+      +'<span style="font-size:13.5px; color:var(--cream); font-weight:600">Spese</span>'
+      +'<span style="font-size:11px; color:var(--muted)">'+nSostenute+' registrate</span></div>';
+    h+='<div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; text-align:center">'
+      +'<div><div style="font-size:10.5px; color:#e0a0a0">uscite dalla cassa</div><div style="font-size:15px; color:#e0a0a0; font-weight:600">'+eur(uscite)+'</div></div>'
+      +'<div><div style="font-size:10.5px; color:var(--muted)">da affrontare</div><div style="font-size:15px; color:var(--amber); font-weight:600">'+eur(totProgrammate())+'</div></div>'
+      +'<div><div style="font-size:10.5px; color:#e0b878">da rimborsare</div><div style="font-size:15px; color:#e0b878; font-weight:600">'+eur(cs.daRimborsare)+'</div></div>'
+      +'</div></div>';
 
     // LE PORTE
     h+='<div class="sechead">Sezioni</div>';
@@ -19260,60 +19369,94 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   function renderCassaCacciatore(root, deleghe){
-    var s=mioSaldo();
-    var h='';
+    /* v3.75 - IL MIO CONTO per causale: dovuto, pagato, manca; il credito per le
+       spese anticipate; in cima il totale: quanto devo alla squadra (o lei a me). */
+    var c = contoMembro(me.membro_id);
+    var h = '';
 
     // se sono delegato a raccogliere, lo vedo in cima
     if(deleghe && deleghe.length){
       h+='<div class="card" style="background:#4a3320; border:1px solid var(--gold); margin-bottom:14px">';
-      h+='<div style="font-size:13px; color:var(--gold); font-weight:600; margin-bottom:6px">💰 Sei delegato alla raccolta</div>';
+      h+='<div style="font-size:13px; color:var(--gold); font-weight:600; margin-bottom:6px">\ud83d\udcb0 Sei delegato alla raccolta</div>';
       deleghe.forEach(function(b){
         h+='<div class="qrow" data-deleg="'+b.data+'" style="background:var(--dark2); cursor:pointer">';
         h+='<div class="nm">'+fmtGiorno(daIso(b.data))+'</div>';
-        h+='<div class="stato" style="color:var(--gold)">raccogli ›</div></div>';
+        h+='<div class="stato" style="color:var(--gold)">raccogli \u203a</div></div>';
       });
       h+='<div style="font-size:11px; color:var(--muted); margin-top:8px; line-height:1.5">La delega vale solo per quelle giornate.</div>';
       h+='</div>';
     }
-    var neg = s.saldo < 0;
-    h+='<div style="background:'+(neg?"#4a2a20":"#1d3a2a")+'; border-radius:15px; padding:18px; text-align:center; margin-bottom:14px">';
-    h+='<div style="font-size:11px; color:'+(neg?"#e0a0a0":"#7bd3b0")+'; margin-bottom:5px; letter-spacing:.5px">SALDO VERSO LA SQUADRA</div>';
-    h+='<div style="font-size:28px; font-weight:700; color:'+(neg?"#e0a0a0":"#7be0a8")+'">'+(neg?"− ":"")+eur(Math.abs(s.saldo))+'</div>';
-    h+='<div style="font-size:10px; color:'+(neg?"#c08080":"#7bd3b0")+'; margin-top:3px">'+(neg?"da versare":"in pari")+'</div>';
+
+    var deve = c.netto > 0.004, avere = c.netto < -0.004;
+    h+='<div style="background:'+(deve?"#4a2a20":"#1d3a2a")+'; border-radius:15px; padding:18px; text-align:center; margin-bottom:14px">';
+    h+='<div style="font-size:11px; color:'+(deve?"#e0a0a0":"#7bd3b0")+'; margin-bottom:5px; letter-spacing:.5px">'
+      + (deve ? "DEVI ALLA SQUADRA" : (avere ? "LA SQUADRA TI DEVE" : "SEI IN PARI")) + '</div>';
+    h+='<div style="font-size:28px; font-weight:700; color:'+(deve?"#e0a0a0":"#7be0a8")+'">'+eur(Math.abs(c.netto))+'</div>';
+    if(c.credito > 0.004){
+      h+='<div style="font-size:11px; color:'+(deve?"#c08080":"#7bd3b0")+'; margin-top:4px">debito '+eur(c.debito)+' \u2212 credito '+eur(c.credito)+'</div>';
+    }
+    h+='<div style="font-size:10px; color:var(--muted); margin-top:4px">stagione '+stagioneCorrente()+'</div>';
     h+='</div>';
 
-    // COSA DEVI
-    var deve=[];
-    var qa=Number(config.quota_associativa)||0;
-    if(qa){
-      var pa=movimenti.filter(function(m){return m.causale==="associativa" && m.membro_id===me.membro_id;})
-                      .reduce(function(x,m){return x+(Number(m.importo)||0);},0);
-      if(pa<qa) deve.push({t:"Quota associativa", v:qa-pa});
+    // PER CAUSALE
+    function riga(tit, x, nota){
+      var ok = x.manca <= 0.004;
+      return '<div style="display:grid; grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr)); gap:4px; align-items:center; padding:10px 11px; background:var(--dark2); border-radius:9px; margin-bottom:5px">'
+        + '<span style="font-size:13px; color:var(--cream)">'+tit+(nota?'<span style="display:block; font-size:10.5px; color:var(--muted)">'+nota+'</span>':'')+'</span>'
+        + '<span style="font-size:12.5px; color:var(--cream); text-align:right">'+eur(x.dovuto).replace("\u20ac ","")+'</span>'
+        + '<span style="font-size:12.5px; color:#7be0a8; text-align:right">'+eur(x.dato).replace("\u20ac ","")+'</span>'
+        + '<span style="font-size:12.5px; font-weight:600; color:'+(ok?'#7be0a8':'#e0a0a0')+'; text-align:right">'+(ok?'\u2713':eur(x.manca).replace("\u20ac ",""))+'</span>'
+        + '</div>';
     }
-    partObiettivo.filter(function(p){return p.membro_id===me.membro_id;}).forEach(function(p){
-      var o=obiettivi.find(function(x){return x.id===p.obiettivo_id;});
-      if(!o || o.chiuso) return;
-      var v=movimenti.filter(function(m){return m.causale==="obiettivo" && m.rif_id===p.obiettivo_id && m.membro_id===me.membro_id;})
-                     .reduce(function(x,m){return x+(Number(m.importo)||0);},0);
-      var q=Number(p.quota)||0;
-      if(v<q) deve.push({t:o.nome, v:q-v});
-    });
+    h+='<div class="sechead">Per causale</div>';
+    h+='<div style="display:grid; grid-template-columns:minmax(0,1.5fr) repeat(3,minmax(0,1fr)); gap:4px; padding:0 11px 4px; font-size:10.5px; color:var(--muted)">'
+      +'<span></span><span style="text-align:right">dovuto</span><span style="text-align:right">pagato</span><span style="text-align:right">manca</span></div>';
+    h+=riga("Quota associativa", c.ass, "stagione "+stagioneCorrente());
+    h+=riga("Quote di giornata", c.gio, c.gio.n+" giornat"+(c.gio.n===1?"a":"e"));
+    if(c.obi.righe.length){
+      c.obi.righe.forEach(function(r){ h+=riga(esc(r.obiettivo.nome), r, "obiettivo"); });
+    }else{
+      h+=riga("Obiettivi", c.obi, "nessuno aperto");
+    }
 
-    if(deve.length){
-      h+='<div class="sechead">Cosa devi</div>';
-      deve.forEach(function(d){
-        h+='<div style="display:flex; justify-content:space-between; padding:10px 11px; background:var(--dark2); border-radius:9px; margin-bottom:5px">';
-        h+='<span style="font-size:13px; color:var(--cream)">'+esc(d.t)+'</span>';
-        h+='<span style="font-size:13px; color:#e0a0a0; font-weight:600">− '+eur(d.v).replace("€ ","")+'</span></div>';
+    // LE GIORNATE CHE MANCANO
+    var gioMancano = c.gio.righe.filter(function(r){ return r.manca > 0.004; });
+    if(gioMancano.length){
+      h+='<div class="sechead">Giornate da pagare</div>';
+      gioMancano.sort(function(a,b){ return String(a.battuta.data) < String(b.battuta.data) ? -1 : 1; }).forEach(function(r){
+        h+='<div style="display:flex; justify-content:space-between; padding:9px 11px; background:var(--dark2); border-radius:9px; margin-bottom:5px">';
+        h+='<span style="font-size:12.5px; color:var(--cream)">'+esc(fmtGiorno(daIso(String(r.battuta.data).slice(0,10))))+' <span style="color:var(--muted); font-size:11px">\u00b7 quota '+eur(r.dovuto)+'</span></span>';
+        h+='<span style="font-size:12.5px; color:#e0a0a0; font-weight:600">'+eur(r.manca)+'</span></div>';
       });
     }
 
-    // COSA HAI VERSATO
-    var miei=movimenti.filter(function(m){return m.membro_id===me.membro_id && m.tipo==="entrata";});
+    // IL MIO CREDITO: le spese che ho anticipato per la squadra
+    var miei = movimenti.filter(function(m){ return eAnticipo(m) && m.anticipata_da===me.membro_id; });
+    var rimb = movimenti.filter(function(m){ return m.tipo==="uscita" && !m.programmata && m.rimborso_a===me.membro_id; });
     if(miei.length){
+      h+='<div class="sechead">Hai anticipato per la squadra</div>';
+      h+='<div class="card" style="border:1px solid #1D9E7599">';
+      miei.forEach(function(m){
+        h+='<div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0">'
+          +'<span style="color:var(--cream)">'+esc(m.descrizione||"Spesa")+(m.data?' <span style="color:var(--muted); font-size:11px">\u00b7 '+fmtData2(dataDi(m))+'</span>':'')+'</span>'
+          +'<span style="color:#7be0a8">+ '+eur(m.importo).replace("\u20ac ","")+'</span></div>';
+      });
+      rimb.forEach(function(m){
+        h+='<div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0">'
+          +'<span style="color:var(--muted)">'+esc(m.descrizione||"Rimborso")+(m.data?' \u00b7 '+fmtData2(dataDi(m)):'')+'</span>'
+          +'<span style="color:var(--muted)">\u2212 '+eur(m.importo).replace("\u20ac ","")+'</span></div>';
+      });
+      h+='<div style="display:flex; justify-content:space-between; font-size:13px; padding-top:7px; margin-top:4px; border-top:1px solid var(--dark3)">'
+        +'<span style="color:var(--cream)">Da avere dalla squadra</span><span style="color:#7be0a8; font-weight:700">'+eur(c.credito)+'</span></div>';
+      h+='</div>';
+    }
+
+    // COSA HAI VERSATO
+    var versati = movimenti.filter(function(m){ return m.membro_id===me.membro_id && m.tipo==="entrata"; });
+    if(versati.length){
       h+='<div class="sechead">Cosa hai versato</div>';
       var perCausale={};
-      miei.forEach(function(m){
+      versati.forEach(function(m){
         var k=m.causale||"altro";
         if(!perCausale[k]) perCausale[k]={n:0, tot:0};
         perCausale[k].n++;
@@ -19324,14 +19467,14 @@ header .menubtn{min-width:48px; min-height:48px;}
         var d=perCausale[k];
         h+='<div style="display:flex; justify-content:space-between; padding:10px 11px; background:#1d3a2a; border-radius:9px; margin-bottom:5px">';
         h+='<span style="font-size:13px; color:var(--cream)">'+(nomi[k]||k)+(d.n>1?" ("+d.n+")":"")+'</span>';
-        h+='<span style="font-size:12px; color:#7be0a8">✓ '+eur(d.tot)+'</span></div>';
+        h+='<span style="font-size:12px; color:#7be0a8">\u2713 '+eur(d.tot)+'</span></div>';
       });
     }else{
       h+='<div class="card" style="font-size:12px; color:var(--muted); margin-top:12px">Nessun versamento registrato.</div>';
     }
 
     h+='<div class="card" style="margin-top:14px; font-size:11px; color:var(--muted); line-height:1.5">'+
-       'Vedi solo il tuo conto. La cassa della squadra è del cassiere.</div>';
+       'Vedi solo il tuo conto. La cassa della squadra \u00e8 del cassiere.</div>';
     root.innerHTML=h;
     root.querySelectorAll("[data-deleg]").forEach(function(el){
       el.onclick=function(){
@@ -19378,20 +19521,20 @@ header .menubtn{min-width:48px; min-height:48px;}
      quanto manca. Se la giornata e' conclusa e qualcuno non ha versato, il
      pallino rosso dice quanti sono e quanto devono. */
   function contiGiornata(b){
-    var quota = Number(config.quota_giornata)||0;
-    var ades = adesioni.filter(function(a){ return a.battuta_id===b.id; });
+    /* v3.75: quota della giornata (2 o 10 euro), presenze anche dalla cassa */
+    var quota = quotaDiGiornata(b);
+    var ades = adesioniDi(b.id);
     var gente = (b.stato==="conclusa")
       ? ades.filter(function(a){ return a.presente; })
       : ades.filter(function(a){ return a.viene; });
-    var atteso = gente.length * quota, dato = 0, debitori = 0;
+    var atteso = gente.length * quota, dato = 0, debitori = 0, debito = 0;
     gente.forEach(function(a){
-      var v = movimenti.filter(function(m){ return m.causale==="giornata" && m.rif_id===b.id && m.membro_id===a.membro_id; })
-                       .reduce(function(s,m){ return s+(Number(m.importo)||0); }, 0);
+      var v = versatoGiornata(b.id, a.membro_id);
       dato += v;
-      if(v < quota) debitori++;
+      if(v < quota - 0.004){ debitori++; debito += (quota - v); }
     });
-    return {gente:gente.length, atteso:atteso, dato:dato,
-            debito:Math.max(0, atteso-dato), debitori:debitori, conclusa:b.stato==="conclusa"};
+    return {gente:gente.length, atteso:atteso, dato:dato, quota:quota,
+            debito:debito, debitori:debitori, conclusa:b.stato==="conclusa"};
   }
 
   async function renderQuoteCalendario(root){
@@ -19402,13 +19545,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     }).sort(function(x,y){ return String(x.data) > String(y.data) ? -1 : 1; });
 
     /* le adesioni di tutte le giornate servono per i conti */
-    var manca = gior.filter(function(b){ return !adesioni.some(function(a){ return a.battuta_id===b.id; }); });
+    var manca = gior.filter(function(b){ return !adesioniDi(b.id).length; });
     if(manca.length && navigator.onLine){
       root.innerHTML = '<div class="loading">Carico\u2026</div>';
       try{
         var r = await sb.from("hn_adesioni").select("*").in("battuta_id", manca.map(function(b){ return b.id; }));
         if(!r.error) (r.data||[]).forEach(function(a){
-          if(!adesioni.find(function(x){ return x.id===a.id; })) adesioni.push(a);
+          if(!cassaAdes.find(function(x){ return x.id===a.id; })) cassaAdes.push(a);
         });
       }catch(e){}
     }
@@ -19428,7 +19571,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         + '<div style="display:flex; align-items:center; gap:10px">'
         + '<span style="flex:1; min-width:0">'
         + '<span style="display:block; font-size:14px; color:var(--cream)">'+esc(fmtGiorno(daIso(String(b.data).slice(0,10))))
-        + (c.conclusa ? '' : ' <span style="font-size:11px; color:var(--gold)">\u00b7 aperta</span>') + '</span>'
+        + (c.conclusa ? '' : ' <span style="font-size:11px; color:var(--gold)">\u00b7 aperta</span>')
+        + (Math.abs(c.quota - (Number(config.quota_giornata)||0)) > 0.004 ? ' <span style="font-size:11px; color:var(--gold)">\u00b7 quota '+eur(c.quota)+'</span>' : '') + '</span>'
         + '<span style="display:block; font-size:11.5px; color:var(--muted); margin-top:3px">'
         + c.gente + (c.gente===1?' persona':' persone') + ' \u00b7 totale ' + eur(c.atteso)
         + ' \u00b7 dati <b style="color:#7be0a8">' + eur(c.dato) + '</b>'
@@ -19455,17 +19599,19 @@ header .menubtn{min-width:48px; min-height:48px;}
   function renderQuoteGiorno(root){
     var b=battutaDi(giornoQuote);
     if(!b){ giornoQuote=null; renderQuoteCalendario(root); return; }
-    var quota=Number(config.quota_giornata)||0;
-    var ades=adesioni.filter(function(a){return a.battuta_id===b.id;});
+    var quota=quotaDiGiornata(b);
+    var ades=adesioniDi(b.id);
 
     // carico le adesioni se non le ho
-    if(!ades.length){
+    if(!ades.length && !renderQuoteGiorno.__caricando){
+      renderQuoteGiorno.__caricando = true;
       sb.from("hn_adesioni").select("*").eq("battuta_id",b.id).then(function(r){
-        if(!r.error && r.data){
-          r.data.forEach(function(a){ if(!adesioni.find(function(x){return x.id===a.id;})) adesioni.push(a); });
+        renderQuoteGiorno.__caricando = false;
+        if(!r.error && r.data && r.data.length){
+          r.data.forEach(function(a){ if(!cassaAdes.find(function(x){return x.id===a.id;})) cassaAdes.push(a); });
           renderQuoteGiorno(root);
         }
-      });
+      }, function(){ renderQuoteGiorno.__caricando = false; });
     }
 
     // se la giornata e' stata conclusa contano i presenti VERI;
@@ -19473,17 +19619,20 @@ header .menubtn{min-width:48px; min-height:48px;}
     var presenti = (b.stato==="conclusa")
       ? ades.filter(function(a){ return a.presente; })
       : ades.filter(function(a){ return a.viene; });
-    var pagati=0, tot=0;
+    var pagati=0, tot=0, mancano=0;
     presenti.forEach(function(a){
-      var v=movimenti.filter(function(m){return m.causale==="giornata" && m.rif_id===b.id && m.membro_id===a.membro_id;})
-                     .reduce(function(s,m){return s+(Number(m.importo)||0);},0);
-      if(v>0){ pagati++; tot+=v; }
+      var v=versatoGiornata(b.id, a.membro_id);
+      tot+=v;
+      if(v >= quota - 0.004) pagati++; else mancano += (quota - v);
     });
-    var mancano=Math.max(0, (presenti.length-pagati)*quota);
 
-    var h='<button class="btn line" id="qg-back" style="margin-bottom:14px">‹ Torna al calendario</button>';
+    var h='<button class="btn line" id="qg-back" style="margin-bottom:14px">\u2039 Torna al calendario</button>';
     h+='<div style="font-size:15px; font-weight:600; color:var(--cream); margin-bottom:3px">'+fmtGiorno(daIso(giornoQuote))+'</div>';
-    h+='<div style="font-size:11px; color:var(--muted); margin-bottom:13px">quota '+eur(quota)+' · '+presenti.length+' presenti</div>';
+    var diversa = Math.abs(quota - (Number(config.quota_giornata)||0)) > 0.004;
+    h+='<div style="font-size:11px; color:var(--muted); margin-bottom:8px">quota '+(diversa?'<b style="color:var(--gold)">'+eur(quota)+'</b>':eur(quota))+' \u00b7 '+presenti.length+' presenti</div>';
+    if(puoGestireCassa()){
+      h+='<button class="btn line" id="qg-quota" style="margin-bottom:13px; font-size:12.5px">'+(diversa?'Quota di questa giornata: '+eur(quota)+' \u00b7 cambia':'Cambia la quota di questa giornata (es. 10 \u20ac)')+'</button>';
+    }
 
     h+='<div class="conta">';
     h+='<div class="box" style="background:#1d3a2a"><div class="n" style="color:#7be0a8">'+eur(tot)+'</div><div class="t" style="color:#7bd3b0">raccolti</div></div>';
@@ -19495,16 +19644,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!presenti.length) h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessun presente registrato.</div>';
     presenti.forEach(function(a){
       var m=membri.find(function(x){return x.id===a.membro_id;});
-      var v=movimenti.filter(function(mv){return mv.causale==="giornata" && mv.rif_id===b.id && mv.membro_id===a.membro_id;})
-                     .reduce(function(s,mv){return s+(Number(mv.importo)||0);},0);
-      var pagato=v>0;
+      var v=versatoGiornata(b.id, a.membro_id);
+      var pagato = v >= quota - 0.004, parziale = v > 0.004 && !pagato;
       h+='<div class="qrow '+(pagato?'pagato':'')+'" data-quota="'+a.membro_id+'">';
-      h+='<div class="nm">'+esc(m?m.nome:"—")+'</div>';
-      h+='<div class="stato '+(pagato?'si':'no')+'">'+(pagato?'✓ '+eur(v):'non dato')+'</div>';
+      h+='<div class="nm">'+esc(m?m.nome:"\u2014")+'</div>';
+      h+='<div class="stato '+(pagato?'si':'no')+'">'+(pagato?'\u2713 '+eur(v):(parziale?(eur(v)+' \u00b7 mancano '+eur(quota-v)):'non dato'))+'</div>';
       h+='</div>';
       if(a.ospiti){
         for(var i=0;i<a.ospiti;i++){
-          h+='<div class="qrow" style="opacity:.6"><div class="nm">ospite di '+esc(m?m.nome:"—")+'</div>';
+          h+='<div class="qrow" style="opacity:.6"><div class="nm">ospite di '+esc(m?m.nome:"\u2014")+'</div>';
           h+='<div class="stato esente">esente</div></div>';
         }
       }
@@ -19513,32 +19661,65 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     root.innerHTML=h;
     root.querySelector("#qg-back").onclick=function(){ giornoQuote=null; renderQuoteCalendario(root); };
+    var bq = root.querySelector("#qg-quota");
+    if(bq) bq.onclick=function(){ cambiaQuotaGiornata(b); };
     root.querySelectorAll("[data-quota]").forEach(function(el){
       el.onclick=function(){ segnaQuotaGiornata(b, el.dataset.quota, quota); };
     });
   }
 
+  /* la quota di UNA giornata: di norma quella delle impostazioni, ogni 15 giorni 10 euro */
+  function cambiaQuotaGiornata(b){
+    if(!puoGestireCassa()){ toast("Solo il cassiere"); return; }
+    chiediTesto("Quota di questa giornata", "In euro. Normale: "+eur(config.quota_giornata||0).replace("\u20ac ","")+" \u20ac",
+      String(quotaDiGiornata(b)).replace(".",","), "text", async function(v){
+        var val = parseFloat(String(v||"").replace(",","."));
+        if(isNaN(val) || val < 0){ toast("Importo non valido"); return; }
+        var normale = Number(config.quota_giornata)||0;
+        var nuovo = (Math.abs(val - normale) < 0.004) ? null : val;
+        try{
+          var r = await sb.from("hn_battute").update({quota_giornata:nuovo}).eq("id", b.id).select().single();
+          if(r.error) throw r.error;
+          b.quota_giornata = nuovo;
+          var i = battute.findIndex(function(x){ return x.id===b.id; });
+          if(i>=0) battute[i].quota_giornata = nuovo;
+          toast("Quota della giornata: "+eur(val));
+          renderQuoteGiorno(document.getElementById("cassasub-scroll"));
+        }catch(e){ toast("Non riesco: "+(e.message||"serve la rete")); }
+      });
+  }
+
+  /* tocco su un nome: se non ha versato tutto, versa quello che manca;
+     se e' in regola, chiede se togliere il versamento */
   async function segnaQuotaGiornata(battuta, membroId, quota){
     if(!puoIncassareGiornata(battuta)){ toast("Non sei delegato per questa giornata"); return; }
-    var esistente=movimenti.find(function(m){ return m.causale==="giornata" && m.rif_id===battuta.id && m.membro_id===membroId; });
+    var suoi=movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="giornata" && m.rif_id===battuta.id && m.membro_id===membroId; });
+    var v=somma(suoi);
+    var rifai=function(){ renderQuoteGiorno(document.getElementById("cassasub-scroll")); };
+    if(v >= quota - 0.004 && suoi.length){
+      chiediConferma("Togliere il versamento?", "Si toglie "+eur(v)+" versato per questa giornata.", "Togli", async function(){
+        try{
+          var d=await sb.from("hn_movimenti").delete().in("id", suoi.map(function(m){ return m.id; }));
+          if(d.error) throw d.error;
+          movimenti=movimenti.filter(function(m){ return suoi.indexOf(m)<0; });
+          toast("Versamento tolto");
+          rifai();
+        }catch(e){ toast("Serve la rete"); }
+      });
+      return;
+    }
+    var importo = Math.round((quota - v)*100)/100;
+    if(importo <= 0){ toast("Quota a zero: niente da versare"); return; }
     try{
-      if(esistente){
-        if(!confirm("Togliere il versamento?")) return;
-        var d=await sb.from("hn_movimenti").delete().eq("id",esistente.id);
-        if(d.error) throw d.error;
-        movimenti=movimenti.filter(function(m){return m.id!==esistente.id;});
-        toast("Versamento tolto");
-      }else{
-        var r=await sb.from("hn_movimenti").insert({
-          squadra_id:me.squadra_id, tipo:"entrata", causale:"giornata",
-          importo:quota, membro_id:membroId, rif_id:battuta.id,
-          data:battuta.data, registrato_da:me.user_id
-        }).select().single();
-        if(r.error) throw r.error;
-        movimenti.unshift(r.data);
-        toast("Versato "+eur(quota));
-      }
-      renderQuoteGiorno(document.getElementById("cassasub-scroll"));
+      var r=await sb.from("hn_movimenti").insert({
+        squadra_id:me.squadra_id, tipo:"entrata", causale:"giornata",
+        importo:importo, membro_id:membroId, rif_id:battuta.id,
+        data:battuta.data, registrato_da:me.user_id
+      }).select().single();
+      if(r.error) throw r.error;
+      movimenti.unshift(r.data);
+      toast("Versato "+eur(importo));
+      rifai();
     }catch(e){ toast("Serve la rete"); }
   }
 
@@ -19760,22 +19941,22 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   /* --- QUOTE ASSOCIATIVE --- */
   function renderAssociative(root){
-    var qa=Number(config.quota_associativa)||0;
+    /* v3.75: la quota associativa e' PER STAGIONE */
+    var qa=Number(config.quota_associativa)||0, st=stagioneCorrente();
     var soci=membri.filter(function(m){return m.tipo!=="ospite";});
     var h='<div class="card" style="margin-bottom:14px"><div style="font-size:11px; color:var(--muted)">Quota associativa</div>';
     h+='<div style="font-size:22px; font-weight:700; color:var(--cream)">'+eur(qa)+'</div>';
-    h+='<div style="font-size:10px; color:var(--muted); margin-top:2px">una tantum, per ogni socio</div></div>';
+    h+='<div style="font-size:10px; color:var(--muted); margin-top:2px">per ogni socio, ogni stagione \u00b7 stagione '+st+'</div></div>';
 
     if(!qa) h+='<div class="card" style="font-size:12px; color:var(--amber)">Imposta prima la quota dalle impostazioni.</div>';
 
-    h+='<div class="sechead">Chi ha versato</div>';
+    h+='<div class="sechead">Chi ha versato \u00b7 '+st+'</div>';
     soci.forEach(function(s){
-      var v=movimenti.filter(function(m){return m.causale==="associativa" && m.membro_id===s.id;})
-                     .reduce(function(x,m){return x+(Number(m.importo)||0);},0);
-      var pagato=v>0;
+      var v=versatoAssociativa(s.id, st);
+      var pagato = qa ? v >= qa - 0.004 : v > 0, parziale = v > 0.004 && !pagato;
       h+='<div class="qrow '+(pagato?'pagato':'')+'" data-ass="'+s.id+'">';
       h+='<div class="nm">'+esc(s.nome)+'</div>';
-      h+='<div class="stato '+(pagato?'si':'no')+'">'+(pagato?'✓ '+eur(v):'non versata')+'</div></div>';
+      h+='<div class="stato '+(pagato?'si':'no')+'">'+(pagato?'\u2713 '+eur(v):(parziale?(eur(v)+' \u00b7 mancano '+eur(qa-v)):'non versata'))+'</div></div>';
     });
     root.innerHTML=h;
     root.querySelectorAll("[data-ass]").forEach(function(el){
@@ -19786,34 +19967,68 @@ header .menubtn{min-width:48px; min-height:48px;}
   async function segnaAssociativa(membroId, quota){
     if(!puoGestireCassa()){ toast("Solo il responsabile"); return; }
     if(!quota){ toast("Imposta prima la quota"); return; }
-    var esistente=movimenti.find(function(m){return m.causale==="associativa" && m.membro_id===membroId;});
+    var st=stagioneCorrente();
+    var suoi=movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="associativa" && m.membro_id===membroId && stagioneDi(dataDi(m))===st; });
+    var v=somma(suoi);
+    var rifai=function(){ renderAssociative(document.getElementById("cassasub-scroll")); };
+    if(v >= quota - 0.004 && suoi.length){
+      chiediConferma("Togliere il versamento?", "Si toglie "+eur(v)+" di quota associativa della stagione "+st+".", "Togli", async function(){
+        try{
+          var d=await sb.from("hn_movimenti").delete().in("id", suoi.map(function(m){ return m.id; }));
+          if(d.error) throw d.error;
+          movimenti=movimenti.filter(function(m){ return suoi.indexOf(m)<0; });
+          toast("Versamento tolto");
+          rifai();
+        }catch(e){ toast("Serve la rete"); }
+      });
+      return;
+    }
+    var importo=Math.round((quota - v)*100)/100;
     try{
-      if(esistente){
-        if(!confirm("Togliere il versamento?")) return;
-        var d=await sb.from("hn_movimenti").delete().eq("id",esistente.id);
-        if(d.error) throw d.error;
-        movimenti=movimenti.filter(function(m){return m.id!==esistente.id;});
-        toast("Versamento tolto");
-      }else{
-        var r=await sb.from("hn_movimenti").insert({
-          squadra_id:me.squadra_id, tipo:"entrata", causale:"associativa",
-          importo:quota, membro_id:membroId, data:iso(new Date()), registrato_da:me.user_id
-        }).select().single();
-        if(r.error) throw r.error;
-        movimenti.unshift(r.data);
-        toast("Quota versata");
-      }
-      renderAssociative(document.getElementById("cassasub-scroll"));
+      var r=await sb.from("hn_movimenti").insert({
+        squadra_id:me.squadra_id, tipo:"entrata", causale:"associativa",
+        importo:importo, membro_id:membroId, data:iso(new Date()), registrato_da:me.user_id
+      }).select().single();
+      if(r.error) throw r.error;
+      movimenti.unshift(r.data);
+      toast("Quota versata: "+eur(importo));
+      rifai();
     }catch(e){ toast("Serve la rete"); }
   }
 
-  /* --- SPESE --- */
+  /* --- SPESE ---
+     v3.75: una spesa sostenuta la paga la CASSA oppure un cacciatore di tasca sua
+     (anticipata_da): in quel caso non esce dalla cassa e diventa un suo credito.
+     Il cassiere il credito lo RIMBORSA (esce dalla cassa) o lo COMPENSA con le
+     quote che quel cacciatore deve (entrate + rimborso: la cassa non si muove). */
+  var spesaInAttesa = null;   // {desc, imp}: aspetta di sapere chi l'ha pagata
+
+  function nomeMembro(id){ var m=membri.find(function(x){ return x.id===id; }); return m ? m.nome : "\u2014"; }
+
   function renderSpese(root){
     var uscite=movimenti.filter(function(m){return m.tipo==="uscita" && !m.programmata;});
     var prog=movimenti.filter(function(m){return m.tipo==="uscita" && m.programmata;});
     var totProg=prog.reduce(function(s,m){return s+(Number(m.importo)||0);},0);
+    var cr=creditiAperti();
     var h='';
-    if(puoGestireCassa()){
+
+    // CHI L'HA PAGATA? (dopo descrizione e importo)
+    if(spesaInAttesa && puoGestireCassa()){
+      h+='<div class="card" style="border:1px solid var(--gold); margin-bottom:14px">';
+      h+='<div style="font-size:13px; color:var(--gold); font-weight:600">'+esc(spesaInAttesa.desc)+' \u00b7 '+eur(spesaInAttesa.imp)+'</div>';
+      h+='<div style="font-size:12px; color:var(--muted); margin:4px 0 10px">Chi l\u2019ha pagata?</div>';
+      h+='<button class="btn primary" data-pagata="" style="margin-bottom:8px">\ud83d\udcb6 La cassa</button>';
+      h+='<div style="font-size:11px; color:var(--muted); margin:6px 0">oppure l\u2019ha anticipata di tasca sua:</div>';
+      h+='<div style="display:flex; flex-wrap:wrap; gap:6px">';
+      membri.slice().sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome)); }).forEach(function(m){
+        h+='<button class="btn line" data-pagata="'+m.id+'" style="width:auto; flex:0 0 auto; font-size:12.5px; padding:8px 11px">'+esc(m.nome)+'</button>';
+      });
+      h+='</div>';
+      h+='<button class="btn line" id="sp-annulla" style="margin-top:10px">Annulla</button>';
+      h+='</div>';
+    }
+
+    if(puoGestireCassa() && !spesaInAttesa){
       h+='<div class="btnrow" style="margin-bottom:14px">';
       h+='<button class="btn primary" id="sp-new">+ Sostenuta</button>';
       h+='<button class="btn line" id="sp-prog">+ Da affrontare</button>';
@@ -19821,13 +20036,33 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
 
     h+='<div class="pann" style="margin-bottom:14px">';
-    h+='<div class="p" style="border-left:3px solid #C0392B"><div class="t">Spese sostenute</div>';
+    h+='<div class="p" style="border-left:3px solid #C0392B"><div class="t">Uscite dalla cassa</div>';
     h+='<div class="v" style="color:#e0a0a0">'+eur(totUscite())+'</div>';
-    h+='<div class="s" style="color:var(--muted)">'+uscite.length+' uscite</div></div>';
+    h+='<div class="s" style="color:var(--muted)">'+uscite.length+' registrate</div></div>';
     h+='<div class="p" style="border-left:3px solid #E0922B"><div class="t">Da affrontare</div>';
     h+='<div class="v" style="color:var(--amber)">'+eur(totProg)+'</div>';
     h+='<div class="s" style="color:var(--muted)">'+prog.length+' previste</div></div>';
     h+='</div>';
+
+    // DA RIMBORSARE: i crediti dei cacciatori
+    if(cr.length){
+      h+='<div class="sechead">Anticipate dai cacciatori \u00b7 da rimborsare</div>';
+      cr.forEach(function(x){
+        var cm = contoMembro(x.membro_id);
+        h+='<div class="card" style="border-left:3px solid #E0B878; border-radius:0 12px 12px 0">';
+        h+='<div style="display:flex; justify-content:space-between; align-items:baseline">';
+        h+='<span style="font-size:14px; color:var(--cream); font-weight:600">'+esc(nomeMembro(x.membro_id))+'</span>';
+        h+='<span style="font-size:15px; color:#e0b878; font-weight:700">'+eur(x.credito)+'</span></div>';
+        h+='<div style="font-size:11px; color:var(--muted); margin:3px 0 9px">'+(cm.debito > 0.004 ? 'deve alla squadra '+eur(cm.debito)+' di quote' : 'non ha quote da pagare')+'</div>';
+        if(puoGestireCassa()){
+          h+='<div class="btnrow">';
+          h+='<button class="btn line" data-rimborsa="'+x.membro_id+'" style="font-size:12.5px">\ud83d\udcb6 Rimborsa</button>';
+          h+='<button class="btn line" data-compensa="'+x.membro_id+'" style="font-size:12.5px">\u21c4 Compensa con le quote</button>';
+          h+='</div>';
+        }
+        h+='</div>';
+      });
+    }
 
     // DA AFFRONTARE
     h+='<div class="sechead">Spese da affrontare</div>';
@@ -19839,27 +20074,29 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='<div class="card" data-prog="'+m.id+'" style="cursor:pointer; border-left:3px solid '+col+'">';
       h+='<div style="display:flex; justify-content:space-between; align-items:baseline">';
       h+='<span style="font-size:14px; color:var(--cream); font-weight:600">'+esc(m.descrizione||"Spesa")+'</span>';
-      h+='<span style="font-size:15px; color:var(--amber); font-weight:700">'+eur(m.importo).replace("€ ","")+'</span></div>';
+      h+='<span style="font-size:15px; color:var(--amber); font-weight:700">'+eur(m.importo).replace("\u20ac ","")+'</span></div>';
       if(scad){
         h+='<div style="font-size:11px; color:'+col+'; margin-top:4px">';
-        h+= gg<0 ? ('scaduta il '+fmtData2(m.scadenza)) : ('entro il '+fmtData2(m.scadenza)+' · tra '+gg+' giorni');
+        h+= gg<0 ? ('scaduta il '+fmtData2(m.scadenza)) : ('entro il '+fmtData2(m.scadenza)+' \u00b7 tra '+gg+' giorni');
         h+='</div>';
       }
-      if(puoGestireCassa()) h+='<div style="font-size:11px; color:#7be0a8; margin-top:6px">✓ tocca per segnarla pagata</div>';
+      if(puoGestireCassa()) h+='<div style="font-size:11px; color:#7be0a8; margin-top:6px">\u2713 tocca per segnarla pagata</div>';
       h+='</div>';
     });
 
-    // SOSTENUTE
+    // SOSTENUTE (anche gli anticipi e i rimborsi)
     h+='<div class="sechead">Spese sostenute</div>';
     if(!uscite.length) h+='<div class="card" style="font-size:12px; color:var(--muted)">Nessuna spesa registrata.</div>';
     uscite.forEach(function(m){
-      var chi=membri.find(function(x){return x.id===m.membro_id;});
+      var ant = !!m.anticipata_da, rim = !!m.rimborso_a;
       h+='<div class="card" data-spesa="'+m.id+'" style="cursor:pointer">';
       h+='<div style="display:flex; justify-content:space-between; align-items:baseline">';
       h+='<span style="font-size:14px; color:var(--cream); font-weight:600">'+esc(m.descrizione||"Spesa")+'</span>';
-      h+='<span style="font-size:15px; color:#e0a0a0; font-weight:700">− '+eur(m.importo).replace("€ ","")+'</span></div>';
+      h+='<span style="font-size:15px; color:'+(ant?'#e0b878':'#e0a0a0')+'; font-weight:700">'+(ant?'':'\u2212 ')+eur(m.importo).replace("\u20ac ","")+'</span></div>';
       h+='<div style="font-size:11px; color:var(--muted); margin-top:4px">'+
-         (m.data ? fmtData2(m.data) : "") + (chi ? ' · anticipata da '+esc(chi.nome) : '')+'</div>';
+         (m.data ? fmtData2(dataDi(m)) : "")+
+         (ant ? ' \u00b7 <span style="color:#e0b878">anticipata da '+esc(nomeMembro(m.anticipata_da))+': non esce dalla cassa</span>' : '')+
+         (rim ? ' \u00b7 rimborso a '+esc(nomeMembro(m.rimborso_a)) : '')+'</div>';
       h+='</div>';
     });
 
@@ -19868,11 +20105,25 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(nb) nb.onclick=function(){ nuovaSpesa(false); };
     var np=root.querySelector("#sp-prog");
     if(np) np.onclick=function(){ nuovaSpesa(true); };
+    var na=root.querySelector("#sp-annulla");
+    if(na) na.onclick=function(){ spesaInAttesa=null; renderSpese(root); };
+    root.querySelectorAll("[data-pagata]").forEach(function(el){
+      el.onclick=function(){
+        var s=spesaInAttesa; spesaInAttesa=null;
+        if(s) scriviSpesa(false, s.desc, s.imp, null, el.dataset.pagata || null);
+      };
+    });
     root.querySelectorAll("[data-spesa]").forEach(function(el){
       el.onclick=function(){ eliminaSpesa(el.dataset.spesa); };
     });
     root.querySelectorAll("[data-prog]").forEach(function(el){
       el.onclick=function(){ pagaSpesaProgrammata(el.dataset.prog); };
+    });
+    root.querySelectorAll("[data-rimborsa]").forEach(function(el){
+      el.onclick=function(){ rimborsaAnticipo(el.dataset.rimborsa); };
+    });
+    root.querySelectorAll("[data-compensa]").forEach(function(el){
+      el.onclick=function(){ compensaAnticipo(el.dataset.compensa); };
     });
   }
 
@@ -19881,18 +20132,18 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!puoGestireCassa()){ toast("Solo il cassiere"); return; }
     var m=movimenti.find(function(x){return x.id===id;});
     if(!m) return;
-    var scelta=confirm('"'+(m.descrizione||"Spesa")+'" — '+eur(m.importo)+'\n\nOK = segnala come PAGATA\nAnnulla = non fare nulla');
-    if(!scelta) return;
-    try{
-      var r=await sb.from("hn_movimenti").update({
-        programmata:false, data:iso(new Date())
-      }).eq("id",id).select().single();
-      if(r.error) throw r.error;
-      var i=movimenti.findIndex(function(x){return x.id===id;});
-      if(i>=0) movimenti[i]=r.data;
-      renderSpese(document.getElementById("cassasub-scroll"));
-      toast("Spesa pagata: esce dalla cassa");
-    }catch(e){ toast("Serve la rete"); }
+    chiediConferma("Segnarla pagata?", '"'+(m.descrizione||"Spesa")+'" \u00b7 '+eur(m.importo)+"\nEsce dalla cassa.", "Pagata", async function(){
+      try{
+        var r=await sb.from("hn_movimenti").update({
+          programmata:false, data:iso(new Date())
+        }).eq("id",id).select().single();
+        if(r.error) throw r.error;
+        var i=movimenti.findIndex(function(x){return x.id===id;});
+        if(i>=0) movimenti[i]=r.data;
+        renderSpese(document.getElementById("cassasub-scroll"));
+        toast("Spesa pagata: esce dalla cassa");
+      }catch(e){ toast("Serve la rete"); }
+    });
   }
 
   function fmtData2(d){
@@ -19906,11 +20157,17 @@ header .menubtn{min-width:48px; min-height:48px;}
       {titolo:(programmata?"Spesa da affrontare":"Spesa sostenuta"), aiuto:"Descrizione, es. Veterinario", obbligatorio:true},
       {titolo:"Importo", aiuto:"In euro", obbligatorio:true}
     ];
-    if(programmata) passi.push({titolo:"Entro quando?", aiuto:"gg/mm/aaaa — lascia vuoto se non c'è scadenza"});
-    chiediInSerie(passi, function(r){ scriviSpesa(programmata, r[0], r[1], r[2]); });
+    if(programmata) passi.push({titolo:"Entro quando?", aiuto:"gg/mm/aaaa \u2014 lascia vuoto se non c'\u00e8 scadenza"});
+    chiediInSerie(passi, function(r){
+      if(programmata){ scriviSpesa(true, r[0], r[1], r[2], null); return; }
+      var val=parseFloat(String(r[1]||"").replace(",","."));
+      if(!val || val<=0){ toast("Importo non valido"); return; }
+      spesaInAttesa = {desc:String(r[0]||"").trim(), imp:val};
+      renderSpese(document.getElementById("cassasub-scroll"));
+    });
   }
 
-  async function scriviSpesa(programmata, desc, imp, sQuando){
+  async function scriviSpesa(programmata, desc, imp, sQuando, anticipataDa){
     var val=parseFloat(String(imp||"").replace(",","."));
     if(!val || val<=0){ toast("Importo non valido"); return; }
     var scad=null;
@@ -19924,42 +20181,118 @@ header .menubtn{min-width:48px; min-height:48px;}
     try{
       var dati={
         squadra_id:me.squadra_id, tipo:"uscita", causale:"spesa",
-        importo:val, descrizione:desc.trim(),
+        importo:val, descrizione:String(desc||"").trim(),
         programmata:!!programmata,
         data: programmata ? null : iso(new Date()),
         scadenza: scad,
         registrato_da:me.user_id
       };
+      if(anticipataDa) dati.anticipata_da = anticipataDa;
       var r=await sb.from("hn_movimenti").insert(dati).select().single();
       if(r.error) throw r.error;
       movimenti.unshift(r.data);
       renderSpese(document.getElementById("cassasub-scroll"));
-      toast(programmata ? "Spesa programmata" : "Spesa registrata");
-    }catch(e){ toast("Serve la rete"); }
+      toast(programmata ? "Spesa programmata" : (anticipataDa ? "Anticipata da "+nomeMembro(anticipataDa)+": \u00e8 un suo credito" : "Spesa registrata"));
+    }catch(e){ toast("Non riesco: "+(e.message||"serve la rete")); }
+  }
+
+  /* RIMBORSO: i soldi escono dalla cassa verso chi aveva anticipato */
+  function rimborsaAnticipo(mId){
+    if(!puoGestireCassa()) return;
+    var cred=creditoDi(mId);
+    if(cred <= 0.004){ toast("Niente da rimborsare"); return; }
+    chiediTesto("Rimborso a "+nomeMembro(mId), "Da avere: "+eur(cred)+". Escono dalla cassa.",
+      String(cred.toFixed(2)).replace(".",","), "text", async function(v){
+        var val=parseFloat(String(v||"").replace(",","."));
+        if(!val || val<=0){ toast("Importo non valido"); return; }
+        if(val > cred + 0.004){ toast("Pi\u00f9 del suo credito ("+eur(cred)+")"); return; }
+        try{
+          var r=await sb.from("hn_movimenti").insert({
+            squadra_id:me.squadra_id, tipo:"uscita", causale:"spesa", programmata:false,
+            importo:Math.round(val*100)/100, descrizione:"Rimborso anticipo a "+nomeMembro(mId),
+            rimborso_a:mId, data:iso(new Date()), registrato_da:me.user_id
+          }).select().single();
+          if(r.error) throw r.error;
+          movimenti.unshift(r.data);
+          renderSpese(document.getElementById("cassasub-scroll"));
+          toast("Rimborsati "+eur(val)+" a "+nomeMembro(mId));
+        }catch(e){ toast("Non riesco: "+(e.message||"serve la rete")); }
+      });
+  }
+
+  /* COMPENSAZIONE: il credito paga le sue quote (associativa, giornate, obiettivi),
+     fino a dove arriva. Tutto in UNA scrittura: le entrate e il rimborso insieme. */
+  function compensaAnticipo(mId){
+    if(!puoGestireCassa()) return;
+    var cred=creditoDi(mId), c=contoMembro(mId), resta=cred, voci=[];
+    var segno="Compensazione "+iso(new Date())+" "+String(Date.now()).slice(-6);
+    function prendi(imp, riga){
+      if(resta <= 0.004 || imp <= 0.004) return;
+      var x=Math.min(resta, imp); x=Math.round(x*100)/100;
+      resta=Math.round((resta-x)*100)/100;
+      riga.importo=x; voci.push(riga);
+    }
+    prendi(c.ass.manca, {causale:"associativa", rif_id:null, data:iso(new Date()), testo:"Quota associativa"});
+    c.gio.righe.filter(function(r){ return r.manca > 0.004; })
+      .sort(function(a,b){ return String(a.battuta.data) < String(b.battuta.data) ? -1 : 1; })
+      .forEach(function(r){ prendi(r.manca, {causale:"giornata", rif_id:r.battuta.id, data:String(r.battuta.data).slice(0,10), testo:"Giornata "+fmtData2(String(r.battuta.data).slice(0,10))}); });
+    c.obi.righe.filter(function(r){ return r.manca > 0.004; })
+      .forEach(function(r){ prendi(r.manca, {causale:"obiettivo", rif_id:r.obiettivo.id, data:iso(new Date()), testo:r.obiettivo.nome}); });
+    if(!voci.length){ toast(nomeMembro(mId)+" non ha quote da pagare"); return; }
+    var tot=voci.reduce(function(s,v){ return s+v.importo; },0);
+    var testo="Il credito di "+nomeMembro(mId)+" ("+eur(cred)+") paga:\n"
+      + voci.map(function(v){ return "\u2022 "+v.testo+": "+eur(v.importo); }).join("\n")
+      + "\n\nResta da avere: "+eur(cred-tot)+". La cassa non si muove.";
+    chiediConferma("Compensare?", testo, "Compensa", async function(){
+      var righe = voci.map(function(v){
+        return {squadra_id:me.squadra_id, tipo:"entrata", causale:v.causale, programmata:false,
+                importo:v.importo, membro_id:mId, rif_id:v.rif_id, data:v.data,
+                descrizione:segno, rimborso_a:null, registrato_da:me.user_id};
+      });
+      righe.push({squadra_id:me.squadra_id, tipo:"uscita", causale:"spesa", programmata:false,
+                  importo:Math.round(tot*100)/100, membro_id:null, rif_id:null, data:iso(new Date()),
+                  descrizione:segno, rimborso_a:mId, registrato_da:me.user_id});
+      try{
+        var r=await sb.from("hn_movimenti").insert(righe).select();
+        if(r.error) throw r.error;
+        (r.data||[]).forEach(function(x){ movimenti.unshift(x); });
+        renderSpese(document.getElementById("cassasub-scroll"));
+        toast("Compensati "+eur(tot));
+      }catch(e){ toast("Non riesco: "+(e.message||"serve la rete")); }
+    });
   }
 
   async function eliminaSpesa(id){
     if(!puoGestireCassa()) return;
-    if(!confirm("Eliminare questa spesa?")) return;
-    try{
-      var r=await sb.from("hn_movimenti").delete().eq("id",id);
-      if(r.error) throw r.error;
-      movimenti=movimenti.filter(function(m){return m.id!==id;});
-      renderSpese(document.getElementById("cassasub-scroll"));
-      toast("Spesa eliminata");
-    }catch(e){ toast("Serve la rete"); }
+    var m=movimenti.find(function(x){ return x.id===id; });
+    if(!m) return;
+    /* una compensazione si toglie tutta insieme: il rimborso e le quote che aveva pagato */
+    var legati = (m.rimborso_a && /^Compensazione /.test(m.descrizione||""))
+      ? movimenti.filter(function(x){ return x.descrizione===m.descrizione; }) : [m];
+    var testo = legati.length > 1
+      ? "\u00c8 una compensazione: si tolgono anche le "+(legati.length-1)+" quote che aveva pagato."
+      : ('"'+(m.descrizione||"Spesa")+'" \u00b7 '+eur(m.importo));
+    chiediConferma("Eliminare?", testo, "Elimina", async function(){
+      try{
+        var r=await sb.from("hn_movimenti").delete().in("id", legati.map(function(x){ return x.id; }));
+        if(r.error) throw r.error;
+        movimenti=movimenti.filter(function(x){ return legati.indexOf(x)<0; });
+        renderSpese(document.getElementById("cassasub-scroll"));
+        toast("Eliminata");
+      }catch(e){ toast("Serve la rete"); }
+    });
   }
 
   /* --- IMPOSTAZIONI QUOTE --- */
   function renderConfigCassa(root){
     var h='<div class="card"><div style="font-size:11px; color:var(--muted); margin-bottom:6px">QUOTA ASSOCIATIVA</div>';
     h+='<div style="font-size:22px; font-weight:700; color:var(--cream); margin-bottom:8px">'+eur(config.quota_associativa||0)+'</div>';
-    h+='<div style="font-size:11px; color:var(--muted); margin-bottom:10px">Una tantum, per ogni socio.</div>';
+    h+='<div style="font-size:11px; color:var(--muted); margin-bottom:10px">Per ogni socio, ogni stagione.</div>';
     h+='<button class="btn line" id="cfg-ass">Modifica</button></div>';
 
     h+='<div class="card" style="margin-top:10px"><div style="font-size:11px; color:var(--muted); margin-bottom:6px">QUOTA DI GIORNATA</div>';
     h+='<div style="font-size:22px; font-weight:700; color:var(--cream); margin-bottom:8px">'+eur(config.quota_giornata||0)+'</div>';
-    h+='<div style="font-size:11px; color:var(--muted); margin-bottom:10px">Che ogni presente lascia a ogni battuta.</div>';
+    h+='<div style="font-size:11px; color:var(--muted); margin-bottom:10px">Quella normale di ogni giornata, per ogni presente. La giornata da 10 \u20ac si cambia dal calendario delle quote.</div>';
     h+='<button class="btn line" id="cfg-gio">Modifica</button></div>';
     root.innerHTML=h;
     root.querySelector("#cfg-ass").onclick=function(){ modificaQuota("quota_associativa","Quota associativa"); };
@@ -24075,6 +24408,8 @@ function fineA(){
   /* CASSA: quello che deve LUI, non la squadra. Il capocaccia vede i conti
      di tutti dentro la sezione: sulla casella ci va solo il suo. */
   async function segnaleCassa(out){
+    /* v3.75: stessi conti della sezione Cassa (contoMembro): quota associativa della
+       stagione, giornate concluse in cui era presente, obiettivi, meno i crediti */
     var r1 = await sb.from("hn_movimenti").select("*").eq("squadra_id", me.squadra_id);
     if(r1.error) return;
     movimenti = r1.data || [];
@@ -24084,25 +24419,15 @@ function fineA(){
     if(!r3.error) partObiettivo = r3.data || [];
     var r4 = await sb.from("hn_config").select("*").eq("squadra_id", me.squadra_id).limit(1);
     if(!r4.error && r4.data && r4.data.length) config = r4.data[0];
+    if(battute.length) await caricaAdesioniCassa(true);
 
-    var voci = 0, manca = 0;
-    var qa = Number(config.quota_associativa)||0;
-    if(qa){
-      var pa = movimenti.filter(function(m){ return m.causale==="associativa" && m.membro_id===me.membro_id; })
-                        .reduce(function(x,m){ return x+(Number(m.importo)||0); },0);
-      if(pa < qa){ voci++; manca += (qa-pa); }
-    }
-    partObiettivo.filter(function(x){ return x.membro_id===me.membro_id; }).forEach(function(x){
-      var o = obiettivi.find(function(y){ return y.id===x.obiettivo_id; });
-      if(!o || o.chiuso) return;
-      var v = movimenti.filter(function(m){ return m.causale==="obiettivo" && m.rif_id===x.obiettivo_id && m.membro_id===me.membro_id; })
-                       .reduce(function(a,m){ return a+(Number(m.importo)||0); },0);
-      var q = Number(x.quota)||0;
-      if(v < q){ voci++; manca += (q-v); }
-    });
-    if(!voci) return;
+    var c = contoMembro(me.membro_id);
+    var voci = (c.ass.manca > 0.004 ? 1 : 0)
+             + c.gio.righe.filter(function(x){ return x.manca > 0.004; }).length
+             + c.obi.righe.filter(function(x){ return x.manca > 0.004; }).length;
+    if(!voci || c.netto <= 0.004) return;
     out.cassa = { n:voci, col:"giallo",
-                  testo:(voci===1?"1 sospeso":voci+" sospesi")+" \u00b7 "+eur(manca) };
+                  testo:(voci===1?"1 sospeso":voci+" sospesi")+" \u00b7 "+eur(c.netto) };
   }
 
   function giornoDella(dataIso){
