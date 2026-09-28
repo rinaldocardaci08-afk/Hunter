@@ -3132,18 +3132,6 @@ header .menubtn{min-width:48px; min-height:48px;}
   </div>
 </div>
 
-<!-- MODALE: segnalare un punto al capo (passo C) -->
-<div class="modal" id="m-segnala">
-  <div class="sheet" style="max-height:88vh; overflow-y:auto">
-    <h3>📍 Segnala un punto</h3>
-    <p class="hint">Il punto è dove hai i piedi: il capo lo riceve col GPS.</p>
-    <div id="sg-corpo"><div class="loading">Carico…</div></div>
-    <div class="btnrow" style="margin-top:14px">
-      <button class="btn line" id="sg-chiudi">Chiudi</button>
-    </div>
-  </div>
-</div>
-
 <!-- MODALE: nome del collare -->
 <div class="modal" id="m-nomecane">
   <div class="sheet" style="max-height:86vh; overflow-y:auto">
@@ -3289,6 +3277,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       <!-- commutatore satellite / schema -->
       <div style="display:flex; gap:5px; background:var(--dark2); border-radius:10px; padding:4px; margin-bottom:11px;">
         <button class="vpill on" data-vmode="sat" id="vp-sat" style="flex:1; font-size:13px; padding:9px; border:none; border-radius:7px; background:var(--brown); color:var(--cream);">Satellite</button>
+        <button class="vpill" data-vmode="topo" id="vp-topo" style="flex:1; font-size:13px; padding:9px; border:none; border-radius:7px; background:transparent; color:var(--muted);">Topografica</button>
         <button class="vpill" data-vmode="schema" id="vp-schema" style="flex:1; font-size:13px; padding:9px; border:none; border-radius:7px; background:transparent; color:var(--muted);">Schema</button>
       </div>
 
@@ -3324,6 +3313,20 @@ header .menubtn{min-width:48px; min-height:48px;}
         <div style="font-size:11px; color:var(--gold); margin-bottom:5px;">⚠ La tua nota di sicurezza</div>
         <div id="mv-note" style="font-size:13px; color:var(--cream); line-height:1.55;">—</div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALE: segnalare un punto al capo (passo C)
+     DEVE stare DOPO la vista postaiolo (m-vista): hanno lo stesso livello e vince
+     chi viene dopo nel file. Prima stava sopra e si apriva SOTTO la vista posta (v3.72). -->
+<div class="modal" id="m-segnala">
+  <div class="sheet" style="max-height:88vh; overflow-y:auto">
+    <h3>📍 Segnala un punto</h3>
+    <p class="hint">Il punto è dove hai i piedi: il capo lo riceve col GPS.</p>
+    <div id="sg-corpo"><div class="loading">Carico…</div></div>
+    <div class="btnrow" style="margin-top:14px">
+      <button class="btn line" id="sg-chiudi">Chiudi</button>
     </div>
   </div>
 </div>
@@ -3809,7 +3812,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.71";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.72";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4695,7 +4698,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   function cambiaSfondo(){
     var k = sfondoScelto()==="satellite" ? "topo" : "satellite";
     scriviSfondo(k);
-    [map, mvMap, cnMap, (typeof mvMap2!=="undefined"?mvMap2:null)].forEach(function(m){
+    [map, cnMap, (typeof mvMap2!=="undefined"?mvMap2:null)].forEach(function(m){
       if(m) mettiSfondo(m, k);
     });
     aggiornaTastoSfondo();
@@ -6802,16 +6805,26 @@ header .menubtn{min-width:48px; min-height:48px;}
     box.innerHTML = h;
   }
 
+  /* v3.72 - la vista posta ha il SUO sfondo: Satellite, Topografica o Schema.
+     Prima "Satellite" mostrava lo sfondo scelto nella sezione Mappa (anche la
+     topografica) e da qui non si poteva cambiare. Ora la sezione Mappa non la tocca. */
+  function mvSfondo(){ return mvMode==="topo" ? "topo" : "satellite"; }
   function mvSetMode(m){
+    if(m!=="sat" && m!=="topo" && m!=="schema") m="sat";
     mvMode=m;
-    var bs=document.getElementById("vp-sat"), bx=document.getElementById("vp-schema");
-    if(bs){ bs.style.background = m==="sat" ? "var(--brown)" : "transparent"; bs.style.color = m==="sat" ? "var(--cream)" : "var(--muted)"; }
-    if(bx){ bx.style.background = m==="schema" ? "var(--brown)" : "transparent"; bx.style.color = m==="schema" ? "var(--cream)" : "var(--muted)"; }
-    document.getElementById("mv-map").style.display = m==="sat" ? "block" : "none";
-    document.getElementById("mv-schema").style.display = m==="schema" ? "block" : "none";
+    [["vp-sat","sat"],["vp-topo","topo"],["vp-schema","schema"]].forEach(function(x){
+      var b=document.getElementById(x[0]);
+      if(b){ b.style.background = m===x[1] ? "var(--brown)" : "transparent"; b.style.color = m===x[1] ? "var(--cream)" : "var(--muted)"; }
+    });
+    var suMappa = (m!=="schema");
+    document.getElementById("mv-map").style.display = suMappa ? "block" : "none";
+    document.getElementById("mv-schema").style.display = suMappa ? "none" : "block";
     var z=document.getElementById("mv-zoom");
-    if(z) z.style.display = m==="schema" ? "flex" : "none";
-    if(m==="sat") setTimeout(mvDisegnaSat, 120);
+    if(z) z.style.display = suMappa ? "none" : "flex";
+    if(suMappa){
+      if(mvMap && mvMap.__sfondoK !== mvSfondo()) mettiSfondo(mvMap, mvSfondo());
+      setTimeout(mvDisegnaSat, 120);
+    }
     else setTimeout(mvDisegnaSchema, 120);
   }
 
@@ -6821,7 +6834,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var a=areaAttiva(); if(!a) return;
     if(!mvMap){
       mvMap=L.map("mv-map",{zoomControl:true, attributionControl:false});
-      mettiSfondo(mvMap);
+      mettiSfondo(mvMap, mvSfondo());
       mvLayer=L.layerGroup().addTo(mvMap);
     }
     mvMap.invalidateSize();
@@ -14888,7 +14901,6 @@ header .menubtn{min-width:48px; min-height:48px;}
           if(mode === "schema") setMode("sat");
           scriviSfondo(k);
           mettiSfondo(map, k);
-          if(typeof mvMap!=="undefined" && mvMap) mettiSfondo(mvMap, k);
           if(typeof cnMap!=="undefined" && cnMap) mettiSfondo(cnMap, k);
           if(typeof aggiornaTastoSfondo==="function") aggiornaTastoSfondo();
         }
