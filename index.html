@@ -3306,7 +3306,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <span style="flex:1; min-width:0"><span id="mv-coord-t" style="font-family:ui-monospace,Menlo,Consolas,monospace; font-size:14px">—</span>
         <span style="display:block; font-size:10px; color:var(--muted); margin-top:2px">tocca: centra la mappa · tieni premuto: copia</span></span>
       </button>
-      <button id="mv-segnala" style="width:100%; margin-bottom:10px; background:#1f2b38; border:1px solid #3d5f80; border-radius:11px; padding:11px 12px; color:#cfe6f7; font-size:13px;">📍 Segnala un punto al capo</button>
+      <button id="mv-segnala" style="width:100%; margin-bottom:10px; background:#1f2b38; border:1px solid #3d5f80; border-radius:11px; padding:11px 12px; color:#cfe6f7; font-size:13px;">📍 Consiglia di spostare la posta qui</button>
       <div id="mv-inposta" style="margin-bottom:10px"></div>
       <div id="mv-vicine" style="background:var(--dark2); border-radius:12px; padding:11px 13px; margin-bottom:10px;"></div>
       <div id="mv-notebox" style="background:#4a3320; border:1px solid #6b4a28; border-radius:12px; padding:12px 13px;">
@@ -3812,7 +3812,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.76";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.77";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5412,15 +5412,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         '<div style="font-size:40px; margin-bottom:14px">🔒</div>'+
         '<div style="font-size:15px; color:var(--cream); margin-bottom:10px">Le mappe sono riservate</div>'+
         '<div style="line-height:1.6">Vedrai la tua postazione quando il capocaccia<br>aprirà la battuta e ti assegnerà una posta.</div>'+
-        '</div>'+
-        '<div class="card" style="background:#1f2b38; border:1px solid #3d5f80; margin-top:18px">'+
-        '<div style="font-size:13.5px; color:#cfe6f7">📍 Hai visto qualcosa sul terreno?</div>'+
-        '<div style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-top:5px">'+
-        'Un passaggio, un punto buono per una posta, la tua posta da spostare: mandalo al capocaccia col GPS, da dove sei.</div>'+
-        '<button class="btn line" id="ar-segnala" style="margin-top:10px; border-color:#3d5f80; color:#cfe6f7">Segnala un punto al capo</button>'+
         '</div>';
-      var bsg=document.getElementById("ar-segnala");
-      if(bsg) bsg.onclick=apriSegnala;
+      /* v3.77 - il tasto "Segnala un punto" qui non c'e' piu': si segnala solo dalla Home */
       return;
     }
 
@@ -6745,6 +6738,9 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("mv-dist").textContent="GPS spento";
       document.getElementById("mv-arrow").style.transform="rotate(0deg)";
     }
+    /* v3.77 - dalla vista posta si consiglia solo di spostare QUESTA posta; il capo non ne ha bisogno */
+    var bSegn = document.getElementById("mv-segnala");
+    if(bSegn) bSegn.style.display = vedeComeCapo() ? "none" : "";
     var a0 = areaAttiva();
     var intest = document.getElementById("mv-intest");
     if(intest){
@@ -8363,8 +8359,6 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-segnapri2]").forEach(function(b){
       b.onclick=function(){ apriSegnalaSu(b.dataset.segnapri2); };
     });
-    var bs=document.getElementById("segn-nuovo");
-    if(bs) bs.onclick=function(){ apriSegnala(); };
   }
 
   /* --- SEGNALAZIONI, la terza linguetta --- */
@@ -8374,7 +8368,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     await caricaSegnalati();
     if(!membri.length) await caricaMembriSilenzioso();
     var h = htmlLinguetteBacheca();
-    h += '<button class="btn primary" id="segn-nuovo" style="margin-bottom:12px">\ud83d\udccd Segnala un punto</button>';
+    /* v3.77 - qui NON si manda un punto: la finestra con tutte le scelte si apre
+       solo dalla Home (sua regola: una porta sola, altrimenti si confonde) */
     if(puoDecidereSegn()){
       var ap = segnAperti();
       h += '<div class="sechead" style="margin-top:0">Da decidere</div>';
@@ -8410,6 +8405,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
   async function apriSegnalaSu(id){
     await apriSegnala();
+    segnDaBacheca = true;
     segnSel = segnalati.find(function(s){ return s.id===id; }) || null;
     segnAreaSel = null;
     renderSegnala();
@@ -8433,6 +8429,8 @@ header .menubtn{min-width:48px; min-height:48px;}
   var segnTipo = "passaggio";
   var segnSel = null;        // la segnalazione che il capo sta decidendo
   var segnAreaSel = null;    // la mappa scelta dal capo
+  var segnDaBacheca = false; // v3.77: il capo e' arrivato dalla linguetta Segnalazioni
+  var segnFormAperto = false;// v3.77: il capo ha aperto il modulo per mandare un punto
 
   function tipoSegn(k){
     var t=null; SEGN_TIPI.forEach(function(x){ if(x.k===k) t=x; });
@@ -8453,6 +8451,7 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   /* --- la finestra: al cacciatore il modulo, al capo anche le decisioni --- */
   async function apriSegnala(){
+    segnDaBacheca = false; segnFormAperto = false;
     document.getElementById("m-segnala").classList.add("show");
     document.getElementById("sg-corpo").innerHTML = '<div class="loading">Carico\u2026</div>';
     await caricaSegnalati();
@@ -8472,7 +8471,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
   function chiudiSegnala(){
     document.getElementById("m-segnala").classList.remove("show");
-    segnSel = null; segnAreaSel = null;
+    segnSel = null; segnAreaSel = null; segnDaBacheca = false; segnFormAperto = false;
   }
 
   function renderSegnala(){
@@ -8512,6 +8511,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       }
     }
 
+    /* --- il modulo per mandare un punto ---
+       v3.77: al capo resta chiuso sotto un tasto, per non confonderlo con le decisioni */
+    if(puoDecidereSegn() && !segnFormAperto){
+      h += '<button class="btn line" id="sg-apri-form" style="margin-top:12px">\ud83d\udccd Manda anche tu un punto</button>';
+    }else{
     /* --- il modulo per mandare un punto --- */
     h += '<div class="sechead">Manda un punto</div>';
     /* le coordinate grandi e copiabili: se le vuole mandare anche per radio o
@@ -8541,6 +8545,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     h += '<label style="display:block; font-size:12px; color:var(--muted); margin:12px 0 6px">Nota per il capo</label>';
     h += '<textarea id="sg-nota" placeholder="due parole: cosa hai visto, perch\u00e9"></textarea>';
     h += '<button class="btn primary" id="sg-manda" style="margin-top:10px">\ud83d\udce4 Manda al capo</button>';
+    }
 
     /* --- quello che ho mandato io --- */
     var miei = segnalati.filter(function(s){ return s.membro_id===me.membro_id; });
@@ -8659,8 +8664,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-segnarea]").forEach(function(b){
       b.onclick=function(){ segnAreaSel = b.dataset.segnarea; renderSegnala(); };
     });
+    var bf=document.getElementById("sg-apri-form");
+    if(bf) bf.onclick=function(){ segnFormAperto = true; renderSegnala(); };
     var bt=document.getElementById("sg-torna");
-    if(bt) bt.onclick=function(){ segnSel=null; segnAreaSel=null; renderSegnala(); };
+    if(bt) bt.onclick=function(){ segnSel=null; segnAreaSel=null; tornaDopoDecisione(); };
     var bc=document.getElementById("sg-coord");
     if(bc) bc.onclick=function(){
       var t=document.getElementById("sg-coord-t").textContent;
@@ -8677,6 +8684,43 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(bs) bs.onclick=function(){
       chiediConferma("Scartare il punto?", "Chi l'ha mandato vedr\u00e0 che \u00e8 stato scartato.", "Scarta", function(){ decidiSegnalazione("scartato", "scartato dal capo"); });
     };
+  }
+
+  /* v3.77 - DALLA POSTA (vista posta o giornata): "la sposterei qui, perche'...".
+     Il punto e' dove ha i piedi, la posta e' quella che sta guardando; il perche'
+     e' obbligatorio. E' l'unica segnalazione possibile fuori dalla Home. */
+  function consigliaSpostaPosta(pArg, areaArg){
+    var p = pArg || postaAperta;
+    if(!p){ toast("Nessuna posta aperta"); return; }
+    if(!pos){ toast("Aspetto il segnale GPS"); serveGPS("segnalazione"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per mandare il consiglio"); return; }
+    var qui = {lat:pos.lat, lng:pos.lng, acc:pos.acc};
+    var d = (isFinite(p.lat) && isFinite(p.lng)) ? distM(qui, p) : null;
+    chiediTesto("Sposta la posta " + (p.numero||"") + " qui",
+      "Il punto \u00e8 dove hai i piedi: " + Number(qui.lat).toFixed(6) + ", " + Number(qui.lng).toFixed(6)
+        + (d!==null ? (" \u00b7 " + fmtDist(d) + " da dov\u2019\u00e8 segnata") : "") + ". Scrivi il perch\u00e9.",
+      "", "text", async function(v){
+        var nota = String(v||"").trim();
+        if(!nota){ toast("Scrivi il perch\u00e9: al capo serve per decidere"); return; }
+        var mia = laMiaPosta();
+        var dati = {
+          squadra_id: me.squadra_id, membro_id: me.membro_id,
+          tipo: "sposta_posta", nota: nota,
+          lat: qui.lat, lng: qui.lng, accuratezza: Math.round(qui.acc||0),
+          stato: "aperto",
+          giornata_id: (giornataAperta && giornataAperta.id) || null,
+          battuta_svolta_id: (mia && mia.posta_id===p.id) ? mia.battuta_svolta_id : null,
+          area_id: p.area_id || areaArg || areaAttivaId || null,
+          posta_id: p.id
+        };
+        try{
+          var r = await sb.from("hn_punti_segnalati").insert(dati).select().single();
+          if(r.error) throw r.error;
+          segnalati.unshift(r.data);
+          toast("Consiglio mandato al capo");
+          calcolaSegnaliSegn();
+        }catch(e){ toast("Non riesco: " + (e.message||e)); }
+      });
   }
 
   async function mandaSegnalazione(){
@@ -8770,9 +8814,21 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(i>=0) segnalati[i] = r.data;
       segnSel = null; segnAreaSel = null;
       toast(stato==="accolto" ? ("Fatto: "+esito) : "Segnalazione scartata");
-      renderSegnala();
+      /* v3.77 - dopo la decisione il capo torna da dove e' venuto: dalla Bacheca
+         alla linguetta Segnalazioni, dalla Home all'elenco "Da decidere".
+         Prima ricadeva sul modulo "Manda un punto" del cacciatore. */
+      tornaDopoDecisione();
       calcolaSegnaliSegn();
     }catch(e){ toast("Non riesco: "+(e.message||e)); }
+  }
+  function tornaDopoDecisione(){
+    if(segnDaBacheca){
+      chiudiSegnala();
+      var vb = document.getElementById("v-bacheca");
+      if(vb && vb.classList.contains("active") && typeof renderSegnalazioniTab==="function") renderSegnalazioniTab();
+      return;
+    }
+    renderSegnala();
   }
   /* il numerino sulla casella della Home */
   function calcolaSegnaliSegn(){
@@ -11403,7 +11459,6 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='<div style="font-size:17px; color:#fff; font-weight:700">'+esc(mia0.ruolo||"incarico")+'</div>';
       h+='<div style="font-size:11.5px; color:#c9b3e0; margin-top:3px">'
         +esc(arMio?arMio.nome:'')+(bsMio&&bsMio.numero?(' \u00b7 '+bsMio.numero+'ª battuta'):'')+'</div>';
-      h+='<button class="btn line" id="gi-segnala2" style="margin-top:10px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Segnala un punto al capo</button>';
       h+='</div>';
     }
     var inCorsoMia = battutaInCorso();
@@ -11442,7 +11497,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         }
         h+='<button class="btn" id="gi-miaposta" style="margin-top:11px; background:#1D9E75; color:#fff; width:100%">🗺️ Portami alla mia posta</button>';
         h+=htmlSonoInPosta(mia0);
-        h+='<button class="btn line" id="gi-segnala" style="margin-top:7px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Segnala un punto al capo</button>';
+        h+='<button class="btn line" id="gi-segnala" style="margin-top:7px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Consiglia di spostare la posta qui</button>';
         h+='</div>';
       }
     }
@@ -11809,9 +11864,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(bip) bip.onclick=function(){ segnaInPosta(true); };
     var bnp=root.querySelector("#gi-nonposta");
     if(bnp) bnp.onclick=function(){ segnaInPosta(false); };
-    var sg1=root.querySelector("#gi-segnala"), sg2=root.querySelector("#gi-segnala2");
-    if(sg1) sg1.onclick=apriSegnala;
-    if(sg2) sg2.onclick=apriSegnala;
+    /* v3.77 - dalla giornata si consiglia solo di spostare la PROPRIA posta */
+    var sg1=root.querySelector("#gi-segnala");
+    if(sg1) sg1.onclick=function(){
+      var mm = laMiaPosta();
+      var aa = mm ? aree.find(function(x){ return x.id===mm.area_id; }) : null;
+      var pp = (aa && mm) ? (aa.poste||[]).find(function(x){ return x.id===mm.posta_id; }) : null;
+      if(!pp){ toast("Non trovo la tua posta"); return; }
+      consigliaSpostaPosta(pp, aa.id);
+    };
     var mp=root.querySelector("#gi-miaposta");
     if(mp) mp.onclick=function(){ apriMiaPostaInMappa(); };
     var gp=root.querySelector("#gi-presenze");
@@ -21567,7 +21628,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     document.getElementById("cn-play-stop").onclick=function(){ cnFermaRiproduzione(); };
     document.getElementById("sg-chiudi").onclick=chiudiSegnala;
     document.getElementById("m-dest-annulla").onclick=function(){ document.getElementById("m-dest").classList.remove("show"); };
-    document.getElementById("mv-segnala").onclick=function(){ apriSegnala(); };
+    document.getElementById("mv-segnala").onclick=function(){ consigliaSpostaPosta(); };
     document.getElementById("nc-annulla").onclick=function(){ document.getElementById("m-nomecane").classList.remove("show"); };
     document.getElementById("cnc-annulla").onclick=function(){ document.getElementById("m-canaio").classList.remove("show"); };
     document.getElementById("mc2-annulla").onclick=function(){ document.getElementById("m-canemuta").classList.remove("show"); };
