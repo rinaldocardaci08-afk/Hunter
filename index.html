@@ -3815,7 +3815,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.79";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.80";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -7819,7 +7819,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='<div class="rg"><span class="n">'+n.persone+'</span><span class="t">hanno detto s\u00ec</span></div>';
           h+='<div class="rg"><span class="n">'+contaTracciatoriDi(b)+'</span><span class="t">tracciatori</span></div>';
         }else{
-          h+='<div class="rg"><span class="t">'+(b.stato==="aperta"?"adesioni aperte":"adesioni chiuse")+'</span></div>';
+          h+='<div class="rg"><span class="t">'+(prenotabile(b)?"adesioni aperte":"adesioni chiuse")+'</span></div>';
         }
         if(mps.length){
           h+='<div class="mps">';
@@ -7974,7 +7974,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var oggi=iso(new Date());
     var future=battute.filter(function(b){ return String(b.data).slice(0,10)>=oggi && b.stato!=="annullata"; })
                       .sort(function(a,b){ return String(a.data)<String(b.data)?-1:1; });
-    var aperte=future.filter(function(b){ return b.stato==="aperta"; });
+    var aperte=future.filter(function(b){ return prenotabile(b); });
     var prossima=future[0]||null;
     var concluse=battute.filter(function(b){ return b.stato==="conclusa"; })
                         .sort(function(a,b){ return String(a.data)>String(b.data)?-1:1; });
@@ -10289,49 +10289,156 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   async function renderTotali(){
+    /* v3.80 - I TOTALI NUOVI (sua richiesta 28/09): lo stile delle celle del mese
+       (numero grande, barre per mappa) piu' tre grafici: capi giornata per giornata
+       con la media, capi per mappa, resa di tiro. Sotto, i tuoi numeri contro la
+       media della squadra e le tue poste. Le giornate sono quelle che contano per
+       le presenze (concluse, fino a oggi). */
     var root = document.getElementById("battute-scroll");
     root.innerHTML = htmlLinguetteBattute() + '<div class="loading">Carico\u2026</div>';
     await caricaArchivio(false);
     var st = arcDati.stagione;
-    var gior = battute.filter(function(b){ return b.stato==="conclusa" && stagioneDi(b.data)===st; });
-    var svolte = (arcDati.svolte||[]).filter(function(x){ return x.chiusa_il; });
-    var ucc = (arcDati.fatti||[]).filter(function(f){ return f.tipo==="uccisione"; });
-    var capi = gior.reduce(function(t,b){ return t + uccisioniPeriodo(b.id, ucc, arcDati.svolte||[]); }, 0);
-    var pad = (arcDati.fatti||[]).filter(function(f){ return f.tipo==="padella"; })
-                .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
-    var media = gior.length ? (capi/gior.length) : 0;
+    var gior = battute.filter(function(b){ return giornataContaPresenze(b, st); })
+                      .sort(function(a,b){ return String(a.data) < String(b.data) ? -1 : 1; });
+    var idsG = gior.map(function(b){ return b.id; });
+    var tutteSv = (arcDati.svolte||[]).filter(function(x){ return idsG.indexOf(x.giornata_id)>=0; });
+    var svolte = tutteSv.filter(function(x){ return x.chiusa_il; });
+    var fatti = (arcDati.fatti||[]).filter(function(f){ return idsG.indexOf(f.battuta_id)>=0; });
+    var ucc = fatti.filter(function(f){ return f.tipo==="uccisione"; });
+    var q = function(f){ return Number(f.quanti)||1; };
+    var perG = gior.map(function(b){ return {b:b, capi:uccisioniPeriodo(b.id, ucc, tutteSv)}; });
+    var capi = perG.reduce(function(t,x){ return t + x.capi; }, 0);
+    var pad = fatti.filter(function(f){ return f.tipo==="padella"; }).reduce(function(t,f){ return t + q(f); }, 0);
+    var mediaG = gior.length ? capi/gior.length : 0;
+    var mediaB = svolte.length ? capi/svolte.length : 0;
     var minTot = svolte.reduce(function(t,bs){ return t + minutiSvolta(bs); }, 0);
-    /* la mappa piu' battuta della stagione */
-    var perArea = {};
-    svolte.forEach(function(bs){ perArea[bs.area_id] = (perArea[bs.area_id]||0) + 1; });
-    var top = Object.keys(perArea).sort(function(a,b){ return perArea[b]-perArea[a]; })[0];
-    /* i miei numeri */
-    var mieP = gior.filter(function(b){ return ceroStato(b); }).length;
-    var mieiCapi = ucc.filter(function(f){ return f.membro_id===me.membro_id; })
-                      .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
-    var miePad = (arcDati.fatti||[]).filter(function(f){ return f.tipo==="padella" && f.membro_id===me.membro_id; })
-                      .reduce(function(t,f){ return t + (Number(f.quanti)||1); }, 0);
+    var num1 = function(n){ return (Math.round(n*10)/10).toString().replace(".", ","); };
 
-    var box = function(n, t, col){
-      return '<div class="box" style="background:var(--dark2)"><div class="n" style="color:'+(col||"var(--cream)")+'">'+n+'</div>'
-           + '<div class="t" style="color:var(--muted)">'+t+'</div></div>';
+    /* le mappe: capi (conto del capo) e battute */
+    var perArea = {};
+    tutteSv.forEach(function(bs){
+      if(!perArea[bs.area_id]) perArea[bs.area_id] = {capi:0, battute:0};
+      perArea[bs.area_id].battute++;
+      perArea[bs.area_id].capi += capiDiSvolta(bs, ucc);
+    });
+    var areeOrd = Object.keys(perArea).sort(function(a,b){ return perArea[b].capi - perArea[a].capi || perArea[b].battute - perArea[a].battute; });
+    var maxA = Math.max(1, Math.max.apply(null, areeOrd.map(function(k){ return perArea[k].capi; }).concat([1])));
+
+    /* i miei numeri e la media della squadra */
+    var presPer = {};
+    (arcDati.adesioni||[]).forEach(function(a){ if(a.presente && idsG.indexOf(a.battuta_id)>=0) presPer[a.membro_id] = (presPer[a.membro_id]||0) + 1; });
+    var chiC = Object.keys(presPer);
+    var mieP = presPer[me.membro_id] || 0;
+    var percMia = gior.length ? Math.round(mieP/gior.length*100) : 0;
+    var percMedia = (gior.length && chiC.length) ? Math.round(chiC.reduce(function(t,k){ return t + presPer[k]; }, 0) / chiC.length / gior.length * 100) : 0;
+    var capiDi = function(id){ return ucc.filter(function(f){ return f.membro_id===id; }).reduce(function(t,f){ return t + q(f); }, 0); };
+    var padDi = function(id){ return fatti.filter(function(f){ return f.tipo==="padella" && f.membro_id===id; }).reduce(function(t,f){ return t + q(f); }, 0); };
+    var mieiCapi = capiDi(me.membro_id), miePad = padDi(me.membro_id);
+    var capiAss = ucc.filter(function(f){ return f.membro_id; }).reduce(function(t,f){ return t + q(f); }, 0);
+    var mediaCapi = chiC.length ? capiAss / chiC.length : 0;
+    var resaSq = (capiAss + pad) ? Math.round(capiAss/(capiAss+pad)*100) : null;
+    var resaMia = (mieiCapi + miePad) ? Math.round(mieiCapi/(mieiCapi+miePad)*100) : null;
+
+    /* le mie poste: i capi fatti da ciascuna */
+    var mie = arcDati.mie || [], postePer = {};
+    mie.forEach(function(as){
+      if(!as.posta_id) return;
+      if(!postePer[as.posta_id]) postePer[as.posta_id] = {volte:0, capi:0};
+      postePer[as.posta_id].volte++;
+      postePer[as.posta_id].capi += ucc.filter(function(f){ return f.membro_id===me.membro_id && as.battuta_svolta_id && f.battuta_svolta_id===as.battuta_svolta_id; })
+                                        .reduce(function(t,f){ return t + q(f); }, 0);
+    });
+    var nomePosta = function(id){
+      var p = (arcDati.poste||[]).find(function(x){ return x.id===id; });
+      if(!p) return "Posta";
+      return nomeAreaArc(p.area_id) + " " + (p.numero || p.nome || "");
     };
+    var posteOrd = Object.keys(postePer).sort(function(a,b){ return postePer[b].capi - postePer[a].capi || postePer[b].volte - postePer[a].volte; });
+    var maxP = Math.max(1, Math.max.apply(null, posteOrd.map(function(k){ return postePer[k].capi; }).concat([1])));
+
+    var ORO="#D4A94A", VERDE="#1D9E75", MATTONE="#D85A30";
+    var barra = function(etichetta, val, max, col, dx){
+      return '<div style="display:grid; grid-template-columns:86px minmax(0,1fr) 44px; gap:8px; align-items:center; font-size:12.5px; margin:7px 0">'
+        + '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--cream)">'+esc(etichetta)+'</span>'
+        + '<span style="height:10px; border-radius:5px; background:var(--dark3); overflow:hidden"><i style="display:block; height:100%; width:'+Math.round(Math.max(0,Math.min(1,val/max))*100)+'%; background:'+col+'"></i></span>'
+        + '<span style="text-align:right; color:var(--muted)">'+dx+'</span></div>';
+    };
+    var anello = function(perc, col, dentro){
+      return '<div style="width:78px; height:78px; border-radius:50%; flex-shrink:0; background:conic-gradient('+col+' 0 '+perc+'%, var(--dark3) '+perc+'% 100%); display:flex; align-items:center; justify-content:center">'
+        + '<div style="width:56px; height:56px; border-radius:50%; background:var(--dark2); display:flex; align-items:center; justify-content:center; font-size:15px; font-weight:700; color:'+col+'">'+dentro+'</div></div>';
+    };
+
     var h = htmlLinguetteBattute();
     h += '<div class="sechead">La squadra \u00b7 stagione '+st+'</div>';
-    h += '<div class="card" style="margin-bottom:10px">';
-    h += '<div class="conta">' + box(gior.length, "uscite") + box(svolte.length, "battute") + box(capi, "capi", "var(--gold)") + '</div>';
-    h += '<div class="conta" style="margin-top:8px">' + box(pad, "padelle") + box(media ? media.toFixed(1).replace(".",",") : "0", "capi per uscita")
-       + box(minTot ? durataTesto(minTot) : "\u2014", "in battuta") + '</div>';
-    if(top) h += '<div style="font-size:12px; color:var(--muted); margin-top:10px; line-height:1.5">Mappa pi\u00f9 battuta: <b style="color:var(--cream)">'
-       + esc(nomeAreaArc(top)) + '</b> \u00b7 ' + perArea[top] + ' volt' + (perArea[top]===1?'a':'e') + '</div>';
-    h += '</div>';
+    if(!gior.length){
+      h += '<div class="card" style="font-size:12.5px; color:var(--muted)">Ancora nessuna giornata conclusa in questa stagione.</div>';
+      root.innerHTML = h; return;
+    }
+    /* il numero grande */
+    h += '<div class="card" style="display:flex; align-items:center; gap:14px; margin-bottom:8px">'
+      + '<div style="width:60px; height:60px; border-radius:50%; background:#3a3010; display:flex; align-items:center; justify-content:center; font-size:30px; flex-shrink:0">\ud83d\udc17</div>'
+      + '<div><div style="font-size:38px; font-weight:700; line-height:1; color:'+ORO+'">'+capi+'</div>'
+      + '<div style="font-size:12.5px; color:var(--muted); margin-top:5px">cap'+(capi===1?'o':'i')+' abbattut'+(capi===1?'o':'i')+' in '+svolte.length+' battut'+(svolte.length===1?'a':'e')+' su '+gior.length+' giornat'+(gior.length===1?'a':'e')+'</div></div></div>';
+    h += '<div class="card" style="margin-bottom:8px"><div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; text-align:center">'
+      + '<div><div style="font-size:20px; font-weight:700; color:var(--cream)">'+num1(mediaG)+'</div><div style="font-size:11px; color:var(--muted)">capi per giornata</div></div>'
+      + '<div><div style="font-size:20px; font-weight:700; color:var(--cream)">'+num1(mediaB)+'</div><div style="font-size:11px; color:var(--muted)">capi per battuta</div></div>'
+      + '<div><div style="font-size:20px; font-weight:700; color:var(--cream)">'+(minTot ? durataTesto(minTot) : '\u2014')+'</div><div style="font-size:11px; color:var(--muted)">in battuta</div></div>'
+      + '</div></div>';
+    /* capi giornata per giornata, con la media */
+    var ultime = perG.slice(-10), maxG = Math.max(1, Math.max.apply(null, ultime.map(function(x){ return x.capi; }).concat([1])));
+    h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:22px">Capi per giornata \u00b7 la linea \u00e8 la media</div>'
+      + '<div style="display:flex; align-items:flex-end; gap:6px; height:96px; border-bottom:1px solid var(--dark3); position:relative">';
+    ultime.forEach(function(x){
+      h += '<div style="flex:1; height:'+(x.capi ? Math.round(x.capi/maxG*100) : 3)+'%; background:'+(x.capi ? VERDE : 'var(--dark3)')+'; border-radius:4px 4px 0 0; position:relative">'
+        + '<i style="position:absolute; top:-17px; left:0; right:0; text-align:center; font-style:normal; font-size:11px; color:var(--muted)">'+(x.capi || '\u2014')+'</i></div>';
+    });
+    h += '<div style="position:absolute; left:0; right:0; bottom:'+Math.round(mediaG/maxG*100)+'%; border-top:1.5px dashed '+ORO+'"></div></div>'
+      + '<div style="display:flex; gap:6px; margin-top:4px">';
+    ultime.forEach(function(x){
+      var d = String(x.b.data).slice(0,10).split("-");
+      h += '<span style="flex:1; text-align:center; font-size:10.5px; color:var(--muted)">'+(+d[2])+'/'+(+d[1])+'</span>';
+    });
+    h += '</div></div>';
+    /* le mappe */
+    if(areeOrd.length){
+      h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Mappe \u00b7 capi e battute</div>';
+      areeOrd.forEach(function(k){ h += barra(nomeAreaArc(k), perArea[k].capi, maxA, VERDE, perArea[k].capi+' \u00b7 '+perArea[k].battute); });
+      h += '</div>';
+    }
+    /* la resa di tiro */
+    if(resaSq !== null){
+      h += '<div class="card" style="display:flex; align-items:center; gap:14px; margin-bottom:8px">'
+        + '<div role="img" aria-label="Resa di tiro '+resaSq+' per cento" style="width:78px; height:78px; border-radius:50%; flex-shrink:0; background:conic-gradient('+VERDE+' 0 '+resaSq+'%, '+MATTONE+' '+resaSq+'% 100%)"></div>'
+        + '<div><div style="font-size:24px; font-weight:700; color:#7be0a8">'+resaSq+'%</div><div style="font-size:12px; color:var(--muted)">resa di tiro della squadra</div>'
+        + '<div style="font-size:12px; margin-top:4px"><span style="color:#7be0a8">'+capiAss+' capi</span> \u00b7 <span style="color:#e59a7a">'+pad+' padell'+(pad===1?'a':'e')+'</span></div></div></div>';
+    }
+
+    /* I TUOI NUMERI */
     h += '<div class="sechead">I tuoi numeri</div>';
-    h += '<div class="card">';
-    h += '<div class="conta">' + box(mieP, "uscite fatte") + box(mieiCapi, "capi", "var(--gold)") + box(miePad, "padelle") + '</div>';
-    h += '<div style="font-size:11.5px; color:var(--muted); margin-top:9px; line-height:1.5">'
-       + (gior.length ? ('Sei stato a ' + mieP + ' giornate su ' + gior.length + '.') : 'Ancora nessuna giornata conclusa.')
-       + '</div>';
+    var colP = percMia>=80 ? VERDE : (percMia>=50 ? '#E0922B' : '#C0392B');
+    h += '<div class="card" style="display:flex; align-items:center; gap:14px; margin-bottom:8px">' + anello(percMia, colP, percMia+'%')
+      + '<div><div style="font-size:15px; font-weight:700; color:var(--cream)">Presente a '+mieP+' giornat'+(mieP===1?'a':'e')+' su '+gior.length+'</div>'
+      + '<div style="font-size:12px; color:var(--muted); margin-top:3px">la squadra in media: '+percMedia+'%</div></div></div>';
+    h += '<div class="card" style="margin-bottom:8px"><div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; text-align:center">'
+      + '<div><div style="font-size:20px; font-weight:700; color:'+ORO+'">'+mieiCapi+'</div><div style="font-size:11px; color:var(--muted)">cap'+(mieiCapi===1?'o':'i')+'</div></div>'
+      + '<div><div style="font-size:20px; font-weight:700; color:#e59a7a">'+miePad+'</div><div style="font-size:11px; color:var(--muted)">padell'+(miePad===1?'a':'e')+'</div></div>'
+      + '<div><div style="font-size:20px; font-weight:700; color:var(--cream)">'+(mieP ? num1(mieiCapi/mieP) : '0')+'</div><div style="font-size:11px; color:var(--muted)">capi per presenza</div></div>'
+      + '</div></div>';
+    var maxC = Math.max(1, mieiCapi, mediaCapi);
+    h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Tu e la media della squadra</div>'
+      + barra("Capi", mieiCapi, maxC, ORO, String(mieiCapi))
+      + barra("media", mediaCapi, maxC, "var(--muted)", num1(mediaCapi));
+    if(resaMia !== null || resaSq !== null){
+      h += '<div style="height:8px"></div>'
+        + barra("Resa", resaMia||0, 100, VERDE, resaMia===null ? '\u2014' : resaMia+'%')
+        + barra("media", resaSq||0, 100, "var(--muted)", resaSq===null ? '\u2014' : resaSq+'%');
+    }
     h += '</div>';
+    if(posteOrd.length){
+      h += '<div class="card"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Le tue poste \u00b7 capi e volte</div>';
+      posteOrd.forEach(function(k){ h += barra(nomePosta(k), postePer[k].capi, maxP, VERDE, postePer[k].capi+' \u00b7 '+postePer[k].volte); });
+      h += '</div>';
+    }
     root.innerHTML = h;
   }
 
@@ -10430,7 +10537,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     h+='</div>';
 
     if(!puoGestireBattute()){
-      var aperte=battute.filter(function(x){return x.stato==="aperta";});
+      var aperte=battute.filter(function(x){return prenotabile(x);});
       h+='<div class="card" style="margin-top:16px; background:#3a3122; font-size:12px; color:var(--muted); line-height:1.5">'+
          (aperte.length ? '👉 Tocca un giorno con le adesioni aperte per rispondere.'
                         : 'Nessuna giornata aperta. Il capocaccia aprirà le adesioni.')+'</div>';
@@ -11214,8 +11321,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
 
     var statoTxt = conclusa ? "● giornata conclusa"
-                 : (b.stato==="aperta" ? "● adesioni aperte" : "● adesioni chiuse");
-    var statoCol = conclusa ? "var(--gold)" : (b.stato==="aperta" ? "#7be0a8" : "var(--muted)");
+                 : (prenotabile(b) ? "● adesioni aperte" : "● adesioni chiuse");
+    var statoCol = conclusa ? "var(--gold)" : (prenotabile(b) ? "#7be0a8" : "var(--muted)");
     h+='<div style="font-size:12px; color:'+statoCol+'; margin-bottom:12px">'+statoTxt+'</div>';
 
     /* IL CANALE RADIO DI OGGI, in cima alla giornata del giorno (sua richiesta 12/09):
@@ -11611,8 +11718,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       }
     }
 
-    // --- LA MIA ADESIONE (per tutti) ---
-    if(b.stato==="aperta"){
+    // --- LA MIA ADESIONE (per tutti): fino al giorno prima ---
+    if(prenotabile(b)){
       var mia=miaAdesione();
       var hTrac="";      // il pezzo del tracciatore: si stacca e va in una sezione sua
       /* Detto "ci sono", il pannello si chiude in una barra sola come la radio:
@@ -11797,18 +11904,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
 
     // --- AZIONI DEL CAPO ---
-    if(agisce && b.stato==="aperta"){
-      h+='<div class="btnrow" style="margin-top:16px">';
-      if(tr) h+='<button class="btn primary" id="gi-dividi">Dividi i tracciatori</button>';
-      h+='<button class="btn line" id="gi-chiudi">Chiudi le prenotazioni</button>';
-      h+='</div>';
-    }
-    /* prenotazioni chiuse: si riaprono finché la giornata non è conclusa */
-    else if(agisce && !conclusa && b.id && b.stato!=="nuova"){
-      h+='<div class="btnrow" style="margin-top:16px">';
-      if(tr) h+='<button class="btn primary" id="gi-dividi">Dividi i tracciatori</button>';
-      h+='<button class="btn line" id="gi-riapri">\ud83d\udd13 Riapri le prenotazioni</button>';
-      h+='</div>';
+    /* v3.80: niente "Chiudi/Riapri le prenotazioni": si chiudono da sole il giorno della giornata */
+    if(agisce && !conclusa && b.id && b.stato!=="nuova"){
+      h+='<div style="font-size:11.5px; color:var(--muted); margin-top:14px; line-height:1.5">'
+        + (prenotabile(b) ? 'Le prenotazioni si chiudono da sole a mezzanotte, all\u2019inizio della giornata.' : 'Prenotazioni chiuse: chi \u00e8 presente senza essersi prenotato prende \u22121 in classifica.') + '</div>';
+      if(tr) h+='<div class="btnrow" style="margin-top:10px"><button class="btn primary" id="gi-dividi">Dividi i tracciatori</button></div>';
     }
     // la giornata si conclude quando e' passata: da li' i presenti sono definitivi
     if(agisce && !conclusa && b.id && daIso(b.data) <= new Date()){
@@ -12025,6 +12125,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
   }
 
+  /* v3.80 - LE PRENOTAZIONI SI CHIUDONO DA SOLE (sua regola 28/09): si prenota fino al
+     giorno prima; dal giorno della giornata sono chiuse. Il capo non le chiude e non
+     le riapre piu' a mano. "chiusa" scritta dalle versioni vecchie vale come aperta
+     finche' il giorno non arriva. */
+  function prenotabile(b){
+    if(!b || !b.id) return false;
+    if(b.stato!=="aperta" && b.stato!=="chiusa") return false;
+    return String(b.data).slice(0,10) > iso(new Date());
+  }
   /* ---------- azioni del capocaccia ---------- */
   async function apriAdesioni(){
     if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
@@ -12197,7 +12306,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* ---------- azioni del cacciatore ---------- */
   async function salvaAdesione(viene){
     if(!giornataAperta || !giornataAperta.id) return;
-    if(giornataAperta.stato!=="aperta"){ toast("Adesioni chiuse"); return; }
+    if(!prenotabile(giornataAperta)){ toast("Prenotazioni chiuse: si prenota fino al giorno prima"); return; }
     var mia=miaAdesione();
     try{
       var r;
@@ -16772,15 +16881,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     // le voci fisse che non esistono ancora sul database le mostro lo stesso
     TIPI_BAREMA.forEach(function(t){
       if(!righe.some(function(r){ return r.tipo === t.k; })){
-        righe.push({tipo:t.k, punti:0, nome:t.n, __manca:true});
+        righe.push({tipo:t.k, punti:(t.k==="non_prenotato" ? -1 : 0), nome:t.n, __manca:true});
       }
     });
 
     h += '<div class="sechead">Voci automatiche</div>';
-    righe.filter(function(r){ return r.tipo==="presenza" || r.tipo==="tracciata"; })
+    righe.filter(function(r){ return r.tipo==="presenza" || r.tipo==="tracciata" || r.tipo==="non_prenotato"; })
       .forEach(function(r){ h += rigaVoce(r, true); });
     h += '<div class="sechead">Voci che assegna il sergente</div>';
-    righe.filter(function(r){ return r.tipo!=="presenza" && r.tipo!=="tracciata"; })
+    righe.filter(function(r){ return r.tipo!=="presenza" && r.tipo!=="tracciata" && r.tipo!=="non_prenotato"; })
       .forEach(function(r){ h += rigaVoce(r, false); });
 
     h += '<button class="btn primary" id="adm-nuovavoce" style="margin-top:12px">+ Aggiungi una voce</button>';
@@ -17057,8 +17166,21 @@ header .menubtn{min-width:48px; min-height:48px;}
     {k:"presenza",  n:"Presenza alla giornata"},
     {k:"tracciata", n:"Tracciata (presente e tracciatore)"},
     {k:"uccisione", n:"Uccisione"},
-    {k:"padella",   n:"Padella"}
+    {k:"padella",   n:"Padella"},
+    {k:"non_prenotato", n:"Presente senza prenotazione"}
   ];
+  /* v3.80 - PRESENTE SENZA PRENOTAZIONE: -1 (modificabile in Amministrazione > Punteggio).
+     Vale dalle giornate dal 29/09/2026 in poi, e solo se le prenotazioni erano aperte
+     almeno dal giorno prima (una giornata decisa all'ultimo non penalizza nessuno). */
+  var NON_PRENOTATO_DAL = "2026-09-29";
+  function penalitaNonPrenotato(b){
+    if(!b) return false;
+    var d = String(b.data).slice(0,10);
+    if(d < NON_PRENOTATO_DAL) return false;
+    var nata = b.created_at || b.creato_il || null;
+    if(nata && String(nata).slice(0,10) >= d) return false;
+    return true;
+  }
 
   // la stagione venatoria va dal 1 agosto al 31 luglio
   function stagioneDi(dataIso){
@@ -17074,7 +17196,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     battute.forEach(function(b){ if(b.stato==="conclusa") st[stagioneDi(b.data)] = true; });
     return Object.keys(st).sort().reverse();
   }
-  function valBarema(t){ return Number(barema[t] || 0); }
+  function valBarema(t){
+    if(t==="non_prenotato" && !(t in barema)) return -1;
+    return Number(barema[t] || 0);
+  }
 
   async function caricaClassifica(){
     var root = document.getElementById("classifica-scroll");
@@ -17096,7 +17221,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       var rMed = await sb.from("hn_medaglie").select("*").eq("squadra_id", me.squadra_id);
       medaglie = (rMed.error ? [] : (rMed.data || []));
 
-      var rBt = await sb.from("hn_battute").select("id,data,stato").eq("squadra_id", me.squadra_id);
+      var rBt = await sb.from("hn_battute").select("*").eq("squadra_id", me.squadra_id);
       clGiornate = rBt.error ? battute.slice() : (rBt.data || []);
       var idsStagione = clGiornate.filter(function(b){
         return giornataContaPresenze(b, clStagione);
@@ -17138,7 +17263,9 @@ header .menubtn{min-width:48px; min-height:48px;}
   function giornataContaPresenze(b, st){
     if(!b) return false;
     var d = String(b.data).slice(0,10);
-    return (b.stato==="conclusa" || b.stato==="chiusa") && d <= iso(new Date()) && (!st || stagioneDi(d)===st);
+    /* v3.80: "chiusa" vuol dire PRENOTAZIONI CHIUSE, non giornata fatta: prima contava
+       come giornata fatta, con zero presenti, e abbassava la percentuale di tutti */
+    return b.stato==="conclusa" && d <= iso(new Date()) && (!st || stagioneDi(d)===st);
   }
   var clGiornate = null;   // le giornate della stagione della classifica, rilette insieme ai dati
   function giornateConcluseDi(st){
@@ -17159,11 +17286,14 @@ header .menubtn{min-width:48px; min-height:48px;}
                                 uccisioni:0, padelle:0, medaglie:[], punti:0};
       return per[mid];
     }
+    var gMap = {};
+    (clGiornate || battute).forEach(function(b){ gMap[b.id] = b; });
     clAdesioni.forEach(function(a){
       if(!a.presente) return;
       var r = riga(a.membro_id);
       r.presenze++;
       if(a.tracciatore) r.tracciate++;
+      if(a.viene!==true && penalitaNonPrenotato(gMap[a.battuta_id])) r.nonPrenotate = (r.nonPrenotate||0) + 1;
     });
     clFatti.forEach(function(f){
       /* una CONTESA non ha padrone: prima finiva in classifica come riga
@@ -17191,6 +17321,7 @@ header .menubtn{min-width:48px; min-height:48px;}
               + r.tracciate * valBarema("tracciata")
               + r.uccisioni * valBarema("uccisione")
               + r.padelle   * valBarema("padella")
+              + (r.nonPrenotate||0) * valBarema("non_prenotato")
               + pa + pm;
     });
     return Object.keys(per).map(function(k){ return per[k]; });
@@ -17263,6 +17394,7 @@ header .menubtn{min-width:48px; min-height:48px;}
            + ' · '+r.uccisioni+' uccision'+(r.uccisioni===1?'e':'i')
            + ' · '+r.padelle+' padell'+(r.padelle===1?'a':'e')
            + (r.medaglie.length ? ' · '+r.medaglie.length+' medagli'+(r.medaglie.length===1?'a':'e') : '')
+           + (r.nonPrenotate ? ' · <span style="color:#e0a0a0">'+r.nonPrenotate+' senza prenotazione</span>' : '')
            + '</div></div>';
         h += '<div class="pt">'+(clSub==="generale" ? numPulito(r.punti) : r[chiave])+'</div>';
         // la medaglietta si tocca e porta al muro: senza icona nessuno lo trova
@@ -18010,7 +18142,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         +  'padding:11px 12px; color:var(--cream); font-size:15px; margin-bottom:8px">';
     }
     var vociMan = baremaRighe.filter(function(x){
-      return x.tipo !== "presenza" && x.tipo !== "tracciata";
+      return x.tipo !== "presenza" && x.tipo !== "tracciata" && x.tipo !== "non_prenotato";   /* automatica: non la assegna il sergente */
     });
     if(!vociMan.some(function(x){ return x.tipo==="uccisione"; })) vociMan.unshift({tipo:"uccisione", nome:"Uccisione"});
     if(!vociMan.some(function(x){ return x.tipo==="padella"; }))   vociMan.push({tipo:"padella", nome:"Padella"});
@@ -24531,7 +24663,7 @@ function fineA(){
     if(rB.error || !rB.data || !rB.data.length) return;
     /* SOLO le giornate con adesioni ancora aperte (sua regola 12/09): chiuse
        le adesioni o conclusa la giornata, rispondere non serve piu' */
-    var aperte = rB.data.filter(function(b){ return b.stato==="aperta"; });
+    var aperte = rB.data.filter(function(b){ return prenotabile(b); });
     if(!aperte.length) return;
     var ids = aperte.map(function(b){ return b.id; });
     var rA = await sb.from("hn_adesioni").select("battuta_id,viene")
@@ -24731,7 +24863,7 @@ function fineA(){
       ["Senza rete","Quello che hai gi\u00e0 aperto resta sul telefono: si vede anche senza campo. Quello che scrivi senza rete, dove si pu\u00f2, parte appena torna."]
     ]},
     {k:"battute", ic:"\ud83d\udd25", t:"Battute e giornata", d:"Calendario, adesioni, la giornata di caccia", testo:[
-      ["Il calendario","In <b>Battute</b> vedi le giornate della stagione. In Home, per ogni giornata aperta, arriva la domanda diretta con <b>S\u00ec</b> e <b>No</b>: il S\u00ec vale \"ci sono\"; tracciatore e ospiti si aggiungono dentro la giornata."],
+      ["Il calendario","In <b>Battute</b> vedi le giornate della stagione. In Home, per ogni giornata aperta, arriva la domanda diretta con <b>S\u00ec</b> e <b>No</b>: il S\u00ec vale \"ci sono\"; tracciatore e ospiti si aggiungono dentro la giornata. Si prenota <b>fino al giorno prima</b>: il giorno della giornata le prenotazioni si chiudono da sole. Chi \u00e8 presente senza essersi prenotato prende <b>\u22121</b> in Classifica."],
       ["La giornata","Tocchi una giornata e la apri: chi viene, le battute della giornata, la tua posta quando il capo te la assegna."],
       ["La tua posta","Quando hai la posta compare la scheda con <b>\ud83d\uddfa\ufe0f Portami alla mia posta</b> (freccia e distanza, anche senza campo) e il tasto per dire che <b>sei in posta</b>. Se la posta secondo te va spostata: <b>\ud83d\udccd Consiglia di spostare la posta qui</b>, da dove hai i piedi, scrivendo il perch\u00e9."],
       ["Il capo","Crea la giornata, prepara le battute (poste messe anche la sera prima), preme <b>Parte la battuta</b>, segna col + e \u2212 i capi abbattuti appena succede, poi <b>Chiudi la battuta</b> e a fine giorno <b>Concludi la giornata</b>. I capi li segna solo lui, qui in Battute: sono quelli che contano dappertutto."],
@@ -24771,7 +24903,7 @@ function fineA(){
       ["Le linguette","<b>Generale</b> (i punti), <b>Uccisioni</b>, <b>Padelle</b>, <b>Medagliere</b>. In alto si sceglie la stagione."],
       ["La percentuale","Accanto al nome: presenze sulle giornate concluse. Verde da 80%, gialla da 50%, rossa sotto."],
       ["I tasti sulla riga","\ud83c\udf96 apre le medaglie di quel cacciatore, <b>i</b> il dettaglio dei suoi punti."],
-      ["I punti","Nascono dalle giornate concluse: presenza, tracciata, uccisione, padella, medaglie. Quanto vale ogni cosa lo decide chi amministra (\u2696\ufe0f Quanto vale ogni cosa)."]
+      ["I punti","Nascono dalle giornate concluse: presenza, tracciata, uccisione, padella, medaglie; \u22121 se eri presente senza esserti prenotato. Quanto vale ogni cosa lo decide chi amministra (\u2696\ufe0f Quanto vale ogni cosa)."]
     ]},
     {k:"sergente", ic:"\ud83c\udf96\ufe0f", t:"Sergente Mario", d:"Il giudice di giornata", testo:[
       ["Cos'\u00e8","La sezione del giudice: a battuta chiusa assegna ogni capo a chi l'ha abbattuto, mai oltre il numero segnato dal capo. Se non si sa di chi \u00e8, resta contesa e non va in classifica."],
@@ -25067,6 +25199,8 @@ function fineA(){
   }
   async function rispondiDaHome(battutaId, viene){
     if(!navigator.onLine){ toast("Serve la rete per rispondere"); return; }
+    var bR = battute.find(function(x){ return x.id===battutaId; });
+    if(bR && !prenotabile(bR)){ toast("Prenotazioni chiuse: si prenota fino al giorno prima"); DOMANDE_HOME = DOMANDE_HOME.filter(function(b){ return b.id!==battutaId; }); renderCaselleHome(); return; }
     try{
       var q=await sb.from("hn_adesioni").select("id").eq("battuta_id",battutaId).eq("membro_id",me.membro_id).limit(1);
       var r;
