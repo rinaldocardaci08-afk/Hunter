@@ -3812,7 +3812,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.72";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.73";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5358,21 +5358,36 @@ header .menubtn{min-width:48px; min-height:48px;}
       + '</div>';
   }
   var statMappeCaricate=false;
+  /* v3.72b - I CAPI DELLE MAPPE come in Battute. Prima qui c'erano tre difetti:
+     1) si contavano SOLO le assegnazioni del sergente (hn_fatti), mentre Battute
+        conta prima i capi segnati dal capo sulla battuta (capiDiSvolta);
+     2) si usava clFatti, lo stesso elenco della Classifica: se la Classifica era
+        stata aperta prima, dentro c'erano solo le giornate CONCLUSE e qui non si
+        ricaricava piu' (l'elenco non era vuoto);
+     3) si caricava una volta sola per sessione: i capi nuovi non arrivavano fino
+        al riavvio dell'app.
+     Ora le mappe hanno i loro dati (mappeFatti), riletti se hanno piu' di 30 s,
+     e si ridisegna solo se qualcosa e' cambiato. */
+  var mappeFatti = null, statMappeIl = 0, statMappeFirma = "";
   async function caricaStatMappe(){
-    if(statMappeCaricate || caricaStatMappe.__inCorso) return;
+    if(caricaStatMappe.__inCorso) return;
+    if(statMappeCaricate && Date.now() - statMappeIl < 30000) return;
     caricaStatMappe.__inCorso=true;
     try{
       if(!battute.length) await caricaBattute();
-      if(!clFatti.length){
-        var r = await sb.from("hn_fatti").select("*").eq("squadra_id", me.squadra_id).eq("tipo","uccisione");
-        if(!r.error) clFatti = r.data || [];
-      }
-      if(!tutteBattuteSvolte.length){
-        var rb = await sb.from("hn_battute_svolte").select("*").eq("squadra_id", me.squadra_id);
-        if(!rb.error) tutteBattuteSvolte = rb.data || [];
-      }
+      var r = await sb.from("hn_fatti").select("*").eq("squadra_id", me.squadra_id).eq("tipo","uccisione");
+      if(!r.error) mappeFatti = r.data || [];
+      var rb = await sb.from("hn_battute_svolte").select("*").eq("squadra_id", me.squadra_id);
+      if(!rb.error) tutteBattuteSvolte = rb.data || [];
       statMappeCaricate=true;
-      if(document.getElementById("v-aree").classList.contains("active")) renderAree();
+      statMappeIl=Date.now();
+      var firma = (mappeFatti||[]).map(function(x){ return x.id+"/"+(x.quanti||1)+"/"+(x.battuta_svolta_id||""); }).join(",")
+        + "|" + tutteBattuteSvolte.map(function(x){ return x.id+"/"+(x.capi_abbattuti||0)+"/"+(x.chiusa_il?1:0)+"/"+(x.area_id||""); }).join(",");
+      if(firma !== statMappeFirma){
+        statMappeFirma = firma;
+        if(document.getElementById("v-aree").classList.contains("active")) renderAree();
+        else if(document.getElementById("v-areadett") && document.getElementById("v-areadett").classList.contains("active") && typeof renderSchedaArea==="function") renderSchedaArea();
+      }
     }catch(e){}
     caricaStatMappe.__inCorso=false;
   }
@@ -14353,19 +14368,17 @@ header .menubtn{min-width:48px; min-height:48px;}
   function abbattimentiArea(areaId){
     var st = stagioneCorrente();
     var tot = 0;
+    /* le uccisioni delle mappe (v3.72b): se non sono ancora arrivate, ripiego su
+       quelle della Classifica, ma SOLO le uccisioni */
+    var fattiU = (mappeFatti || clFatti || []).filter(function(f){ return f.tipo === "uccisione"; });
 
-    // 1) esatto: dalle battute svolte su questa mappa
-    var bsIds = tutteBattuteSvolte.filter(function(x){
+    // 1) esatto: battuta per battuta, con la STESSA regola di Battute (capiDiSvolta):
+    //    vale il numero segnato dal capo, se manca le assegnazioni del sergente
+    tutteBattuteSvolte.filter(function(x){
       if(x.area_id !== areaId) return false;
       var g = battute.find(function(b){ return b.id === x.giornata_id; });
       return g && stagioneDi(g.data) === st;
-    }).map(function(x){ return x.id; });
-    if(bsIds.length){
-      tot += clFatti.filter(function(f){
-        return f.tipo === "uccisione" && f.battuta_svolta_id
-            && bsIds.indexOf(f.battuta_svolta_id) >= 0;
-      }).reduce(function(t, f){ return t + Number(f.quanti || 1); }, 0);
-    }
+    }).forEach(function(bs){ tot += capiDiSvolta(bs, fattiU); });
 
     // 2) stima, solo per i fatti vecchi che non sanno di quale battuta sono
     var ids = battute.filter(function(b){
@@ -14375,8 +14388,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       return seg.length === 1 && seg[0] === areaId;
     }).map(function(b){ return b.id; });
     if(ids.length){
-      tot += clFatti.filter(function(f){
-        return f.tipo === "uccisione" && !f.battuta_svolta_id
+      tot += fattiU.filter(function(f){
+        return !f.battuta_svolta_id
             && ids.indexOf(f.battuta_id) >= 0;
       }).reduce(function(t, f){ return t + Number(f.quanti || 1); }, 0);
     }
@@ -14395,19 +14408,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     showView("areadett");
     if(!settori.length) await caricaSettori();
     if(!tracce.length) await caricaTracce();
-    // i fatti servono per gli abbattimenti
-    if(!clFatti.length){
-      try{
-        var r = await sb.from("hn_fatti").select("*").eq("squadra_id", me.squadra_id).eq("tipo","uccisione");
-        if(!r.error) clFatti = r.data || [];
-      }catch(e){}
-    }
-    if(!tutteBattuteSvolte.length){
-      try{
-        var rb = await sb.from("hn_battute_svolte").select("*").eq("squadra_id", me.squadra_id);
-        if(!rb.error) tutteBattuteSvolte = rb.data || [];
-      }catch(e){}
-    }
+    // i capi di questa mappa: stessi dati e stessa regola dell'elenco (v3.72b)
+    await caricaStatMappe();
     renderSchedaArea();
   }
 
