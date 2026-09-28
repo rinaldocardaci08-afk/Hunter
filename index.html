@@ -3812,7 +3812,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.75";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.76";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -19313,12 +19313,13 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<div style="margin-top:9px; padding-top:9px; border-top:1px solid rgba(123,224,168,.2); font-size:11px; color:#e0b878">';
       h += '\u26a0 '+eur(cs.daRimborsare)+' anticipati dai cacciatori, da rimborsare</div></div>';
     }
-    function pannelloCausale(tit, sotto, col, c){
+    /* v3.75b - ogni pannello apre la schermata della sua causale */
+    function pannelloCausale(tit, sotto, col, c, sub){
       var perc = c.dovuto > 0 ? Math.min(100, Math.round(c.dato / c.dovuto * 100)) : 0;
-      var x = '<div class="card" style="border-left:3px solid '+col+'; border-radius:0 12px 12px 0; margin-bottom:8px; padding:11px 12px">';
+      var x = '<div class="card" data-sub="'+sub+'" role="button" style="cursor:pointer; border-left:3px solid '+col+'; border-radius:0 12px 12px 0; margin-bottom:8px; padding:11px 12px">';
       x += '<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px">'
         +  '<span style="font-size:13.5px; color:var(--cream); font-weight:600">'+tit+'</span>'
-        +  '<span style="font-size:11px; color:var(--muted)">'+sotto+'</span></div>';
+        +  '<span style="font-size:11px; color:var(--muted)">'+sotto+' <span style="color:var(--gold); font-size:14px">\u203a</span></span></div>';
       x += '<div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; text-align:center">'
         +  '<div><div style="font-size:10.5px; color:var(--muted)">da incassare</div><div style="font-size:15px; color:var(--cream); font-weight:600">'+eur(c.dovuto)+'</div></div>'
         +  '<div><div style="font-size:10.5px; color:#7bd3b0">incassato</div><div style="font-size:15px; color:#7be0a8; font-weight:600">'+eur(c.dato)+'</div></div>'
@@ -19328,14 +19329,14 @@ header .menubtn{min-width:48px; min-height:48px;}
       return x + '</div>';
     }
     h+='<div class="sechead">Per causale \u00b7 stagione '+stagioneCorrente()+'</div>';
-    h+=pannelloCausale("Quote associative", cs.ass.pagati+' su '+cs.ass.soci+' in regola', "#D4537E", cs.ass);
-    h+=pannelloCausale("Quote giornata", cs.gio.giornate+' giornat'+(cs.gio.giornate===1?'a':'e')+' concluse', "#1D9E75", cs.gio);
-    h+=pannelloCausale("Obiettivi", obiAperti+' attiv'+(obiAperti===1?'o':'i'), "#E0922B", cs.obi);
+    h+=pannelloCausale("Quote associative", cs.ass.pagati+' su '+cs.ass.soci+' in regola', "#D4537E", cs.ass, "associative");
+    h+=pannelloCausale("Quote giornata", cs.gio.giornate+' giornat'+(cs.gio.giornate===1?'a':'e')+' concluse', "#1D9E75", cs.gio, "quote");
+    h+=pannelloCausale("Obiettivi", obiAperti+' attiv'+(obiAperti===1?'o':'i'), "#E0922B", cs.obi, "obiettivi");
     var nSostenute = movimenti.filter(function(m){ return m.tipo==="uscita" && !m.programmata; }).length;
-    h+='<div class="card" style="border-left:3px solid #C0392B; border-radius:0 12px 12px 0; margin-bottom:8px; padding:11px 12px">';
+    h+='<div class="card" data-sub="spese" role="button" style="cursor:pointer; border-left:3px solid #C0392B; border-radius:0 12px 12px 0; margin-bottom:8px; padding:11px 12px">';
     h+='<div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:8px">'
       +'<span style="font-size:13.5px; color:var(--cream); font-weight:600">Spese</span>'
-      +'<span style="font-size:11px; color:var(--muted)">'+nSostenute+' registrate</span></div>';
+      +'<span style="font-size:11px; color:var(--muted)">'+nSostenute+' registrate <span style="color:var(--gold); font-size:14px">\u203a</span></span></div>';
     h+='<div style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; text-align:center">'
       +'<div><div style="font-size:10.5px; color:#e0a0a0">uscite dalla cassa</div><div style="font-size:15px; color:#e0a0a0; font-weight:600">'+eur(uscite)+'</div></div>'
       +'<div><div style="font-size:10.5px; color:var(--muted)">da affrontare</div><div style="font-size:15px; color:var(--amber); font-weight:600">'+eur(totProgrammate())+'</div></div>'
