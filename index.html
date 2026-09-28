@@ -820,6 +820,16 @@
   .tile.soon .badge{position:absolute; top:9px; right:9px; font-size:9px; color:var(--muted);
     background:var(--dark3); padding:2px 6px; border-radius:5px;}
   .tile.wide{grid-column:1 / -1; flex-direction:row; align-items:center; min-height:0; gap:12px;}
+  /* v3.78: meno caselle in Home, piu' grandi (fino a 6: una per riga; fino a 9: piu' alte) */
+  .grid.medie .tile:not(.wide){min-height:122px; padding:17px 15px;}
+  .grid.medie .tile:not(.wide) .ic{font-size:31px;}
+  .grid.medie .tile:not(.wide) .nm{font-size:16px;}
+  .grid.medie .tile:not(.wide) .ds{font-size:12.5px;}
+  .grid.grandi .tile:not(.wide){grid-column:1 / -1; display:grid; grid-template-columns:auto 1fr; column-gap:16px; row-gap:3px; align-items:center; align-content:center; min-height:84px; padding:18px 16px;}
+  .grid.grandi .tile:not(.wide) .ic{font-size:36px; grid-row:1 / span 3;}
+  .grid.grandi .tile:not(.wide) .nm, .grid.grandi .tile:not(.wide) .ds, .grid.grandi .tile:not(.wide) .sunto{grid-column:2;}
+  .grid.grandi .tile:not(.wide) .nm{font-size:18px;}
+  .grid.grandi .tile:not(.wide) .ds{font-size:13px;}
   /* LA DOMANDA in Home (18/09): "Sabato 3, partecipi?" con Sì e No, una riga per giornata aperta */
   /* la giornata di oggi, sotto la bacheca */
   .giohome{grid-column:1/-1; background:linear-gradient(135deg,#1f2b38,#243447);
@@ -2428,19 +2438,11 @@ header .menubtn{min-width:48px; min-height:48px;}
         <button data-home title="Indietro" aria-label="Indietro">❮</button>
         <div class="ttl">Guida</div>
       </div>
+      <!-- v3.78: la Guida a cartelle si disegna da renderGuida() -->
       <div class="scroll">
-        <div class="sechead">Come si usa sul campo</div>
-        <div class="card" style="line-height:1.65; font-size:14px;">
-          <b style="color:var(--gold)">1.</b> In <b>Aree</b> crea la mappa del terreno (es. "Bosco di Sopra").<br><br>
-          <b style="color:var(--gold)">2.</b> Cammina fino a una postazione e premi <b>Segna posta qui</b>.<br><br>
-          <b style="color:var(--gold)">3.</b> Le poste si salvano nel cloud: le vede tutta la squadra.<br><br>
-          <b style="color:var(--gold)">4.</b> Tocca una posta per avere <b>freccia e distanza</b> che ti guidano — funziona anche senza campo.
-        </div>
-        <div class="sechead">Modalità mappa</div>
-        <div class="card" style="line-height:1.6; font-size:13px; color:var(--muted)">
-          <b style="color:var(--cream)">Satellite</b> — foto reali, serve campo.<br>
-          <b style="color:var(--cream)">Schema</b> — disegno leggero con le sole poste: sempre disponibile, poca batteria.
-        </div>
+        <div id="info-scroll"></div>
+        <!-- GPS, versione e account restano sotto l'elenco delle cartelle -->
+        <div id="info-fisso">
         <div class="sechead">GPS</div>
         <div class="card" style="line-height:1.6; font-size:13px; color:var(--muted)">
           Il pallino blu sei tu, col cerchio di precisione. Sotto gli alberi può ballare di qualche metro: è normale.
@@ -2463,6 +2465,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           <button class="btn line" id="btn-logout">Esci</button>
         </div>
         <div style="text-align:center; color:var(--muted); font-size:11px; margin-top:18px" id="i-ver">Hunter · Zannalunga</div>
+        </div>
       </div>
     </section>
   </main>
@@ -3812,7 +3815,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.77";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.78";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5636,7 +5639,22 @@ header .menubtn{min-width:48px; min-height:48px;}
     pilaViste.push(vistaAttiva);
     if(pilaViste.length > 12) pilaViste.shift();
   }
+  /* v3.78 - I PASSI DENTRO UNA SEZIONE: prima di uscire dalla sezione, il ❮ (e il
+     tasto indietro del telefono) chiudono il passo aperto dentro di essa: la cartella
+     della Guida, la Home in modifica, la giornata o l'obiettivo aperti in Cassa, la
+     chat aperta in Comunicazioni. Cosi' si torna sempre un passo alla volta. */
+  function passoIndietroInterno(){
+    if(vistaAttiva==="info" && typeof guidaCap!=="undefined" && guidaCap){ guidaCap=null; renderGuida(); return true; }
+    if(vistaAttiva==="home" && typeof homeInModifica!=="undefined" && homeInModifica){ homeInModifica=false; renderCaselleHome(); return true; }
+    if(vistaAttiva==="cassasub"){
+      if(giornoQuote){ giornoQuote=null; renderCassaSub(); return true; }
+      if(obiettivoAperto){ obiettivoAperto=null; renderCassaSub(); return true; }
+    }
+    if(vistaAttiva==="bacheca" && typeof chatCon!=="undefined" && chatCon && typeof renderComunicazioni==="function"){ chatCon=null; renderComunicazioni(); return true; }
+    return false;
+  }
   function tornaIndietro(){
+    if(passoIndietroInterno()) return;
     /* se una mappa e' aperta su un'area, il primo indietro chiude quella */
     var v = pilaViste.pop();
     tornandoIndietro = true;
@@ -5672,6 +5690,8 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   function showView(v){
+    var vPrima = vistaAttiva;
+    if(v!=="home" && typeof homeInModifica!=="undefined") homeInModifica = false;
     // se stavo scegliendo un ritrovo e me ne vado dalla mappa, la scelta decade
     if(typeof pickRitrovo!=="undefined" && pickRitrovo && v!=="mappa") chiudiPickRitrovo();
     if(typeof disegnoTraccia!=="undefined" && disegnoTraccia && v!=="mappa") chiudiDisegnoTraccia();
@@ -5711,7 +5731,13 @@ header .menubtn{min-width:48px; min-height:48px;}
     else if(v!=="giornata") nonServeGPS();
     if(v==="home") setTimeout(renderAuto, 30);
     if(v==="home") setTimeout(controllaAvvisoAtc, 60);
-    if(v==="home") setTimeout(calcolaSegnali, 500);
+    /* v3.78: tornando in Home i numerini si ricalcolano subito solo se vengo da una
+       sezione che li cambia; dalle altre si riusano quelli di meno di 30 secondi fa */
+    if(v==="home") setTimeout(function(){
+      calcolaSegnali(["cassa","cassasub","scadenze","battute","giornata","presenze","poste","sergente"].indexOf(vPrima)>=0);
+    }, 500);
+    if(v!=="home" && typeof mettiGuardia==="function") mettiGuardia();
+    if(v==="info" && typeof renderGuida==="function"){ guidaCap=null; renderGuida(); }
     else if(autoTimer){ clearInterval(autoTimer); autoTimer=null; }
 
     if(v==="mappa"){
@@ -8830,6 +8856,38 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     renderSegnala();
   }
+  /* v3.78 - IL TASTO INDIETRO DEL TELEFONO fa come il ❮: chiude la finestra aperta,
+     poi il passo aperto, poi torna alla sezione di prima fino alla Home. Prima usciva
+     dall'app da qualsiasi schermata. Si tiene una "guardia" nella storia del browser
+     finche' non si e' in Home senza finestre aperte. */
+  var guardiaStoria = false;
+  function serveGuardia(){
+    return vistaAttiva!=="home" || (typeof homeInModifica!=="undefined" && homeInModifica) || !!document.querySelector(".modal.show");
+  }
+  function mettiGuardia(){
+    if(guardiaStoria) return;
+    try{ history.pushState({hunter:1}, ""); guardiaStoria = true; }catch(e){}
+  }
+  function chiudiFinestraInCima(){
+    var aperte = [].slice.call(document.querySelectorAll(".modal.show"));
+    if(!aperte.length) return false;
+    var m = aperte[aperte.length-1];
+    var b = [].slice.call(m.querySelectorAll("button")).find(function(x){ return /(chiudi|annulla\d?|-no|esci|indietro)$/.test(x.id||""); });
+    if(b) b.click(); else m.classList.remove("show");
+    return true;
+  }
+  window.addEventListener("popstate", function(){
+    guardiaStoria = false;
+    if(!chiudiFinestraInCima()){
+      if(vistaAttiva!=="home" || (typeof homeInModifica!=="undefined" && homeInModifica)) tornaIndietro();
+    }
+    if(serveGuardia()) mettiGuardia();
+  });
+  /* quando si apre una finestra qualsiasi, la guardia serve anche in Home */
+  try{
+    new MutationObserver(function(){ if(document.querySelector(".modal.show")) mettiGuardia(); })
+      .observe(document.body, {subtree:true, attributes:true, attributeFilter:["class"]});
+  }catch(e){}
   /* il numerino sulla casella della Home */
   function calcolaSegnaliSegn(){
     try{
@@ -17067,6 +17125,19 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   /* LA QUERY MADRE: da qui escono tutte le classifiche e tutti i dettagli */
+  /* v3.78 - LA PRESENZA IN PERCENTUALE: presenze vere (segnato presente a giornata
+     conclusa) sulle giornate concluse della stagione. 100% = tutte. La stessa regola
+     vale in Classifica e nella torta di Le mie presenze. */
+  function giornateConcluseDi(st){
+    return battute.filter(function(b){ return (b.stato==="conclusa" || b.stato==="chiusa") && stagioneDi(String(b.data).slice(0,10))===st; }).length;
+  }
+  function htmlPercPresenza(presenze, totale){
+    if(!totale) return '';
+    var p = Math.round(Math.min(1, presenze/totale)*100);
+    var bg = p>=80 ? '#1d3a2a' : (p>=50 ? '#3a3010' : '#4a2a20');
+    var fg = p>=80 ? '#7be0a8' : (p>=50 ? '#e0b878' : '#e0a0a0');
+    return ' <span class="clperc" title="presente a '+presenze+' giornate su '+totale+'" style="display:inline-block; font-size:11px; font-weight:600; padding:1px 7px; border-radius:10px; vertical-align:1px; background:'+bg+'; color:'+fg+'">'+p+'%</span>';
+  }
   function calcolaClassifica(){
     var per = {};
     function riga(mid){
@@ -17168,11 +17239,12 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(!ord.length){
         h += '<div class="card" style="font-size:12px; color:var(--muted)">Nessuna '+(clSub==="uccisioni"?"uccisione":"padella")+' registrata in questa stagione.</div>';
       }
+      var nGiorn = giornateConcluseDi(clStagione);
       ord.forEach(function(r, i){
         var cl = "clrow" + (clSub==="generale" && i<3 ? " podio"+(i+1) : "");
         h += '<div class="'+cl+'">';
         h += '<div class="pos">'+(i+1)+'</div>';
-        h += '<div style="flex:1; min-width:0"><div class="nm">'+esc(nomeDi(r.membro_id))+'</div>';
+        h += '<div style="flex:1; min-width:0"><div class="nm">'+esc(nomeDi(r.membro_id))+htmlPercPresenza(r.presenze, nGiorn)+'</div>';
         h += '<div class="clmini">'+r.presenze+' present'+(r.presenze===1?'a':'e')
            + ' · '+r.uccisioni+' uccision'+(r.uccisioni===1?'e':'i')
            + ' · '+r.padelle+' padell'+(r.padelle===1?'a':'e')
@@ -21953,13 +22025,15 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     // --- CASSA ---
     document.getElementById("cs-indietro").onclick=function(){
-      if(giornoQuote){ giornoQuote=null; renderCassaSub(); return; }
-      if(obiettivoAperto){ obiettivoAperto=null; renderCassaSub(); return; }
-      cassaSub=null; showView("cassa");
+      if(passoIndietroInterno()) return;
+      /* v3.78: aperta dalla giornata (raccolta quote) torna alla giornata, non in Cassa */
+      cassaSub=null; tornaIndietro();
     };
 
     // --- BATTUTE ---
-    document.getElementById("gi-indietro").onclick=function(){ giornataAperta=null; giornCorrezione=null; bsCorrezione=null; showView("battute"); };
+    /* v3.78: dalla giornata si torna da dove si e' venuti (Home, Battute, Archivio):
+       prima portava sempre in Battute, anche aperta dalla Home */
+    document.getElementById("gi-indietro").onclick=function(){ giornataAperta=null; giornCorrezione=null; bsCorrezione=null; tornaIndietro(); };
     document.getElementById("m-aree-salva2").onclick=salvaAreeSegnalate;
     document.getElementById("m-aree-annulla2").onclick=function(){ document.getElementById("m-aree-seg").classList.remove("show"); };
     document.getElementById("m-div-salva").onclick=salvaDivisione;
@@ -24235,9 +24309,11 @@ function fineA(){
     var righe="";
     batt.forEach(function(b){
       var a=mieAdes[b.id];
-      if(b.stato==="conclusa" || b.stato==="chiusa") giocate++;
-      if(!a || a.viene!==true) return;
-      venute++;
+      var conclusa = (b.stato==="conclusa" || b.stato==="chiusa");
+      if(conclusa) giocate++;
+      /* v3.78: si conta la presenza VERA a giornata conclusa (prima: l'iscrizione) */
+      if(conclusa && a && a.presente===true) venute++;
+      if(!a || (a.viene!==true && a.presente!==true)) return;
       var p=atcDi[b.id];
       var ic="";
       /* cinghiale-icona.png = UNA posa sola; cinghiale.png e' il foglio degli sprite del gioco (6 cinghiali) */
@@ -24253,7 +24329,7 @@ function fineA(){
       }
       righe+='<div class="canale" data-battuta="'+b.id+'" data-data="'+esc(b.data)+'">'
         + '<span class="mid"><div class="nome">'+esc(dataLunga(b.data))+'</div>'
-        + '<div class="f">'+(a.tracciatore?"tracciatore":"in battuta")+'</div></span>'
+        + '<div class="f">'+(conclusa ? (a.presente===true ? (a.tracciatore?"tracciatore":"in battuta") : "iscritto, non presente") : "iscritto")+'</div></span>'
         + '<span style="white-space:nowrap; flex-shrink:0">'+ic+'</span>'
         + bad + '</div>';
     });
@@ -24268,6 +24344,18 @@ function fineA(){
       + '<div style="font-size:22px; font-weight:600; color:#c98a5a">'+nPad+'</div></div>'
       + '</div>';
 
+    /* v3.78 - LA TORTA: il cerchio intero sono le giornate fatte, la fetta verde
+       quelle in cui era presente */
+    if(giocate){
+      var perc = Math.round(Math.min(1, venute/giocate)*100);
+      var colP = perc>=80 ? '#1D9E75' : (perc>=50 ? '#E0922B' : '#C0392B');
+      h+='<div class="card" style="display:flex; align-items:center; gap:16px; margin-top:10px">'
+        + '<div role="img" aria-label="Presente al '+perc+' per cento" style="width:104px; height:104px; border-radius:50%; flex-shrink:0; background:conic-gradient('+colP+' 0 '+(venute/giocate*100)+'%, var(--dark3) '+(venute/giocate*100)+'% 100%)"></div>'
+        + '<div><div style="font-size:28px; font-weight:700; color:'+colP+'">'+perc+'%</div>'
+        + '<div style="font-size:13px; color:var(--cream); margin-top:2px">presente a '+venute+' giornat'+(venute===1?'a':'e')+' su '+giocate+'</div>'
+        + '<div style="font-size:11.5px; color:var(--muted); margin-top:8px"><span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:'+colP+'; vertical-align:-1px"></span> presente'
+        + ' &nbsp; <span style="display:inline-block; width:10px; height:10px; border-radius:2px; background:var(--dark3); vertical-align:-1px"></span> assente</div></div></div>';
+    }
     h+='<div class="lbl" style="margin-top:14px">Giornate della stagione '+esc(st)+'</div>'+righe;
 
     if(sonoOspiteRegistro(membro)){
@@ -24353,13 +24441,22 @@ function fineA(){
     }catch(e){ return 999; }
   }
 
-  async function calcolaSegnali(){
+  /* v3.78 - I NUMERINI DELLA HOME: prima 8 interrogazioni una dopo l'altra a ogni
+     ritorno in Home, anche da una sezione che non cambia niente (Guida, Mappa...).
+     Ora partono insieme e, se l'ultimo giro ha meno di 30 secondi e non vengo da
+     una sezione che li cambia, si riusano. */
+  var ultimiSegnali = 0;
+  async function calcolaSegnali(forza){
     if(!me || !me.membro_id || !me.squadra_id) return;
+    if(forza!==true && Date.now() - ultimiSegnali < 30000){ renderCaselleHome(); return; }
+    ultimiSegnali = Date.now();
     var nuovi = {};
-    try{ await segnaleScadenze(nuovi); }catch(e){}
-    try{ await segnaleBattute(nuovi);  }catch(e){}
-    try{ await segnalePresenze(nuovi); }catch(e){}
-    try{ await segnaleCassa(nuovi);    }catch(e){}
+    await Promise.all([
+      segnaleScadenze(nuovi).catch(function(){}),
+      segnaleBattute(nuovi).catch(function(){}),
+      segnalePresenze(nuovi).catch(function(){}),
+      segnaleCassa(nuovi).catch(function(){})
+    ]);
     try{ controllaBattutaGiochi(); }catch(e){}   /* i giochi seguono la battuta in corso, anche dopo un annullamento */
     SEGNALI = nuovi;
     salvaSegnali();
@@ -24601,6 +24698,131 @@ function fineA(){
     }catch(e){ toast("Serve la rete per salvare"); }
   }
 
+  /* ===== LA GUIDA A CARTELLE (v3.78, sua richiesta 28/09) =====
+     Una cartella per sezione: a cosa serve, come si usa passo per passo, cosa fa
+     in piu' il capo. Il testo sta qui, in un posto solo: se cambia una sezione si
+     aggiorna la sua cartella. */
+  var guidaCap = null;
+  var GUIDA = [
+    {k:"inizio", ic:"\ud83c\udfe0", t:"Come si muove l'app", d:"Home, tasto indietro, caselle", testo:[
+      ["Si parte sempre dalla Home","Ogni casella apre una sezione. In alto a sinistra di ogni sezione c'\u00e8 il tasto <b>\u276e</b>: torna un passo indietro, fino alla Home. Anche il tasto indietro del telefono fa lo stesso."],
+      ["La barra in basso","<b>Home</b>, <b>Bacheca</b>, <b>Mappa</b>, <b>Mezzo</b> e <b>Giochi</b> sono sempre a portata di dito."],
+      ["I numerini sulle caselle","Il pallino dice quante cose ti aspettano in quella sezione (una scadenza, una quota da pagare, una giornata a cui rispondere); sotto il nome c'\u00e8 in una riga cosa."],
+      ["Sistema la tua Home","In fondo alla Home il tasto <b>\u270f\ufe0f Sistema la tua Home</b>: sposti le caselle con le frecce e nascondi con l'occhio quelle che non usi. Battute, Cassa, Presenze, Classifica, Scadenze, Bacheca, Segnala e Guida restano sempre. Meno caselle tieni, pi\u00f9 diventano grandi. <b>Come la squadra</b> rimette la Home di partenza."],
+      ["Senza rete","Quello che hai gi\u00e0 aperto resta sul telefono: si vede anche senza campo. Quello che scrivi senza rete, dove si pu\u00f2, parte appena torna."]
+    ]},
+    {k:"battute", ic:"\ud83d\udd25", t:"Battute e giornata", d:"Calendario, adesioni, la giornata di caccia", testo:[
+      ["Il calendario","In <b>Battute</b> vedi le giornate della stagione. In Home, per ogni giornata aperta, arriva la domanda diretta con <b>S\u00ec</b> e <b>No</b>: il S\u00ec vale \"ci sono\"; tracciatore e ospiti si aggiungono dentro la giornata."],
+      ["La giornata","Tocchi una giornata e la apri: chi viene, le battute della giornata, la tua posta quando il capo te la assegna."],
+      ["La tua posta","Quando hai la posta compare la scheda con <b>\ud83d\uddfa\ufe0f Portami alla mia posta</b> (freccia e distanza, anche senza campo) e il tasto per dire che <b>sei in posta</b>. Se la posta secondo te va spostata: <b>\ud83d\udccd Consiglia di spostare la posta qui</b>, da dove hai i piedi, scrivendo il perch\u00e9."],
+      ["Il capo","Crea la giornata, prepara le battute (poste messe anche la sera prima), preme <b>Parte la battuta</b>, segna col + e \u2212 i capi abbattuti appena succede, poi <b>Chiudi la battuta</b> e a fine giorno <b>Concludi la giornata</b>. I capi li segna solo lui, qui in Battute: sono quelli che contano dappertutto."],
+      ["Giochi chiusi","Con una battuta partita i giochi si chiudono per tutti, capo compreso. Classifiche e trofei restano visibili."]
+    ]},
+    {k:"aree", ic:"\ud83d\udccd", t:"Mappe e poste", d:"Le mappe di battuta con poste e ritrovi", testo:[
+      ["Cos'\u00e8","Le mappe dei terreni dove si caccia, con le poste numerate e i ritrovi. Non \u00e8 la <b>Mappa</b> della barra in basso: quella \u00e8 la carta libera per girare ovunque."],
+      ["L'elenco","Ogni mappa ha il riquadro della stagione: uccisioni, battute fatte e il voto a stelle. Le uccisioni sono quelle segnate dal capo in Battute."],
+      ["La scheda di una mappa","Tocchi una mappa e vedi poste, ritrovi, gli abbattuti della stagione e il podio delle poste."],
+      ["Per il cacciatore","Le mappe sono riservate: la tua posta la vedi quando il capo apre la battuta e te la assegna."],
+      ["Per chi mappa","<b>Nuova mappa</b>, poi cammini fino al punto e <b>Segna posta qui</b>. Una posta si sposta con <b>Sposta qui</b> o si archivia. <b>Scarica la zona</b> tiene la carta sul telefono per quando non c'\u00e8 campo."]
+    ]},
+    {k:"mappa", ic:"\ud83d\uddfa\ufe0f", t:"Mappa", d:"La carta libera: dove sei, ovunque", testo:[
+      ["Cos'\u00e8","La carta libera: la tua posizione adesso e tutto il mondo da girare. Sopra si vedono anche le mappe della squadra."],
+      ["Gli sfondi","Satellite, Topografica o Schema: la scelta resta per la prossima volta. La vista della posta ha i suoi sfondi e non dipende da questa."],
+      ["Senza campo","Le zone scaricate restano sul telefono; freccia e distanza verso una posta funzionano col solo GPS."]
+    ]},
+    {k:"segnala", ic:"\ud83d\udccd", t:"Segnala un punto", d:"Mandi al capo il punto dove sei", testo:[
+      ["Da dove","Solo dalla casella in <b>Home</b>. Il punto \u00e8 dove hai i piedi, preso col GPS, non dove tocchi lo schermo."],
+      ["Cosa puoi mandare","<b>La mia posta va spostata qui</b> (se hai una posta), <b>Qui ci starebbe una posta</b>, <b>Passaggio</b>, <b>Osservazione notturna</b>. Aggiungi due parole di nota e <b>Manda al capo</b>. Le coordinate in alto si toccano per copiarle (radio, WhatsApp)."],
+      ["L'esito","In Bacheca \u2192 Segnalazioni vedi i punti che hai mandato: in attesa, accolto o scartato."],
+      ["Il capo","Li trova in <b>Da decidere</b> (Home o Bacheca \u2192 Segnalazioni). L'app propone la mappa pi\u00f9 vicina coi metri; con un tocco il punto diventa la cosa giusta (la posta si sposta, nasce una posta da verificare, si segna il passaggio) oppure si scarta. Dopo la decisione torna da dove era partito."]
+    ]},
+    {k:"cassa", ic:"\ud83d\udcb0", t:"Cassa", d:"Quote, spese, il tuo conto", testo:[
+      ["Il tuo conto","Il cacciatore vede <b>Il mio conto</b>: in cima quanto deve alla squadra (o quanto la squadra deve a lui), sotto per ogni causale dovuto, pagato e manca, le giornate ancora da pagare, le spese che ha anticipato e quello che ha versato."],
+      ["Le quote","Quota associativa: una per socio, <b>ogni stagione</b>. Quota di giornata: per ogni giornata conclusa in cui sei presente, di norma 2 \u20ac; ogni 15 giorni quella giornata costa 10 \u20ac."],
+      ["Spese anticipate","Se paghi tu una spesa per la squadra, il cassiere la registra come anticipata da te: \u00e8 un tuo credito, finch\u00e9 non te la rimborsa o la compensa con le quote che devi."],
+      ["Il cassiere","Vede la cassa della squadra: in cassa ora, e per ogni causale da incassare, incassato e manca. Tocca un pannello per aprirne la schermata. Nel calendario delle quote, dentro una giornata, <b>Cambia la quota di questa giornata</b> per la giornata da 10 \u20ac; tocca un nome per segnare il versamento. In Spese sceglie chi l'ha pagata (la cassa o un cacciatore) e chiude i crediti con <b>Rimborsa</b> o <b>Compensa con le quote</b>."]
+    ]},
+    {k:"presenze", ic:"\ud83d\udcc5", t:"Le mie presenze", d:"Giornate, capi, registro ATC", testo:[
+      ["Il riquadro","Giornate a cui sei stato presente sulle giornate fatte, capi e padelle della stagione."],
+      ["La torta","Il cerchio intero sono le giornate fatte; la fetta colorata quelle in cui eri presente, con la percentuale. \u00c8 la stessa percentuale che vedi accanto al tuo nome in Classifica."],
+      ["L'elenco","Ogni giornata della stagione: se c'eri, se eri tracciatore, i capi e le padelle."],
+      ["Registro ATC","Per chi caccia da ospite: le giornate per ATC dal 1 ottobre al 31 gennaio e quante ne restano. Tocca il riquadro per aggiungere quelle fatte con altre squadre."]
+    ]},
+    {k:"classifica", ic:"\ud83c\udfc6", t:"Classifica", d:"Punti, uccisioni, padelle, medaglie", testo:[
+      ["Le linguette","<b>Generale</b> (i punti), <b>Uccisioni</b>, <b>Padelle</b>, <b>Medagliere</b>. In alto si sceglie la stagione."],
+      ["La percentuale","Accanto al nome: presenze sulle giornate concluse. Verde da 80%, gialla da 50%, rossa sotto."],
+      ["I tasti sulla riga","\ud83c\udf96 apre le medaglie di quel cacciatore, <b>i</b> il dettaglio dei suoi punti."],
+      ["I punti","Nascono dalle giornate concluse: presenza, tracciata, uccisione, padella, medaglie. Quanto vale ogni cosa lo decide chi amministra (\u2696\ufe0f Quanto vale ogni cosa)."]
+    ]},
+    {k:"sergente", ic:"\ud83c\udf96\ufe0f", t:"Sergente Mario", d:"Il giudice di giornata", testo:[
+      ["Cos'\u00e8","La sezione del giudice: a battuta chiusa assegna ogni capo a chi l'ha abbattuto, mai oltre il numero segnato dal capo. Se non si sa di chi \u00e8, resta contesa e non va in classifica."],
+      ["Padelle e medaglie","Segna le padelle e assegna le medaglie di giornata: finiscono in Classifica e nel Medagliere."],
+      ["Per gli altri","Vedono come sono andate le giornate; decide il sergente."]
+    ]},
+    {k:"bacheca", ic:"\ud83d\udce2", t:"Bacheca e comunicazioni", d:"Annunci, messaggi, segnalazioni", testo:[
+      ["Bacheca","Gli annunci della squadra. Chi gestisce la squadra ne scrive uno con <b>Nuovo annuncio</b>."],
+      ["Comunicazioni","I messaggi: a una persona o a un gruppo. Il pallino rosso sulla casella dice quanti non hai letto."],
+      ["Segnalazioni","I punti che hai mandato al capo e il loro esito. Il capo qui trova quelli da decidere. Per mandarne uno nuovo si usa la casella <b>Segnala un punto</b> in Home."]
+    ]},
+    {k:"scadenze", ic:"\ud83d\udccb", t:"Le mie scadenze", d:"Porto d'armi, tasse, assicurazione", testo:[
+      ["Cosa ci metti","I tuoi documenti con la data: porto d'armi, tasse, assicurazione, ATC. L'app ti avvisa prima."],
+      ["La governativa","Non dura un anno dal pagamento: scade alla data-anniversario del porto d'armi. L'app la calcola da sola dal porto."],
+      ["I colori","Rosso: scaduta. Giallo: scade entro 30 giorni."]
+    ]},
+    {k:"mezzo", ic:"\ud83d\ude97", t:"Il mio mezzo", d:"Dove hai parcheggiato", testo:[
+      ["Come si usa","Arrivato, tocchi <b>Mezzo</b> (in Home o nella barra in basso) e <b>Marca il parcheggio</b>: il punto resta sul telefono e a fine giornata ritrovi il mezzo, anche senza rete. <b>Cancella il punto</b> quando sei ripartito."]
+    ]},
+    {k:"muta", ic:"\ud83d\udc15", t:"Muta cani", d:"I cani e le loro battute", testo:[
+      ["Cos'\u00e8","I cani della squadra, il loro collare e le battute fatte. La vedono il canaio, il capocaccia e chi amministra."],
+      ["Le tracce","Le registrazioni del collare (Dogtrace, file .dogtracerecord) si caricano sul cane e si rivedono sulla mappa della battuta."]
+    ]},
+    {k:"squadra", ic:"\ud83d\udc65", t:"Squadra", d:"Componenti e ruoli", testo:[
+      ["Cos'\u00e8","Chi fa parte della squadra e con che ruolo: capocaccia, vice, capobattuta, canaio, cacciatori, ospiti. Il pallino accanto al nome segnala le scadenze."],
+      ["Chi gestisce","Il capocaccia e chi amministra aggiungono i membri, ne cambiano ruolo e compiti (sergente, canaio, visore)."]
+    ]},
+    {k:"admin", ic:"\u2699\ufe0f", t:"Amministrazione", d:"Solo per chi amministra", testo:[
+      ["Punteggio","Quanto vale ogni cosa in Classifica, stagione per stagione, e le voci nuove."],
+      ["Medaglie","Il catalogo delle medaglie che il sergente assegna."],
+      ["Radio","I canali della squadra e il canale di oggi."],
+      ["Home","La Home di partenza della squadra: la vede chi non ha sistemato la sua."]
+    ]}
+  ];
+  function renderGuida(){
+    var root = document.getElementById("info-scroll");
+    if(!root) return;
+    var h = "";
+    if(!guidaCap){
+      h += '<div class="card" style="font-size:12.5px; color:var(--muted); line-height:1.6; margin-bottom:12px">Una cartella per ogni sezione: a cosa serve, come si usa, cosa fa in pi\u00f9 il capo.</div>';
+      GUIDA.forEach(function(c){
+        if(c.k==="admin" && typeof puoAmministrare==="function" && !puoAmministrare()) return;
+        if(c.k==="muta" && typeof vedeMutaCani==="function" && !vedeMutaCani()) return;
+        h += '<div class="canale" data-guida="'+c.k+'" style="cursor:pointer">'
+          + '<span style="font-size:22px">'+c.ic+'</span>'
+          + '<span class="mid"><div class="nome">'+esc(c.t)+'</div><div class="f">'+esc(c.d)+'</div></span>'
+          + '<span style="color:var(--gold); font-size:18px">\u203a</span></div>';
+      });
+    }else{
+      var c = GUIDA.find(function(x){ return x.k===guidaCap; });
+      if(!c){ guidaCap=null; renderGuida(); return; }
+      h += '<div style="display:flex; align-items:center; gap:10px; margin-bottom:12px">'
+        + '<span style="font-size:30px">'+c.ic+'</span><div><div style="font-size:18px; font-weight:700; color:var(--cream)">'+esc(c.t)+'</div>'
+        + '<div style="font-size:12px; color:var(--muted)">'+esc(c.d)+'</div></div></div>';
+      c.testo.forEach(function(p){
+        h += '<div class="card" style="margin-bottom:8px"><div style="font-size:13.5px; color:var(--gold); font-weight:600; margin-bottom:5px">'+esc(p[0])+'</div>'
+          + '<div style="font-size:13.5px; color:var(--cream); line-height:1.65">'+p[1]+'</div></div>';
+      });
+      h += '<button class="btn line" id="guida-elenco" style="margin-top:6px">\u276e Tutte le cartelle</button>';
+    }
+    root.innerHTML = h;
+    var fx = document.getElementById("info-fisso");
+    if(fx) fx.style.display = guidaCap ? "none" : "";
+    root.querySelectorAll("[data-guida]").forEach(function(b){
+      b.onclick=function(){ guidaCap=b.dataset.guida; renderGuida(); try{ root.scrollTop=0; }catch(e){} };
+    });
+    var be = document.getElementById("guida-elenco");
+    if(be) be.onclick=function(){ guidaCap=null; renderGuida(); };
+  }
+
   var CASELLE_HOME = [
     {k:"ossnott",    ic:"\ud83d\udd2d", nm:"Osservazioni notturne", ds:"Punti, luna e avvistamenti col visore", go:"ossnott", soloVisore:true},
     {k:"bacheca",    ic:"\ud83d\udce2", nm:"Bacheca e comunicazioni", ds:"Annunci, messaggi e punti segnalati", go:"bacheca", wide:true, foto:"bacheca.png"},
@@ -24622,19 +24844,124 @@ function fineA(){
   ];
   var homeOrdine = null;      // {ordine:[chiavi], spente:[chiavi]}
 
+  /* ===== LA HOME DI OGNUNO (v3.78, sua richiesta 28/09) =====
+     Ogni cacciatore sistema la SUA Home (ordine e caselle nascoste), salvata sul suo
+     profilo (hn_membri.home_ordine) e sul telefono. Chi non tocca niente vede la Home
+     di partenza della squadra (Amministrazione > Home, in hn_config).
+     - SEMPRE VISIBILI: Battute, Cassa, Le mie presenze, Classifica, Le mie scadenze,
+       Bacheca, Segnala un punto (unica porta per segnalare) e la Guida.
+     - FISSE PER RUOLO: Mappe e poste per chi mappa o gestisce le battute, Sergente
+       Mario per il sergente, Amministrazione per chi amministra (agli altri non compare).
+     - CASELLE CHE SI INGRANDISCONO: meno sono, piu' sono grandi. */
+  var CASELLE_FISSE = ["battute","cassa","presenze","classifica","scadenze","bacheca","segnala","info"];
+  var homeMia = null;          // la Home del singolo: {ordine:[...], spente:[...]}
+  var homeInModifica = false;
+  function casellaFissa(k){
+    if(CASELLE_FISSE.indexOf(k) >= 0) return true;
+    if(k==="aree" && ((typeof puoMappare==="function" && puoMappare()) || (typeof puoGestireBattute==="function" && puoGestireBattute()))) return true;
+    if(k==="sergente" && typeof isSergente==="function" && isSergente()) return true;
+    if(k==="admin" && typeof puoAmministrare==="function" && puoAmministrare()) return true;
+    return false;
+  }
+  function casellaPerMe(c){
+    if(c.soloVisore && typeof eVisore==="function" && !eVisore()) return false;
+    if(c.soloCanaio && typeof vedeMutaCani==="function" && !vedeMutaCani()) return false;
+    if(c.k==="admin" && typeof puoAmministrare==="function" && !puoAmministrare()) return false;
+    return true;
+  }
+  function chiaveHomeMia(){ return "hunter_home_mia_" + ((me && me.membro_id) || ""); }
+  async function caricaHomeMia(){
+    try{ var c = JSON.parse(localStorage.getItem(chiaveHomeMia())); if(c) homeMia = c; }catch(e){}
+    if(!me || !me.membro_id || !navigator.onLine) return;
+    try{
+      var r = await sb.from("hn_membri").select("home_ordine").eq("id", me.membro_id).limit(1);
+      if(!r.error && r.data && r.data.length && r.data[0].home_ordine){
+        homeMia = r.data[0].home_ordine;
+        try{ localStorage.setItem(chiaveHomeMia(), JSON.stringify(homeMia)); }catch(e2){}
+        renderCaselleHome();
+      }
+    }catch(e3){}
+  }
+  var salvaHomeMiaT = null;
+  function salvaHomeMia(){
+    try{
+      if(homeMia) localStorage.setItem(chiaveHomeMia(), JSON.stringify(homeMia));
+      else localStorage.removeItem(chiaveHomeMia());
+    }catch(e){}
+    clearTimeout(salvaHomeMiaT);
+    salvaHomeMiaT = setTimeout(async function(){
+      try{
+        var r = await sb.from("hn_membri").update({home_ordine: homeMia}).eq("id", me.membro_id);
+        if(r && r.error) throw r.error;
+      }catch(e){ toast("Salvata sul telefono: sul profilo appena c'\u00e8 rete"); }
+    }, 700);
+  }
+  function spostaMiaCasella(k, giu){
+    var vis = ordineHome().filter(function(x){ var c=casellaDi(x); return c && casellaPerMe(c); });
+    var i = vis.indexOf(k), j = giu ? i+1 : i-1;
+    if(i<0 || j<0 || j>=vis.length) return;
+    var t = vis[i]; vis[i] = vis[j]; vis[j] = t;
+    var tutte = ordineHome().filter(function(x){ return vis.indexOf(x)<0; });
+    homeMia = {ordine: vis.concat(tutte), spente: spenteHome().slice()};
+    salvaHomeMia(); renderCaselleHome();
+  }
+  function nascondiMiaCasella(k){
+    if(casellaFissa(k)){ toast("Questa resta sempre in Home"); return; }
+    var sp = spenteHome().slice(), i = sp.indexOf(k);
+    if(i>=0) sp.splice(i,1); else sp.push(k);
+    homeMia = {ordine: ordineHome(), spente: sp};
+    salvaHomeMia(); renderCaselleHome();
+  }
+  function htmlSistemaHome(){
+    var sp = spenteHome();
+    var vis = ordineHome().filter(function(x){ var c=casellaDi(x); return c && casellaPerMe(c); });
+    var h = '<div style="grid-column:1/-1">';
+    h += '<div class="card" style="font-size:12px; color:var(--muted); line-height:1.6; margin-bottom:10px">'
+      + 'Le frecce spostano le caselle, l\u2019occhio le nasconde. Quelle col lucchetto restano sempre. '
+      + 'Meno caselle tieni, pi\u00f9 diventano grandi.</div>';
+    vis.forEach(function(k, i){
+      var c = casellaDi(k), off = sp.indexOf(k)>=0 && !casellaFissa(k), fissa = casellaFissa(k);
+      h += '<div class="canale"'+(off?' style="opacity:.5"':'')+'>'
+        + '<span style="font-size:20px">'+c.ic+'</span>'
+        + '<span class="mid"><div class="nome">'+esc(c.nm)+'</div><div class="f">'+(fissa?'sempre in Home':(off?'nascosta':esc(c.ds)))+'</div></span>'
+        + '<button class="seg" data-mia-su="'+k+'"'+(i===0?' style="opacity:.3"':'')+' aria-label="Su">\u2191</button>'
+        + '<button class="seg" data-mia-giu="'+k+'"'+(i===vis.length-1?' style="opacity:.3"':'')+' aria-label="Gi\u00f9">\u2193</button>'
+        + (fissa ? '<span class="seg" style="opacity:.6" aria-label="Fissa">\ud83d\udd12</span>'
+                 : '<button class="seg" data-mia-occhio="'+k+'" aria-label="Mostra o nascondi">'+(off?"\ud83d\udc41\ufe0f\u200d\ud83d\udde8\ufe0f":"\ud83d\udc41\ufe0f")+'</button>')
+        + '</div>';
+    });
+    h += '<div class="btnrow" style="margin-top:12px">'
+      + '<button class="btn line" id="home-mia-reset">Come la squadra</button>'
+      + '<button class="btn primary" id="home-mia-fatto">\u2713 Fatto</button></div>';
+    return h + '</div>';
+  }
+  function agganciaSistemaHome(g){
+    g.querySelectorAll("[data-mia-su]").forEach(function(b){ b.onclick=function(){ spostaMiaCasella(b.dataset.miaSu, false); }; });
+    g.querySelectorAll("[data-mia-giu]").forEach(function(b){ b.onclick=function(){ spostaMiaCasella(b.dataset.miaGiu, true); }; });
+    g.querySelectorAll("[data-mia-occhio]").forEach(function(b){ b.onclick=function(){ nascondiMiaCasella(b.dataset.miaOcchio); }; });
+    var r = document.getElementById("home-mia-reset");
+    if(r) r.onclick=function(){ homeMia = null; salvaHomeMia(); renderCaselleHome(); toast("Home come quella della squadra"); };
+    var f = document.getElementById("home-mia-fatto");
+    if(f) f.onclick=function(){ homeInModifica = false; renderCaselleHome(); try{ window.scrollTo(0,0); }catch(e){} };
+  }
+
   function casellaDi(k){
     var t=null; CASELLE_HOME.forEach(function(c){ if(c.k===k) t=c; });
     return t;
   }
-  function ordineHome(){
-    var o = (homeOrdine && homeOrdine.ordine && homeOrdine.ordine.length)
-          ? homeOrdine.ordine.slice() : CASELLE_HOME.map(function(c){ return c.k; });
+  /* senza argomento: la Home che vedo io (la mia, se l'ho sistemata, se no quella
+     della squadra); con argomento: quella indicata (Amministrazione passa homeOrdine) */
+  function ordineHome(fonte){
+    var src = arguments.length ? fonte : (homeMia || homeOrdine);
+    var o = (src && src.ordine && src.ordine.length)
+          ? src.ordine.slice() : CASELLE_HOME.map(function(c){ return c.k; });
     // le caselle nuove, aggiunte dopo, si accodano da sole
     CASELLE_HOME.forEach(function(c){ if(o.indexOf(c.k)<0) o.push(c.k); });
     return o.filter(function(k){ return !!casellaDi(k); });
   }
-  function spenteHome(){
-    if(homeOrdine && homeOrdine.spente) return homeOrdine.spente;
+  function spenteHome(fonte){
+    var src = arguments.length ? fonte : (homeMia || homeOrdine);
+    if(src && src.spente) return src.spente;
     return CASELLE_HOME.filter(function(c){ return c.spentaDiDefault; }).map(function(c){ return c.k; });
   }
   async function caricaOrdineHome(){
@@ -24642,6 +24969,8 @@ function fineA(){
       var c=JSON.parse(localStorage.getItem("hunter_home_ordine"));
       if(c) homeOrdine=c;
     }catch(e){}
+    try{ var cm=JSON.parse(localStorage.getItem(chiaveHomeMia())); if(cm) homeMia=cm; }catch(e){}
+    setTimeout(caricaHomeMia, 300);
     renderCaselleHome();
     /* il pallino rosso sulla casella: messaggi non letti e punti da decidere */
     setTimeout(function(){
@@ -24737,15 +25066,19 @@ function fineA(){
   function renderCaselleHome(){
     var g=document.getElementById("home-caselle");
     if(!g) return;
+    if(homeInModifica){ g.className="grid"; g.innerHTML=htmlSistemaHome(); agganciaSistemaHome(g); return; }
     var spente=spenteHome(), h="";
+    /* v3.78: meno caselle, piu' grandi (contano quelle piccole: le larghe stanno gia' su una riga) */
+    var nPiccole = ordineHome().filter(function(k){
+      var c=casellaDi(k); return c && !c.wide && casellaPerMe(c) && (casellaFissa(k) || spente.indexOf(k)<0);
+    }).length;
+    g.className = "grid" + (nPiccole<=6 ? " grandi" : (nPiccole<=9 ? " medie" : ""));
     ordineHome().forEach(function(k){
-      if(spente.indexOf(k)>=0) return;
       var c=casellaDi(k);
-      /* la casella dell'osservazione la vede chi ha il visore (e i capi):
-         agli altri non serve e occuperebbe posto */
-      if(c.soloVisore && typeof eVisore==="function" && !eVisore()) return;
-      /* la muta la vede il canaio, il capocaccia e l'admin */
-      if(c.soloCanaio && typeof vedeMutaCani==="function" && !vedeMutaCani()) return;
+      if(spente.indexOf(k)>=0 && !casellaFissa(k)) return;
+      /* osservazione (chi ha il visore), muta (canaio e capi), amministrazione (chi
+         amministra): agli altri non servono e occuperebbero posto */
+      if(!casellaPerMe(c)) return;
       var attr = c.soon ? 'data-soon="'+esc(c.soon)+'"'
                : c.azione ? 'data-azione="'+c.azione+'"'
                : 'data-go="'+c.go+'"';
@@ -24766,7 +25099,10 @@ function fineA(){
       if(k==="bacheca") h+=htmlGiornataHome();
       if(k==="battute") h+=htmlDomandeHome();
     });
+    h+='<button class="btn line" id="home-sistema" style="grid-column:1/-1; margin-top:4px; font-size:12.5px; opacity:.85">\u270f\ufe0f Sistema la tua Home</button>';
     g.innerHTML=h;
+    var bsis=document.getElementById("home-sistema");
+    if(bsis) bsis.onclick=function(){ homeInModifica=true; renderCaselleHome(); mettiGuardia(); };
     agganciaCaselleHome(g);
     if(typeof calcolaSegnaliSegn==="function") calcolaSegnaliSegn();
     g.querySelectorAll("[data-giohome]").forEach(function(b){
@@ -24795,10 +25131,11 @@ function fineA(){
   }
   /* --- la schermata in Amministrazione per riordinare --- */
   function renderAdminHome(){
-    var spente=spenteHome(), o=ordineHome();
+    var spente=spenteHome(homeOrdine), o=ordineHome(homeOrdine);
     var h='<div class="card" style="font-size:11.5px; color:var(--muted); line-height:1.6; margin-bottom:12px">'
-      + 'L\'ordine delle caselle della Home, per tutta la squadra. Le frecce le spostano, '
-      + 'l\'occhio le accende e le spegne.</div>';
+      + 'La Home di PARTENZA della squadra: la vede chi non ha sistemato la sua. Ognuno poi '
+      + 'la cambia per s\u00e9 col tasto \u270f\ufe0f in fondo alla Home. Le frecce spostano, l\'occhio spegne; '
+      + 'Battute, Cassa, Presenze, Classifica, Scadenze, Bacheca, Segnala e Guida restano sempre.</div>';
     o.forEach(function(k,i){
       var c=casellaDi(k), off=spente.indexOf(k)>=0;
       h+='<div class="canale"'+(off?' style="opacity:.5"':'')+'>'
@@ -24814,18 +25151,18 @@ function fineA(){
     return h;
   }
   function spostaCasella(k, giu){
-    var o=ordineHome(), i=o.indexOf(k);
+    var o=ordineHome(homeOrdine), i=o.indexOf(k);
     if(i<0) return;
     var j=giu ? i+1 : i-1;
     if(j<0 || j>=o.length) return;
     var t=o[i]; o[i]=o[j]; o[j]=t;
-    homeOrdine={ordine:o, spente:spenteHome()};
+    homeOrdine={ordine:o, spente:spenteHome(homeOrdine)};
     salvaOrdineHome(); renderCaselleHome(); renderAdmin();
   }
   function accendiSpegniCasella(k){
-    var spente=spenteHome().slice(), i=spente.indexOf(k);
+    var spente=spenteHome(homeOrdine).slice(), i=spente.indexOf(k);
     if(i>=0) spente.splice(i,1); else spente.push(k);
-    homeOrdine={ordine:ordineHome(), spente:spente};
+    homeOrdine={ordine:ordineHome(homeOrdine), spente:spente};
     salvaOrdineHome(); renderCaselleHome(); renderAdmin();
   }
 
