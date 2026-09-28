@@ -3812,7 +3812,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.73";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.74";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -5748,6 +5748,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(v==="bacheca") caricaBacheca();
     if(v==="squadra") caricaSquadra();
     if(v==="battute") caricaBattute();
+    /* v3.74 - Mappe e poste si RIDISEGNA ogni volta che la apri. Prima mostrava
+       l'elenco disegnato all'avvio, quando le battute e i capi non erano ancora
+       arrivati: tutte le mappe a 0 uccisioni. I dati arrivavano dopo, ma con la
+       sezione chiusa nessuno ridisegnava. */
+    if(v==="aree" && typeof renderAree==="function"){ statMappeIl = 0; renderAree(); }   /* e rilegge i capi */
     if(v==="cassa") caricaCassa();
     setTimeout(aggiornaComandiMappa, 30);
     if(v==="classifica") caricaClassifica();
@@ -14408,7 +14413,8 @@ header .menubtn{min-width:48px; min-height:48px;}
     showView("areadett");
     if(!settori.length) await caricaSettori();
     if(!tracce.length) await caricaTracce();
-    // i capi di questa mappa: stessi dati e stessa regola dell'elenco (v3.72b)
+    // i capi di questa mappa: stessi dati e stessa regola dell'elenco, riletti a ogni apertura (v3.74)
+    statMappeIl = 0;
     await caricaStatMappe();
     renderSchedaArea();
   }
