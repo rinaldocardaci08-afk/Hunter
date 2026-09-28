@@ -3318,6 +3318,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <span style="display:block; font-size:10px; color:var(--muted); margin-top:2px">tocca: centra la mappa · tieni premuto: copia</span></span>
       </button>
       <button id="mv-segnala" style="width:100%; margin-bottom:10px; background:#1f2b38; border:1px solid #3d5f80; border-radius:11px; padding:11px 12px; color:#cfe6f7; font-size:13px;">📍 Segnala un punto al capo</button>
+      <div id="mv-inposta" style="margin-bottom:10px"></div>
       <div id="mv-vicine" style="background:var(--dark2); border-radius:12px; padding:11px 13px; margin-bottom:10px;"></div>
       <div id="mv-notebox" style="background:#4a3320; border:1px solid #6b4a28; border-radius:12px; padding:12px 13px;">
         <div style="font-size:11px; color:var(--gold); margin-bottom:5px;">⚠ La tua nota di sicurezza</div>
@@ -3808,7 +3809,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.70";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.71";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -6733,6 +6734,18 @@ header .menubtn{min-width:48px; min-height:48px;}
           + (a0 ? ('<span style="display:block; font-size:11px; color:#9fc8ed">'+esc(a0.nome)+'</span>') : '');
       }
     }
+    /* il tasto "sono in posta" anche qui: e' la schermata che guarda
+       quando arriva (27/09) */
+    var boxIP = document.getElementById("mv-inposta");
+    if(boxIP){
+      var miaIP = laMiaPosta();
+      var suaQuesta = !!(miaIP && miaIP.posta_id === p.id) && !vedeComeCapo();
+      boxIP.innerHTML = suaQuesta ? htmlSonoInPosta(miaIP) : "";
+      var b1 = document.getElementById("gi-inposta");
+      if(b1) b1.onclick = function(){ segnaInPosta(true); };
+      var b2 = document.getElementById("gi-nonposta");
+      if(b2) b2.onclick = function(){ segnaInPosta(false); };
+    }
     riempiVicineVista(p, a0);
     miniReset("mv-schema");
     document.getElementById("m-vista").classList.add("show");
@@ -6758,7 +6771,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!posta || !poste) return [];
     return poste.filter(function(x){ return x.id !== posta.id && isFinite(x.lat) && isFinite(x.lng); })
       .map(function(x){
-        return {p:x, d:distM(posta, x), dir:direzioneInParole(bearing(posta, x)), chi:chiInPosta(x.id)};
+        /* al cacciatore bsAperta non e' impostata: uso la battuta in corso */
+        var bsV = bsAperta || ((typeof battutaInCorso==="function" && battutaInCorso()) || {}).id;
+        var asV = (typeof assegnazioneDi==="function") ? assegnazioneDi(x.id, bsV) : null;
+        return {p:x, d:distM(posta, x), dir:direzioneInParole(bearing(posta, x)), chi:chiInPosta(x.id),
+                inposta: !!(asV && asV.in_posta_il)};
       })
       .sort(function(u,v){ return u.d - v.d; })
       .slice(0, quante || 4);
@@ -6776,6 +6793,8 @@ header .menubtn{min-width:48px; min-height:48px;}
         + 'border-radius:50%; display:flex; align-items:center; justify-content:center; flex-shrink:0">'+(v.p.numero||"?")+'</span>'
         + '<span style="flex:1; min-width:0; font-size:12.5px; color:'+(v.chi?"var(--cream)":"var(--muted)")+'">'
         + (v.chi ? esc(v.chi) : esc(v.p.nome || ("Posta "+(v.p.numero||"")))+" (non assegnata)")+'</span>'
+        + (v.chi ? ('<span style="font-size:10.5px; color:'+(v.inposta?"#7be0a8":"var(--muted)")+'; flex-shrink:0">'
+                    + (v.inposta ? "\u2713 in posta" : "non ancora") + '</span>') : '')
         + '<span style="font-size:11px; color:#9db894; text-align:right; flex-shrink:0">'+fmtDist(v.d)+'<br>'
         + '<span style="color:var(--muted)">a '+v.dir+'</span></span>'
         + '</div>';
@@ -11389,6 +11408,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           h+='</div>';
         }
         h+='<button class="btn" id="gi-miaposta" style="margin-top:11px; background:#1D9E75; color:#fff; width:100%">🗺️ Portami alla mia posta</button>';
+        h+=htmlSonoInPosta(mia0);
         h+='<button class="btn line" id="gi-segnala" style="margin-top:7px; width:100%; border-color:#3d5f80; color:#cfe6f7">📍 Segnala un punto al capo</button>';
         h+='</div>';
       }
@@ -11752,6 +11772,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     };
     var bfr=root.querySelector("#gi-finerev");
     if(bfr) bfr.onclick=function(){ giornCorrezione=null; bsCorrezione=null; renderGiornata(); toast("Revisione chiusa"); };
+    var bip=root.querySelector("#gi-inposta");
+    if(bip) bip.onclick=function(){ segnaInPosta(true); };
+    var bnp=root.querySelector("#gi-nonposta");
+    if(bnp) bnp.onclick=function(){ segnaInPosta(false); };
     var sg1=root.querySelector("#gi-segnala"), sg2=root.querySelector("#gi-segnala2");
     if(sg1) sg1.onclick=apriSegnala;
     if(sg2) sg2.onclick=apriSegnala;
@@ -13432,6 +13456,30 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* ---- QUANTI NE SONO USCITI: lo segna chi comanda la battuta ----
      Non si assegnano a nessuno: qui si conta soltanto quello che e' successo
      sul terreno. A dare i capi ai cacciatori ci pensa il sergente dopo. */
+  /* quanti sono arrivati davvero sulla loro posta (27/09) */
+  function htmlInPostaCapo(bs){
+    if(!bs || bs.chiusa_il || !svoltaPartita(bs)) return "";
+    if(!puoGestireBattute()) return "";
+    var sue = assegnazioni.filter(function(x){ return x.battuta_svolta_id===bs.id && x.posta_id; });
+    if(!sue.length) return "";
+    var ok = sue.filter(function(x){ return !!x.in_posta_il; });
+    var manca = sue.filter(function(x){ return !x.in_posta_il; });
+    var h = '<div class="card" style="margin-bottom:10px; background:'+(manca.length?"#4a3320":"#1d3a2a")
+      + '; border:1px solid '+(manca.length?"#6b4a28":"#2f6a48")+'">';
+    h += '<div style="display:flex; align-items:center; gap:9px">'
+      + '<span style="font-size:17px">\ud83d\udccd</span>'
+      + '<span style="flex:1; font-size:13px; color:var(--cream)">In posta</span>'
+      + '<span style="font-family:\'Arial Narrow\',Impact,sans-serif; font-size:21px; color:'
+      + (manca.length?"var(--gold)":"#7be0a8")+'">'+ok.length+'<span style="font-size:13px; color:var(--muted)">/'+sue.length+'</span></span></div>';
+    if(manca.length){
+      h += '<div style="font-size:11.5px; color:#e8d9bb; line-height:1.5; margin-top:6px">\u26a0\ufe0f '
+        + manca.slice(0,4).map(function(x){ return esc(nomeIncarico(x)); }).join(", ")
+        + (manca.length>4 ? (" e altri "+(manca.length-4)) : "")
+        + ' non hanno ancora confermato: prima di sciogliere i cani, sentili.</div>';
+    }
+    h += '</div>';
+    return h;
+  }
   function htmlContiBattuta(bs){
     if(!bs) return "";
     var capo = puoGestireBattute();
@@ -13541,6 +13589,7 @@ header .menubtn{min-width:48px; min-height:48px;}
        + (senza.length ? senza.length+' present'+(senza.length===1?'e senza incarico':'i senza incarico')
                        : 'Tutti i presenti hanno un incarico')
        + '</div>';
+    h += htmlInPostaCapo(bsAperta ? battutaSvoltaDi(bsAperta) : null);
     h += htmlContiBattuta(bsAperta ? battutaSvoltaDi(bsAperta) : null);
     var scoperte = posteScoperte();
     if(scoperte.length){
@@ -13676,6 +13725,52 @@ header .menubtn{min-width:48px; min-height:48px;}
       return as && !presenteOra(as.membro_id, as.ospite_id);
     });
   }
+  /* ===== SONO IN POSTA (27/09) =====
+     Il cacciatore conferma con un tocco di essere arrivato sulla sua posta.
+     Niente GPS automatico: in quel bosco balla di 15-20 metri e le poste
+     stanno a 60-90, si segnerebbe gente ancora sul sentiero. */
+  function oraInPosta(as){
+    if(!as || !as.in_posta_il) return "";
+    return String(as.in_posta_il).slice(11,16);
+  }
+  async function segnaInPosta(si){
+    var mia = laMiaPosta();
+    if(!mia){ toast("Non hai una posta assegnata"); return; }
+    if(!navigator.onLine){ toast("Serve la rete per segnarti"); return; }
+    try{
+      var r = await sb.from("hn_assegnazioni")
+                .update({in_posta_il: si ? new Date().toISOString() : null})
+                .eq("id", mia.id).select().single();
+      if(r.error) throw r.error;
+      var k = assegnazioni.findIndex(function(x){ return x.id===mia.id; });
+      if(k>=0) assegnazioni[k] = r.data;
+      toast(si ? ("In posta \u00b7 segnato alle " + oraInPosta(r.data)) : "Conferma tolta");
+      renderGiornata();
+      if(document.getElementById("m-vista").classList.contains("show")) apriVistaPostaiolo();
+    }catch(e){
+      var m = String(e.message||e);
+      if(/in_posta_il/.test(m)) toast("Manca la colonna in_posta_il: lancia l'SQL su Supabase");
+      else toast("Non riesco: "+m);
+    }
+  }
+  function htmlSonoInPosta(mia){
+    if(!mia) return "";
+    var bs = battutaSvoltaDi(mia.battuta_svolta_id);
+    if(!bs || bs.chiusa_il || !svoltaPartita(bs)) return "";   /* solo a battuta in corso */
+    if(mia.in_posta_il){
+      return '<div style="display:flex; align-items:center; gap:11px; margin-top:9px; padding:10px 12px; border-radius:12px; '
+        + 'background:linear-gradient(90deg,#1d3a2a,#24492f); border-left:4px solid #1D9E75">'
+        + '<span style="font-size:19px; color:#7be0a8">\u2713</span>'
+        + '<span style="flex:1; min-width:0">'
+        + '<span style="display:block; font-size:14.5px; color:#fff; font-weight:700; letter-spacing:.3px">IN POSTA</span>'
+        + '<span style="display:block; font-size:11.5px; color:#b7e0a0; margin-top:2px">dalle ' + oraInPosta(mia) + '</span></span>'
+        + '<button class="chip" id="gi-nonposta" style="width:auto; padding:5px 10px; font-size:11px">annulla</button></div>';
+    }
+    return '<button class="btn" id="gi-inposta" style="margin-top:8px; width:100%; background:#3A3122; '
+      + 'border:1px dashed var(--gold); color:var(--gold); font-weight:600">\ud83d\udccd SONO IN POSTA</button>'
+      + '<div style="font-size:10.5px; color:var(--muted); text-align:center; margin-top:5px">toccalo quando sei arrivato: il capo lo vede subito</div>';
+  }
+
   function rigaPosta(p){
     var as = assegnazioneDi(p.id, bsAperta);
     var sc = (scambioDa === p.id);
@@ -13687,8 +13782,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       h += '<div class="n" style="color:#FF8A75">SCOPERTA</div>';
       h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+' \u00b7 era di '+esc(nomeIncarico(as))+', non risulta presente</div>';
     }else if(as){
-      h += '<div class="n">'+(as.ospite_id?"\ud83d\udc64 ":"")+esc(nomeIncarico(as))+'</div>';
-      h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))+'</div>';
+      var inP = !!as.in_posta_il;
+      h += '<div class="n">'+(as.ospite_id?"\ud83d\udc64 ":"")+esc(nomeIncarico(as))
+         + (inP ? ' <span style="color:#7be0a8; font-size:11px">\u25cf '+oraInPosta(as)+'</span>' : '')+'</div>';
+      h += '<div class="s">'+esc(p.nome || ("Posta "+(p.numero||"")))
+         + (inP ? '' : ' \u00b7 <span style="color:var(--muted)">non ancora in posta</span>')+'</div>';
     }else{
       var u = ultimoQui(p.id);
       h += '<div class="n" style="color:var(--muted)">libera</div>';
