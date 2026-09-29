@@ -1114,6 +1114,12 @@
 
 
 /* ================= BARRA RADIO E METEO IN HOME ================= */
+/* v3.85: le tendine degli elenchi lunghi */
+details.tendina summary{list-style:none; cursor:pointer; text-align:center; font-size:12.5px; color:var(--gold); padding:8px 0 4px; -webkit-tap-highlight-color:transparent;}
+details.tendina summary::-webkit-details-marker{display:none;}
+details.tendina .meno{display:none;}
+details.tendina[open] .piu{display:none;}
+details.tendina[open] .meno{display:inline;}
 #radiobox{margin-bottom:10px;}
 #radiobox .radio{display:flex; align-items:center; gap:12px; width:100%; text-align:left;
   background:linear-gradient(100deg,#2E5C22,#1D3D16); border:1px solid #6FBF4A55;
@@ -3835,7 +3841,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.84";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.85";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3973,6 +3979,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!navigator.onLine) return testoSenzaRete || "Serve la rete";
     var m = (e && (e.message || e.details || e.hint)) || String(e || "");
     return "Non riesco: " + (m || "errore sconosciuto");
+  }
+  /* v3.85 - ELENCHI A TENDINA: dentro una casella si vedono le prime righe; le altre
+     con "Mostra tutti", cosi' sul telefono una casella non occupa mezzo schermo */
+  function tendina(righe, quante, testo){
+    righe = righe || []; quante = quante || 5;
+    if(righe.length <= quante) return righe.join("");
+    return righe.slice(0, quante).join("")
+      + '<details class="tendina"><summary><span class="piu">\u25be ' + (testo || 'Mostra tutti') + ' (' + righe.length + ')</span>'
+      + '<span class="meno">\u25b4 Mostra meno</span></summary>' + righe.slice(quante).join("") + '</details>';
   }
   function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show");
     clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},2400); }
@@ -7343,7 +7358,15 @@ header .menubtn{min-width:48px; min-height:48px;}
     return membri.filter(function(m){ return m.ruolo===car && (!membroEdit || m.id!==membroEdit.id); }).length;
   }
 
+  /* v3.85 - COSA SI VEDE IN SQUADRA (sua regola 29/09): tutti vedono l'elenco, ma
+     delle cariche solo Capocaccia e Vicecapocaccia. Gli altri incarichi (vicecapobattuta,
+     canaio, sergente, cassiere, amministratore...) li vedono solo amministratore e capocaccia. */
+  function vedeIncarichi(){ return puoGestireSquadra(); }
+  function caricaPubblica(m){ return m && (m.ruolo==="capocaccia" || m.ruolo==="vicecapocaccia"); }
   function iconaMembro(m){
+    if(!vedeIncarichi() && !caricaPubblica(m)){
+      return '<div class="av" style="background:#4a3f2c"><svg class="ci" style="color:#b89968"><use href="#ic-persona"/></svg></div>';
+    }
     var c=CARICHE[m.ruolo];
     if(!c && m.is_admin){
       return '<div class="av carica" style="background:#4a3320; border:2px solid #E0B878">'+
@@ -7365,6 +7388,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   }
 
   function descrizioneMembro(m){
+    if(!vedeIncarichi()) return caricaPubblica(m) ? CARICHE[m.ruolo].nome : "Cacciatore";
     var parti=[];
     if(m.is_admin) parti.push("Amministratore");
     if(m.is_cassiere) parti.push("Cassiere");
@@ -7382,17 +7406,18 @@ header .menubtn{min-width:48px; min-height:48px;}
 
     if(puo) h+='<button class="btn primary" id="btn-newmembro" style="margin-bottom:14px">+ Nuovo componente</button>';
 
-    var conCarica = membri.filter(function(m){ return m.is_admin || CARICHE[m.ruolo]; });
-    var cacciatori = membri.filter(function(m){ return !CARICHE[m.ruolo] && !m.is_admin && m.tipo!=="ospite"; });
+    var conCarica = puo ? membri.filter(function(m){ return m.is_admin || CARICHE[m.ruolo]; })
+                        : membri.filter(function(m){ return caricaPubblica(m); });
+    var cacciatori = membri.filter(function(m){ return conCarica.indexOf(m)<0 && m.tipo!=="ospite"; });
     var ospiti = membri.filter(function(m){ return m.tipo==="ospite"; });
 
     function riga(m){
       var s='<div class="memrow '+(m.tipo==="ospite"?"ospite":"")+'" '+(puo?'data-mem="'+m.id+'" style="cursor:pointer"':'')+'>';
       s+=iconaMembro(m);
       s+='<div class="nm"><div class="a">'+esc(m.nome)+'</div><div class="b">'+esc(descrizioneMembro(m))+'</div></div>';
-      if(m.is_cassiere) s+='<span class="tag" style="background:#4a3320; color:#e0b878">cassiere</span>';
-      if(m.puo_mappare) s+='<span class="tag">mappe</span>';
-      if(!m.user_id && m.tipo!=="ospite") s+='<span class="tag" style="background:#4a3320; color:#e0b878">no accesso</span>';
+      if(puo && m.is_cassiere) s+='<span class="tag" style="background:#4a3320; color:#e0b878">cassiere</span>';
+      if(puo && m.puo_mappare) s+='<span class="tag">mappe</span>';
+      if(puo && !m.user_id && m.tipo!=="ospite") s+='<span class="tag" style="background:#4a3320; color:#e0b878">no accesso</span>';
       if(m.porto_armi) s+='<svg class="ci arma" style="color:#E0B878"><use href="#ic-fucile"/></svg>';
       if(puoVedereScadenzeAltrui()) s+=pallineScadenze(m);
       s+='</div>';
@@ -10464,7 +10489,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     /* le mappe */
     if(areeOrd.length){
       h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Mappe \u00b7 capi e battute</div>';
-      areeOrd.forEach(function(k){ h += barra(nomeAreaArc(k), perArea[k].capi, maxA, VERDE, perArea[k].capi+' \u00b7 '+perArea[k].battute); });
+      h += tendina(areeOrd.map(function(k){ return barra(nomeAreaArc(k), perArea[k].capi, maxA, VERDE, perArea[k].capi+' \u00b7 '+perArea[k].battute); }), 5, 'Tutte le mappe');
       h += '</div>';
     }
     /* la resa di tiro */
@@ -10498,7 +10523,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     h += '</div>';
     if(posteOrd.length){
       h += '<div class="card"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Le tue poste \u00b7 capi e volte</div>';
-      posteOrd.forEach(function(k){ h += barra(nomePosta(k), postePer[k].capi, maxP, VERDE, postePer[k].capi+' \u00b7 '+postePer[k].volte); });
+      h += tendina(posteOrd.map(function(k){ return barra(nomePosta(k), postePer[k].capi, maxP, VERDE, postePer[k].capi+' \u00b7 '+postePer[k].volte); }), 5, 'Tutte le tue poste');
       h += '</div>';
     }
     root.innerHTML = h;
@@ -19898,11 +19923,11 @@ header .menubtn{min-width:48px; min-height:48px;}
     var gioMancano = c.gio.righe.filter(function(r){ return r.manca > 0.004; });
     if(gioMancano.length){
       h+='<div class="sechead">Giornate da pagare</div>';
-      gioMancano.sort(function(a,b){ return String(a.battuta.data) < String(b.battuta.data) ? -1 : 1; }).forEach(function(r){
-        h+='<div style="display:flex; justify-content:space-between; padding:9px 11px; background:var(--dark2); border-radius:9px; margin-bottom:5px">';
-        h+='<span style="font-size:12.5px; color:var(--cream)">'+esc(fmtGiorno(daIso(String(r.battuta.data).slice(0,10))))+' <span style="color:var(--muted); font-size:11px">\u00b7 quota '+eur(r.dovuto)+'</span></span>';
-        h+='<span style="font-size:12.5px; color:#e0a0a0; font-weight:600">'+eur(r.manca)+'</span></div>';
-      });
+      h += tendina(gioMancano.sort(function(a,b){ return String(a.battuta.data) < String(b.battuta.data) ? -1 : 1; }).map(function(r){
+        return '<div style="display:flex; justify-content:space-between; padding:9px 11px; background:var(--dark2); border-radius:9px; margin-bottom:5px">'
+          + '<span style="font-size:12.5px; color:var(--cream)">'+esc(fmtGiorno(daIso(String(r.battuta.data).slice(0,10))))+' <span style="color:var(--muted); font-size:11px">\u00b7 quota '+eur(r.dovuto)+'</span></span>'
+          + '<span style="font-size:12.5px; color:#e0a0a0; font-weight:600">'+eur(r.manca)+'</span></div>';
+      }), 4, 'Tutte le giornate da pagare');
     }
 
     // IL MIO CREDITO: le spese che ho anticipato per la squadra
@@ -20039,11 +20064,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(vs.length){
       var maxV = perVoce[vs[0]];
       h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Dove vanno i soldi</div>';
-      vs.slice(0,8).forEach(function(k){ h += barra(k, perVoce[k], maxV, MATT, num(perVoce[k])); });
-      if(vs.length > 8){
-        var resto = vs.slice(8).reduce(function(s,k){ return s + perVoce[k]; }, 0);
-        h += barra("Altre voci", resto, maxV, MATT, num(resto));
-      }
+      h += tendina(vs.map(function(k){ return barra(k, perVoce[k], maxV, MATT, num(perVoce[k])); }), 5, 'Tutte le voci');
       h += '</div>';
     }
     /* 4 - quanto e' gia' entrato di quello che si aspetta (stagione) */
@@ -20095,10 +20116,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     h += '<div class="card"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Chi deve ancora pagare</div>';
     if(!deb.length) h += '<div style="font-size:12.5px; color:#7be0a8; padding:6px 0">Tutti in regola \ud83d\udc4d</div>';
     var maxD = deb.length ? deb[0].tot : 1;
-    deb.forEach(function(d){
-      h += barra(d.nome, d.tot, maxD, ARANCIO, num(d.tot))
+    h += tendina(deb.map(function(d){
+      return barra(d.nome, d.tot, maxD, ARANCIO, num(d.tot))
         + '<div style="font-size:10.5px; color:var(--muted); margin:-4px 0 6px 112px">'+esc(d.dett)+'</div>';
-    });
+    }), 5, 'Tutti quelli che devono pagare');
     h += '</div>';
     root.innerHTML = h;
   }
@@ -23279,7 +23300,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     }
     function chiaveRecord(gioco){ return "hunter_gioco_"+gioco+"_record"; }
 
-    async function salvaPunteggio(gioco, d){
+    var salvataggioGioco = null;   // v3.85: la partita che si sta salvando
+    function aggiornaDopoPartita(){
+      /* v3.85: prima la classifica dei giochi si aggiornava solo uscendo e rientrando */
+      var v = document.getElementById("v-giochi");
+      Promise.resolve(salvataggioGioco).then(function(){ if(v && v.classList.contains("active")) renderSezione(); });
+    }
+    function salvaPunteggio(gioco, d){ salvataggioGioco = salvaPunteggioVero(gioco, d); return salvataggioGioco; }
+    async function salvaPunteggioVero(gioco, d){
       var k=chiaveRecord(gioco), rec=0;
       try{ rec=parseInt(localStorage.getItem(k)||"0",10)||0; }catch(e){}
       if(d.punti>rec){ try{ localStorage.setItem(k, String(d.punti)); }catch(e2){} }
@@ -23409,9 +23437,9 @@ header .menubtn{min-width:48px; min-height:48px;}
       var htrofei='<div class="gc-coppe"><div><span>🏆🐗</span><b>'+cin+'</b></div>'+
                   '<div><span>🏆🦆</span><b>'+ana+'</b></div></div>';
       if(miei.length){
-        htrofei+='<div class="gc-elenco">'+miei.slice(0,8).map(function(t){
+        htrofei+='<div class="gc-elenco">'+tendina(miei.map(function(t){
           return '<div>'+(t.gioco==="anatra"?"🦆":"🐗")+' '+NOMEGIOCO[t.gioco]+' · '+
-                 settimanaAParole(t.sett)+' <b>'+t.punti+'</b></div>'; }).join("")+'</div>';
+                 settimanaAParole(t.sett)+' <b>'+t.punti+'</b></div>'; }), 4, 'Tutte le vittorie')+'</div>';
       }else{
         htrofei+='<div class="gc-elenco"><div>Nessun trofeo ancora. Si vince la settimana con almeno '+
                  MIN_PARTITE+' partite in quel gioco.</div></div>';
@@ -23550,10 +23578,11 @@ header .menubtn{min-width:48px; min-height:48px;}
       acceso=false;                       // ferma il disegno: niente batteria consumata a vuoto
       if(S) S.inCorso=false;
       el("gioco").classList.remove("show");
+      aggiornaDopoPartita();
     }
 
     return { apri:apri, sezione:renderSezione, chiudi:chiudi,
-             classifica:tabellaClassifica, salva:salvaPunteggio };
+             classifica:tabellaClassifica, salva:salvaPunteggio, aggiorna:aggiornaDopoPartita };
   })();
 
 
@@ -24046,6 +24075,7 @@ function fineA(){
     accesoA=false;
     if(SA) SA.inCorso=false;
     document.getElementById('gioco2').classList.remove('show');
+    if(typeof GIOCHI!=="undefined" && GIOCHI.aggiorna) GIOCHI.aggiorna();   /* v3.85 */
   }
   return { apri:apriA, chiudi:chiudiA };
 
