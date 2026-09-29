@@ -1130,6 +1130,13 @@
 #radiobox .radio .oggi{background:#7FD948; color:#0d2408; font-size:9.5px; font-weight:700;
   letter-spacing:1px; padding:3px 7px; border-radius:20px;}
 #radiobox .radio .giu{font-size:17px; opacity:.75; margin-left:6px;}
+/* v3.83: canale e soprannome grandi uguali, frequenza leggibile sotto */
+#radiobox .radio:not(.vuoto) .mid{display:block;}
+#radiobox .radio:not(.vuoto) .can{display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; font-size:30px; line-height:1;}
+#radiobox .radio:not(.vuoto) .can b{font-weight:700;}
+#radiobox .radio:not(.vuoto) .can .nick{color:#DCF5C8;}
+#radiobox .radio:not(.vuoto) .fq{display:block; margin-top:6px; font-size:18px; letter-spacing:1.5px; font-variant-numeric:tabular-nums; color:#EAF7DD;}
+#radiobox .radio:not(.vuoto) .fq small{font-size:13px; color:#A8CE92; letter-spacing:0;}
 #radiobox .radio.vuoto{background:var(--dark2); border-color:var(--dark3);
   border-left-color:var(--dark3); color:var(--muted); padding:9px 13px;}
 #radiobox .radio.vuoto .em{font-size:18px;}
@@ -2101,15 +2108,17 @@ header .menubtn{min-width:48px; min-height:48px;}
         <label class="lbl">Nome e cognome</label>
         <input id="mb-nome" type="text" class="inp" autocomplete="off" placeholder="Antonio Ferraro">
 
-        <label class="lbl">Tipo</label>
-        <div class="chips" id="mb-tipo">
+        <!-- v3.83: niente piu' "Socio / Ospite": sono tutti membri della squadra. Gli ospiti
+             (saltuari, senza app) si scrivono giornata per giornata da chi li porta.
+             La scelta resta nascosta perche' il salvataggio legge ancora "socio". -->
+        <div class="chips" id="mb-tipo" style="display:none">
           <button class="chip on" data-tipo="socio">Socio</button>
           <button class="chip" data-tipo="ospite">Ospite</button>
         </div>
 
-        <label class="lbl">Registro di caccia</label>
+        <label class="lbl">Membro della squadra</label>
         <div class="chips" id="mb-registro">
-          <button class="chip on" data-registro="membro">Membro del registro</button>
+          <button class="chip on" data-registro="membro">In registro</button>
           <button class="chip" data-registro="ospite">Fuori registro &mdash; non residente VV</button>
         </div>
         <div class="hintbox" id="mb-registro-hint" style="color:var(--muted)"></div>
@@ -3826,7 +3835,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.82";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.83";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -13514,6 +13523,23 @@ header .menubtn{min-width:48px; min-height:48px;}
         }catch(e){ avvisaErroreAssegnazione(e); }
       });
   }
+  /* v3.83 - GLI OSPITI IN POSTA (sua regola 29/09): l'ospite l'app non ce l'ha. Se il
+     capo l'ha messo in una posta, quando la battuta parte diventa PRESENTE da solo e la
+     sua posta e' verde come quella di chi ha premuto "Sono in posta". */
+  async function ospitiInPostaPresenti(bsId){
+    try{
+      var ra = await sb.from("hn_assegnazioni").select("ospite_id,posta_id").eq("battuta_svolta_id", bsId);
+      if(ra.error) return;
+      var ids = (ra.data||[]).filter(function(x){ return x.ospite_id && x.posta_id; }).map(function(x){ return x.ospite_id; });
+      if(!ids.length) return;
+      var ru = await sb.from("hn_ospiti").update({presente:true}).in("id", ids).select();
+      if(ru.error) return;
+      (ru.data||[]).forEach(function(o){
+        var k = ospiti.findIndex(function(x){ return x.id===o.id; });
+        if(k>=0) ospiti[k] = o; else if(o.battuta_id===(giornataAperta&&giornataAperta.id)) ospiti.push(o);
+      });
+    }catch(e){}
+  }
   /* la mattina: la battuta preparata PARTE (da qui si conta la durata) */
   async function partaBattuta(id){
     var bs = battuteSvolte.find(function(x){ return x.id===id; });
@@ -13523,6 +13549,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       var r = await sb.from("hn_battute_svolte").update({aperta_il:new Date().toISOString()}).eq("id", id).select().single();
       if(r.error) throw r.error;
       Object.assign(bs, r.data);
+      await ospitiInPostaPresenti(id);
       toast("Battuta partita");
       controllaBattutaGiochi();
       renderGiornata();
@@ -24013,10 +24040,17 @@ function fineA(){
         + '<span class="mid">nessun canale segnalato per oggi</span>'
         + (puoSegnalareRadio()?'<span class="giu">\u203a</span>':'')+'</button>';
     }else{
+      /* v3.83: il numero del canale e il soprannome grandi e della stessa misura; la
+         frequenza su una riga sua, leggibile: chi non ha il canale memorizzato la
+         imposta a mano sulla radio */
+      var chR = lpdCanaleDi(c);
+      var cano = chR ? ('<b>CH '+chR+'</b>' + (c.nome ? '<span class="nick">'+esc(c.nome)+'</span>' : ''))
+                     : ('<b>'+esc(c.nome || "CANALE")+'</b>');
+      var freq = chR ? (lpdMhz(chR)+' <small>MHz</small>') : esc(c.frequenza || "");
       box.innerHTML='<button class="radio" id="radio-tocca">'
         + '<span class="em">\ud83d\udcfb</span>'
-        + '<span class="mid"><span class="can">'+esc(etichettaCanale(c).titolo)+'</span>'
-        + '<span class="fq">'+esc(etichettaCanale(c).sotto)+'</span></span>'
+        + '<span class="mid"><span class="can">'+cano+'</span>'
+        + (freq ? '<span class="fq">'+freq+'</span>' : '')+'</span>'
         + '<span class="oggi">'+(radioBloccata()?'\ud83d\udd12 FISSO':'OGGI')+'</span><span class="giu" id="radio-giu">\u2304</span></button>'
         + '<div class="radio-piu" id="radio-piu"></div>';
     }
@@ -24452,7 +24486,7 @@ function fineA(){
       if(b.classList.contains("on")) reg=b.dataset.registro; });
     el.innerHTML = (reg==="ospite")
       ? "\u24d8 Non residente in provincia di Vibo Valentia: <b style=\"color:var(--gold)\">15 giornate a stagione per ogni ATC</b>, salvo autorizzazione annuale allegata nei documenti."
-      : "\u24d8 Nessun limite di giornate sul registro.";
+      : "\u24d8 Iscritto al registro della squadra: nessun limite di giornate.";
   }
 
   /* La stagione del registro va dal 1 ottobre al 31 gennaio.
