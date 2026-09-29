@@ -2110,7 +2110,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         <label class="lbl">Registro di caccia</label>
         <div class="chips" id="mb-registro">
           <button class="chip on" data-registro="membro">Membro del registro</button>
-          <button class="chip" data-registro="ospite">Ospite &mdash; non residente VV</button>
+          <button class="chip" data-registro="ospite">Fuori registro &mdash; non residente VV</button>
         </div>
         <div class="hintbox" id="mb-registro-hint" style="color:var(--muted)"></div>
 
@@ -3826,7 +3826,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.81";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.82";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -11038,6 +11038,81 @@ header .menubtn{min-width:48px; min-height:48px;}
     }catch(e){ toast("Serve la rete"); return; }
     renderGiornata();
   }
+  /* ===== GLI OSPITI (v3.82, sue regole 29/09) =====
+     L'ospite e' un cacciatore SALTUARIO portato da un membro. Lo prenota e lo segna
+     presente chi lo porta (col nome), non il capo. Paga la quota di giornata come gli
+     altri (2 euro, 10 nella quindicinale); cassiere, capo o amministratore possono
+     cambiargliela solo per lui o esentarlo. I soldi vanno in Cassa col suo nome.
+     NON entra in Classifica e non prende il -1. */
+  function mieiOspiti(){ return ospiti.filter(function(o){ return me && o.portato_da===me.membro_id; }); }
+  function puoCambiareQuotaOspite(){
+    return (typeof puoGestireCassa==="function" && puoGestireCassa()) || (typeof isCapo==="function" && isCapo()) || (typeof puoAmministrare==="function" && puoAmministrare());
+  }
+  function htmlMieiOspiti(prima){
+    var mo = mieiOspiti(), h = '';
+    h += '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">'+(prima ? 'OSPITI CHE PORTI' : 'I TUOI OSPITI DI OGGI')+'</div>';
+    mo.forEach(function(o){
+      h += '<div style="display:flex; align-items:center; gap:8px; background:var(--dark2); border:1px solid var(--dark3); border-radius:10px; padding:9px 10px; margin-bottom:6px">'
+        + '<span style="font-size:16px">\ud83d\udc64</span>'
+        + '<span style="flex:1; min-width:0"><div style="font-size:14px; color:var(--cream)">'+esc(o.nome)+'</div>'
+        + '<div style="font-size:11px; color:var(--muted)">'+(prima ? 'prenotato' : (o.presente ? 'presente' : 'non ancora segnato'))+'</div></span>';
+      if(!prima) h += '<button class="sp'+(o.presente?' si':'')+'" data-mio-osp-pres="'+o.id+'">'+(o.presente ? '\u2713 c\u2019\u00e8' : 'segna')+'</button>';
+      h += '<button class="sp" data-mio-osp-via="'+o.id+'" aria-label="Togli">\u2715</button></div>';
+    });
+    h += '<button class="btn line" id="mio-osp-nuovo" style="border-style:dashed; margin-bottom:6px">+ '+(prima ? 'Porta un ospite' : '\u00c8 venuto un ospite con te')+'</button>';
+    h += '<div style="font-size:11px; color:var(--muted); margin-bottom:13px; line-height:1.5">La quota di giornata la paga l\u2019ospite. Non entra in classifica.</div>';
+    return h;
+  }
+  function agganciaMieiOspiti(root, prima){
+    var bn = root.querySelector("#mio-osp-nuovo");
+    if(bn) bn.onclick = function(){
+      chiediTesto(prima ? "Porta un ospite" : "Ospite venuto con te", "Nome e cognome: serve per la quota e per la posta.", "", "text",
+        function(v){ if(v && v.trim()) aggiungiMioOspite(v.trim(), !prima); });
+    };
+    root.querySelectorAll("[data-mio-osp-pres]").forEach(function(b){
+      b.onclick = function(){
+        var o = ospiti.find(function(x){ return x.id===b.dataset.mioOspPres; });
+        if(o) cambiaOspite(o.id, {presente: !o.presente});
+      };
+    });
+    root.querySelectorAll("[data-mio-osp-via]").forEach(function(b){
+      b.onclick = function(){
+        var o = ospiti.find(function(x){ return x.id===b.dataset.mioOspVia; });
+        if(!o) return;
+        chiediConferma("Togliere " + o.nome + "?", "Non risulter\u00e0 pi\u00f9 fra i tuoi ospiti di questa giornata.", "Togli", function(){ togliOspite(o.id); });
+      };
+    });
+  }
+  async function aggiungiMioOspite(nome, presente){
+    if(!giornataSalvata()){ toast("La giornata non \u00e8 ancora aperta"); return; }
+    try{
+      var r = await sb.from("hn_ospiti").insert({
+        squadra_id: me.squadra_id, battuta_id: giornataAperta.id, nome: nome,
+        presente: !!presente, quota: "da_pagare", creato_da: me.membro_id, portato_da: me.membro_id
+      }).select().single();
+      if(r.error) throw r.error;
+      ospiti.push(r.data);
+      toast(nome + (presente ? " \u00e8 fra i presenti" : " prenotato con te"));
+    }catch(e){ toast("Non riesco: " + (e.message || "serve la rete")); return; }
+    renderGiornata();
+  }
+  async function togliOspite(id){
+    var pagato = movimenti.some(function(m){ return m.ospite_id===id; });
+    if(pagato){ toast("Ha gi\u00e0 un versamento in Cassa: chiedi al cassiere"); return; }
+    try{
+      var r = await sb.from("hn_ospiti").delete().eq("id", id);
+      if(r.error) throw r.error;
+      ospiti = ospiti.filter(function(x){ return x.id!==id; });
+      toast("Ospite tolto");
+    }catch(e){ toast("Non riesco: " + (e.message || "serve la rete")); return; }
+    renderGiornata();
+  }
+  function nomeChiLoPorta(o){
+    if(!o || !o.portato_da) return "";
+    var m = membri.find(function(x){ return x.id===o.portato_da; });
+    return m ? m.nome.split(" ")[0] : "";
+  }
+
   function nomeOspite(id){
     var o = ospiti.find(function(x){ return x.id===id; });
     return o ? o.nome : "ospite";
@@ -11163,14 +11238,14 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(cvFiltro2==="presenti" && !o.presente) return;
       if(cvFiltro2==="prenotati") return;
       vuoto = false;
-      h += '<div class="aderente ospite">'
+      var chiO = nomeChiLoPorta(o);
+      var qO = o.quota==="esentato" ? "esente" : (o.quota==="pagato" ? "pagato fuori cassa" : ((o.quota_importo!==null && o.quota_importo!==undefined) ? ("quota " + eur(o.quota_importo)) : "quota di giornata"));
+      h += '<div class="aderente ospite"'+(o.portato_da?' style="margin-left:16px"':'')+'>'
          + '<span class="pallino" style="background:'+(o.presente?"#5DAE6A":"#E0B878")+'"></span>'
          + '<span style="flex:1; min-width:0"><div class="nm">'+esc(o.nome)+'</div>'
-         + '<div class="ds">ospite aggiunto dal capocaccia \u00b7 '
-         + (o.quota==="pagato"?"ha pagato":(o.quota==="esentato"?"esentato":"quota da pagare"))+'</div></span>';
+         + '<div class="ds">'+(chiO ? ('ospite di '+esc(chiO)) : 'ospite aggiunto dal capocaccia')+' \u00b7 '+qO+'</div></span>';
       if(capo && !conclusa){
-        h += '<button class="sp" data-quota="'+o.id+'" style="margin-right:6px">\ud83d\udcb0</button>';
-        h += '<button class="sp'+(o.presente?" si":"")+'" data-osp="'+o.id+'">'+(o.presente?"\u2713 c\'\u00e8":"segna")+'</button>';
+        h += '<button class="sp'+(o.presente?" si":"")+'" data-osptog="'+o.id+'">'+(o.presente?"\u2713 c\'\u00e8":"segna")+'</button>';
       }
       h += '</div>';
     });
@@ -11217,21 +11292,14 @@ header .menubtn{min-width:48px; min-height:48px;}
     };
     var bfp = box.querySelector("#gi-finepres");
     if(bfp) bfp.onclick = function(){ giornCorrezione = null; renderGiornata(); toast("Correzione chiusa"); };
-    box.querySelectorAll("[data-osp]").forEach(function(b){
+    box.querySelectorAll("[data-osptog]").forEach(function(b){
       b.onclick = function(){
-        var o = ospiti.find(function(x){ return x.id===b.dataset.osp; });
+        var o = ospiti.find(function(x){ return x.id===b.dataset.osptog; });
         if(o) cambiaOspite(o.id, {presente: !o.presente});
       };
     });
-    box.querySelectorAll("[data-quota]").forEach(function(b){
-      b.onclick = function(){
-        var o = ospiti.find(function(x){ return x.id===b.dataset.quota; });
-        if(!o) return;
-        var giro = o.quota==="da_pagare" ? "pagato" : (o.quota==="pagato" ? "esentato" : "da_pagare");
-        cambiaOspite(o.id, {quota: giro});
-        toast(giro==="pagato" ? "Ha pagato" : (giro==="esentato" ? "Esentato" : "Quota da pagare"));
-      };
-    });
+    /* v3.82: niente piu' giro del 💰 (da pagare/pagato/esentato): la quota dell'ospite
+       si incassa in Cassa; quota diversa o esenzione le decidono cassiere, capo, admin */
     var ag = document.getElementById("agg-ospite");
     if(ag) ag.onclick = function(){
       chiediTesto("Ospite arrivato", "Il nome basta: non gli serve l'app, lo gestisci tu.", "", "text",
@@ -11351,7 +11419,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     // --- stato ---
     var si=adesioni.filter(function(a){return a.viene;}).length;
     var tr=adesioni.filter(function(a){return a.viene && a.tracciatore;}).length;
-    var osp=adesioni.reduce(function(s,a){return s+(a.viene?(a.ospiti||0):0);},0);
+    var osp=adesioni.reduce(function(s,a){return s+(a.viene?(a.ospiti||0):0);},0) + ospiti.length;
     var noRisp=Math.max(0, membri.filter(function(m){return m.tipo!=="ospite";}).length - adesioni.length);
 
     var nPres = adesioni.filter(function(a){return a.presente;}).length;
@@ -11764,6 +11832,10 @@ header .menubtn{min-width:48px; min-height:48px;}
       }
     }
 
+    /* v3.82 - il giorno della giornata chi porta ospiti li segna presenti lui */
+    if(!prenotabile(b) && b.id && b.stato!=="nuova" && b.stato!=="conclusa"){
+      h+='<div class="card" style="margin-bottom:12px">'+htmlMieiOspiti(false)+'</div>';
+    }
     // --- LA MIA ADESIONE (per tutti): fino al giorno prima ---
     if(prenotabile(b)){
       var mia=miaAdesione();
@@ -11774,7 +11846,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       var adesApri = !(mia && mia.viene);   // detto ci sono, la barra resta chiusa: il giro sta sotto
       if(mia){
         var rias=[];
-        if(mia.viene && (mia.ospiti||0)>0) rias.push((mia.ospiti)+' ospit'+((mia.ospiti)===1?'e':'i'));
+        var nMieiO = mieiOspiti().length + (mia.ospiti||0);
+        if(mia.viene && nMieiO>0) rias.push(nMieiO+' ospit'+(nMieiO===1?'e':'i'));
         if(mia.viene && mia.tracciatore){
           var arB=aree.find(function(x){return x.id===mia.area_tracciata;});
           rias.push(arB ? ('tracci · '+arB.nome) : 'tracciatore');
@@ -11794,20 +11867,8 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='<button class="btn '+(mia&&!mia.viene?'primary':'line')+'" data-ades="no">Non vengo</button>';
       h+='</div>';
       if(mia && mia.viene){
-        h+='<div style="font-size:11px; color:var(--muted); margin-bottom:6px">OSPITI CHE PORTI</div>';
-        h+='<div class="btnrow" style="margin-bottom:13px">';
-        h+='<select id="gi-ospiti" style="width:100%; background:var(--dark2); border:1px solid var(--dark3); color:var(--cream); border-radius:11px; padding:13px">';
-        for(var no=0; no<=6; no++){
-          h+='<option value="'+no+'"'+((mia.ospiti||0)===no?' selected':'')+'>'
-            + (no===0 ? 'Nessun ospite' : (no+' ospit'+(no===1?'e':'i')))+'</option>';
-        }
-        h+='</select>';
-        h+='<div style="display:none">';
-        h+='<button class="btn line" data-osp="-">−</button>';
-        h+='<div style="flex:2; text-align:center; padding:13px; font-size:16px; color:var(--cream); font-weight:600">'+(mia.ospiti||0)+'</div>';
-        h+='<button class="btn line" data-osp="+">+</button>';
-        h+='</div>';
-        h+='</div>';
+        /* v3.82: gli ospiti col NOME, li mette chi li porta (prima era solo un numero) */
+        h+=htmlMieiOspiti(true);
         // la spunta TRACCIATORE c'è SEMPRE: il capo conta prima i volenterosi,
         // poi decide quante aree segnalare
         h+='<div style="font-size:11px; color:var(--gold); margin-bottom:6px">FAI IL TRACCIATORE?</div>';
@@ -12017,11 +12078,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-ades]").forEach(function(b){
       b.onclick=function(){ salvaAdesione(b.dataset.ades==="si"); };
     });
-    var selOsp=root.querySelector("#gi-ospiti");
-    if(selOsp) selOsp.onchange=function(){ cambiaOspitiA(parseInt(selOsp.value,10)); };
-    root.querySelectorAll("[data-osp]").forEach(function(b){
-      b.onclick=function(){ cambiaOspiti(b.dataset.osp==="+"?1:-1); };
-    });
+    /* v3.82: prima qui si agganciavano anche i tasti "c'e'" del capo sugli ospiti
+       (stessa etichetta data-osp): toccandoli si toglieva un ospite dalla SUA prenotazione */
+    agganciaMieiOspiti(root, prenotabile(giornataAperta));
     var t=root.querySelector("#gi-tracc");
     if(t) t.onclick=function(){ toggleTracciatore(); };
     var gs=root.querySelector("#gi-segui");
@@ -19318,6 +19377,15 @@ header .menubtn{min-width:48px; min-height:48px;}
         var k = adesioni.findIndex(function(x){ return x.id===r.data.id; });
         if(k>=0) adesioni[k]=r.data;
       }
+      /* v3.82: gli ospiti prenotati da chi e' presente diventano presenti anche loro */
+      for(var io=0; io<ospiti.length; io++){
+        var og = ospiti[io];
+        if(og.presente || !og.portato_da) continue;
+        var suo = adesioni.find(function(x){ return x.membro_id===og.portato_da; });
+        if(!suo || suo.presente!==true) continue;
+        var ro = await sb.from("hn_ospiti").update({presente:true}).eq("id", og.id).select().single();
+        if(!ro.error && ro.data) ospiti[io] = ro.data;
+      }
       var rb = await sb.from("hn_battute").update({stato:"conclusa"}).eq("id", b.id).select().single();
       if(rb.error) throw rb.error;
       giornataAperta = rb.data;
@@ -19426,6 +19494,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         if(!rb.error) battute=rb.data||[];
       }
       await caricaAdesioniCassa(!isCassiere());
+      await caricaOspitiCassa();
       try{
         localStorage.setItem("hunter_cache_cassa", JSON.stringify({movimenti:movimenti, obiettivi:obiettivi, part:partObiettivo, config:config}));
       }catch(e){}
@@ -19514,6 +19583,39 @@ header .menubtn{min-width:48px; min-height:48px;}
       return {battuta:b, membro_id:mId, dovuto:dovuto, dato:dato, manca:Math.max(0, dovuto-dato)};
     });
   }
+  /* v3.82 - GLI OSPITI IN CASSA: la quota e' dell'ospite (non va sul conto di chi lo
+     porta). Vale quella della giornata, salvo quota sua (quota_importo) o esenzione
+     decise da cassiere, capo o amministratore. Il versamento ha il suo ospite_id. */
+  var cassaOspiti = [];
+  function ospitiDi(bId){
+    var out = (typeof ospiti!=="undefined" ? ospiti : []).filter(function(o){ return o.battuta_id===bId; });
+    cassaOspiti.forEach(function(o){ if(o.battuta_id===bId && !out.some(function(x){ return x.id===o.id; })) out.push(o); });
+    return out;
+  }
+  async function caricaOspitiCassa(){
+    var ids = giornateStagioneCassa().map(function(b){ return b.id; });
+    if(!ids.length || !navigator.onLine) return;
+    try{
+      var r = await sb.from("hn_ospiti").select("*").in("battuta_id", ids);
+      if(!r.error) cassaOspiti = r.data || [];
+    }catch(e){}
+  }
+  function quotaOspite(o, b){
+    if(!o || o.quota==="esentato" || o.quota==="pagato") return 0;   /* "pagato" = segnato a mano prima della v3.82, fuori cassa */
+    var q = (o.quota_importo!==null && o.quota_importo!==undefined && o.quota_importo!=="") ? Number(o.quota_importo) : NaN;
+    return isFinite(q) ? q : quotaDiGiornata(b);
+  }
+  function versatoOspite(bId, oId){
+    return somma(movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="giornata" && m.rif_id===bId && m.ospite_id===oId; }));
+  }
+  function righeOspiti(b){
+    var concl = giornataContaPresenze(b, null);
+    return ospitiDi(b.id).filter(function(o){ return (concl && o.presente) || versatoOspite(b.id, o.id) > 0; }).map(function(o){
+      var dato = versatoOspite(b.id, o.id), dovuto = quotaOspite(o, b);
+      return {battuta:b, ospite:o, membro_id:null, dovuto:dovuto, dato:dato, manca:Math.max(0, dovuto-dato)};
+    });
+  }
+
   function eSocio(mId){
     var m = membri.find(function(x){ return x.id===mId; });
     return !m || m.tipo!=="ospite";
@@ -19580,7 +19682,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     giornateStagioneCassa().forEach(function(b){
       var rr = righeGiornata(b);
       if(giornataContaPresenze(b, null)) gio.giornate++;
-      rr.forEach(function(r){ gio.dovuto += r.dovuto; gio.dato += r.dato; gio.manca += r.manca; });
+      rr.concat(righeOspiti(b)).forEach(function(r){ gio.dovuto += r.dovuto; gio.dato += r.dato; gio.manca += r.manca; });   /* v3.82: anche gli ospiti */
     });
     var obi = {dovuto:0, dato:0, manca:0, attivi:obiettivi.filter(function(o){ return !o.chiuso; }).length};
     righeObiettivi(null).forEach(function(r){ obi.dovuto += r.dovuto; obi.dato += r.dato; obi.manca += r.manca; });
@@ -19864,7 +19966,14 @@ header .menubtn{min-width:48px; min-height:48px;}
       dato += v;
       if(v < quota - 0.004){ debitori++; debito += (quota - v); }
     });
-    return {gente:gente.length, atteso:atteso, dato:dato, quota:quota,
+    /* v3.82: e gli ospiti col nome */
+    var ospG = ospitiDi(b.id).filter(function(o){ return (b.stato==="conclusa") ? o.presente : true; });
+    ospG.forEach(function(o){
+      var qo = quotaOspite(o, b), vo = versatoOspite(b.id, o.id);
+      atteso += qo; dato += vo;
+      if(vo < qo - 0.004){ debitori++; debito += (qo - vo); }
+    });
+    return {gente:gente.length + ospG.length, atteso:atteso, dato:dato, quota:quota,
             debito:debito, debitori:debitori, conclusa:b.stato==="conclusa"};
   }
 
@@ -19988,10 +20097,38 @@ header .menubtn{min-width:48px; min-height:48px;}
         }
       }
     });
+    /* v3.82 - GLI OSPITI: la quota e' loro, col loro nome */
+    var ospQ = ospitiDi(b.id).filter(function(o){ return (b.stato==="conclusa") ? o.presente : true; });
+    if(ospQ.length){
+      h+='<div class="sechead">Gli ospiti</div>';
+      ospQ.forEach(function(o){
+        var qo=quotaOspite(o, b), vo=versatoOspite(b.id, o.id), chi=nomeChiLoPorta(o);
+        var esente = qo<=0.004, ok = !esente && vo >= qo - 0.004;
+        var stato = esente ? (o.quota==="pagato" ? "pagato fuori cassa" : "esente") : (ok ? '\u2713 '+eur(vo) : (vo>0.004 ? (eur(vo)+' \u00b7 mancano '+eur(qo-vo)) : ('da pagare '+eur(qo))));
+        h+='<div class="qrow '+(ok||esente?'pagato':'')+'" data-quota-osp="'+o.id+'">';
+        h+='<div class="nm">\ud83d\udc64 '+esc(o.nome)+(chi?'<span style="display:block; font-size:10.5px; color:var(--muted)">ospite di '+esc(chi)+'</span>':'')+'</div>';
+        h+='<div class="stato '+(ok?'si':(esente?'esente':'no'))+'">'+stato+'</div>';
+        h+='</div>';
+        if(puoCambiareQuotaOspite()){
+          h+='<div style="display:flex; gap:6px; margin:-2px 0 8px 12px">'
+            +'<button class="chip" data-osp-quota="'+o.id+'" style="font-size:11.5px">\u270e quota solo per lui</button>'
+            +'<button class="chip" data-osp-esente="'+o.id+'" style="font-size:11.5px">'+(o.quota==="esentato"?"togli esenzione":"esenta")+'</button></div>';
+        }
+      });
+    }
     h+='<div class="card" style="margin-top:12px; background:#1d3a5a; font-size:11px; color:#9fc8ed; text-align:center">Tocca un nome per segnare il versamento</div>';
 
     root.innerHTML=h;
     root.querySelector("#qg-back").onclick=function(){ giornoQuote=null; renderQuoteCalendario(root); };
+    root.querySelectorAll("[data-quota-osp]").forEach(function(el){
+      el.onclick=function(){ var o=ospitiDi(b.id).find(function(x){ return x.id===el.dataset.quotaOsp; }); if(o) segnaQuotaOspite(b, o); };
+    });
+    root.querySelectorAll("[data-osp-quota]").forEach(function(el){
+      el.onclick=function(){ var o=ospitiDi(b.id).find(function(x){ return x.id===el.dataset.ospQuota; }); if(o) cambiaQuotaOspite(b, o); };
+    });
+    root.querySelectorAll("[data-osp-esente]").forEach(function(el){
+      el.onclick=function(){ var o=ospitiDi(b.id).find(function(x){ return x.id===el.dataset.ospEsente; }); if(o) salvaOspiteCassa(o, {quota: o.quota==="esentato" ? "da_pagare" : "esentato"}, o.quota==="esentato" ? "Esenzione tolta" : "Esentato"); };
+    });
     var bq = root.querySelector("#qg-quota");
     if(bq) bq.onclick=function(){ cambiaQuotaGiornata(b); };
     root.querySelectorAll("[data-quota]").forEach(function(el){
@@ -19999,6 +20136,56 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
   }
 
+  /* v3.82 - la quota dell'ospite: si incassa col suo nome */
+  async function segnaQuotaOspite(b, o){
+    if(!puoIncassareGiornata(b)){ toast("Non sei delegato per questa giornata"); return; }
+    var qo = quotaOspite(o, b), suoi = movimenti.filter(function(m){ return m.tipo==="entrata" && m.causale==="giornata" && m.rif_id===b.id && m.ospite_id===o.id; });
+    var vo = somma(suoi), rifai = function(){ renderQuoteGiorno(document.getElementById("cassasub-scroll")); };
+    if(qo <= 0.004 && !suoi.length){ toast(o.quota==="esentato" ? "\u00c8 esente" : "Niente da versare"); return; }
+    if(vo >= qo - 0.004 && suoi.length){
+      chiediConferma("Togliere il versamento?", "Si toglie "+eur(vo)+" versato da "+o.nome+".", "Togli", async function(){
+        try{
+          var d = await sb.from("hn_movimenti").delete().in("id", suoi.map(function(m){ return m.id; }));
+          if(d.error) throw d.error;
+          movimenti = movimenti.filter(function(m){ return suoi.indexOf(m)<0; });
+          toast("Versamento tolto"); rifai();
+        }catch(e){ toast("Serve la rete"); }
+      });
+      return;
+    }
+    var importo = Math.round((qo - vo)*100)/100;
+    try{
+      var r = await sb.from("hn_movimenti").insert({
+        squadra_id:me.squadra_id, tipo:"entrata", causale:"giornata", importo:importo,
+        membro_id:null, ospite_id:o.id, rif_id:b.id, data:b.data, descrizione:"Quota ospite: "+o.nome, registrato_da:me.user_id
+      }).select().single();
+      if(r.error) throw r.error;
+      movimenti.unshift(r.data);
+      toast(o.nome+": versato "+eur(importo)); rifai();
+    }catch(e){ toast("Non riesco: "+(e.message||"serve la rete")); }
+  }
+  function cambiaQuotaOspite(b, o){
+    if(!puoCambiareQuotaOspite()){ toast("Solo cassiere, capo o amministratore"); return; }
+    chiediTesto("Quota di "+o.nome+" per questa giornata", "In euro. Lascia vuoto per la quota della giornata ("+eur(quotaDiGiornata(b))+").",
+      (o.quota_importo!==null && o.quota_importo!==undefined) ? String(o.quota_importo).replace(".",",") : "", "text", function(v){
+        var t = String(v||"").trim();
+        if(!t){ salvaOspiteCassa(o, {quota_importo:null}, "Quota di giornata"); return; }
+        var val = parseFloat(t.replace(",","."));
+        if(isNaN(val) || val < 0){ toast("Importo non valido"); return; }
+        salvaOspiteCassa(o, {quota_importo:val}, "Quota di "+o.nome+": "+eur(val));
+      });
+  }
+  async function salvaOspiteCassa(o, dati, msg){
+    if(!puoCambiareQuotaOspite()){ toast("Solo cassiere, capo o amministratore"); return; }
+    try{
+      var r = await sb.from("hn_ospiti").update(dati).eq("id", o.id).select().single();
+      if(r.error) throw r.error;
+      [cassaOspiti, (typeof ospiti!=="undefined" ? ospiti : [])].forEach(function(l){ var k=l.findIndex(function(x){ return x.id===o.id; }); if(k>=0) l[k]=r.data; });
+      if(!cassaOspiti.some(function(x){ return x.id===o.id; })) cassaOspiti.push(r.data);
+      toast(msg);
+      renderQuoteGiorno(document.getElementById("cassasub-scroll"));
+    }catch(e){ toast("Non riesco: "+(e.message||"serve la rete")); }
+  }
   /* la quota di UNA giornata: di norma quella delle impostazioni, ogni 15 giorni 10 euro */
   function cambiaQuotaGiornata(b){
     if(!puoGestireCassa()){ toast("Solo il cassiere"); return; }
@@ -24353,15 +24540,16 @@ function fineA(){
                  .eq("squadra_id", me.squadra_id).lte("data", oggi)
                  .order("data",{ascending:false}).limit(12);
       if(rB.error || !rB.data || !rB.data.length) return;
-      var batt = rB.data.filter(function(b){ return dentroFinestraAtc(b.data); });
+      /* v3.82: solo giornate CONCLUSE, e la domanda a chi era PRESENTE (prima: a chi si era prenotato) */
+      var batt = rB.data.filter(function(b){ return dentroFinestraAtc(b.data) && giornataContaPresenze(b, null); });
       if(!batt.length) return;
       var ids = batt.map(function(b){ return b.id; });
 
-      var rA = await sb.from("hn_adesioni").select("battuta_id,viene")
+      var rA = await sb.from("hn_adesioni").select("battuta_id,presente")
                  .eq("membro_id", me.membro_id).in("battuta_id", ids);
       if(rA.error) return;
       var venuto={};
-      (rA.data||[]).forEach(function(a){ if(a.viene===true) venuto[a.battuta_id]=true; });
+      (rA.data||[]).forEach(function(a){ if(a.presente===true) venuto[a.battuta_id]=true; });
 
       var rP = await sb.from("hn_presenze_atc").select("battuta_id")
                  .eq("membro_id", me.membro_id).in("battuta_id", ids);
@@ -24914,6 +25102,7 @@ function fineA(){
       ["Il calendario","In <b>Battute</b> vedi le giornate della stagione. In Home, per ogni giornata aperta, arriva la domanda diretta con <b>S\u00ec</b> e <b>No</b>: il S\u00ec vale \"ci sono\"; tracciatore e ospiti si aggiungono dentro la giornata. Si prenota <b>fino al giorno prima</b>: il giorno della giornata le prenotazioni si chiudono da sole. Chi \u00e8 presente senza essersi prenotato prende <b>\u22121</b> in Classifica."],
       ["La giornata","Tocchi una giornata e la apri: chi viene, le battute della giornata, la tua posta quando il capo te la assegna."],
       ["La tua posta","Quando hai la posta compare la scheda con <b>\ud83d\uddfa\ufe0f Portami alla mia posta</b> (freccia e distanza, anche senza campo) e il tasto per dire che <b>sei in posta</b>. Se la posta secondo te va spostata: <b>\ud83d\udccd Consiglia di spostare la posta qui</b>, da dove hai i piedi, scrivendo il perch\u00e9."],
+      ["I tuoi ospiti","Se porti un ospite (un cacciatore saltuario) lo scrivi tu, col nome, nella tua prenotazione: <b>+ Porta un ospite</b>. Il giorno della caccia lo segni presente tu, dalla giornata; se arriva uno all\u2019ultimo, <b>\u00c8 venuto un ospite con te</b>. L\u2019ospite paga la sua quota di giornata e non entra in classifica."],
       ["Il capo","Crea la giornata, prepara le battute (poste messe anche la sera prima), preme <b>Parte la battuta</b>, segna col + e \u2212 i capi abbattuti appena succede, poi <b>Chiudi la battuta</b> e a fine giorno <b>Concludi la giornata</b>. I capi li segna solo lui, qui in Battute: sono quelli che contano dappertutto."],
       ["Giochi chiusi","Con una battuta partita i giochi si chiudono per tutti, capo compreso. Classifiche e trofei restano visibili."]
     ]},
@@ -24938,6 +25127,7 @@ function fineA(){
     {k:"cassa", ic:"\ud83d\udcb0", t:"Cassa", d:"Quote, spese, il tuo conto", testo:[
       ["Il tuo conto","Il cacciatore vede <b>Il mio conto</b>: in cima quanto deve alla squadra (o quanto la squadra deve a lui), sotto per ogni causale dovuto, pagato e manca, le giornate ancora da pagare, le spese che ha anticipato e quello che ha versato."],
       ["Le quote","Quota associativa: una per socio, <b>ogni stagione</b>. Quota di giornata: per ogni giornata conclusa in cui sei presente, di norma 2 \u20ac; ogni 15 giorni quella giornata costa 10 \u20ac."],
+      ["Gli ospiti","Pagano la quota di giornata come tutti, col loro nome: non va sul conto di chi li porta. Cassiere, capo o amministratore possono cambiargliela solo per lui (per esempio 2 \u20ac invece di 10) o esentarlo, dalla giornata nel calendario delle quote."],
       ["Spese anticipate","Se paghi tu una spesa per la squadra, il cassiere la registra come anticipata da te: \u00e8 un tuo credito, finch\u00e9 non te la rimborsa o la compensa con le quote che devi."],
       ["Il cassiere","Vede la cassa della squadra: in cassa ora, e per ogni causale da incassare, incassato e manca. Tocca un pannello per aprirne la schermata. Nel calendario delle quote, dentro una giornata, <b>Cambia la quota di questa giornata</b> per la giornata da 10 \u20ac; tocca un nome per segnare il versamento. In Spese sceglie chi l'ha pagata (la cassa o un cacciatore) e chiude i crediti con <b>Rimborsa</b> o <b>Compensa con le quote</b>."]
     ]},
@@ -24945,7 +25135,7 @@ function fineA(){
       ["Il riquadro","Giornate a cui sei stato presente sulle giornate fatte, capi e padelle della stagione."],
       ["La torta","Il cerchio intero sono le giornate fatte; la fetta colorata quelle in cui eri presente, con la percentuale. \u00c8 la stessa percentuale che vedi accanto al tuo nome in Classifica."],
       ["L'elenco","Ogni giornata della stagione: se c'eri, se eri tracciatore, i capi e le padelle."],
-      ["Registro ATC","Per chi caccia da ospite: le giornate per ATC dal 1 ottobre al 31 gennaio e quante ne restano. Tocca il riquadro per aggiungere quelle fatte con altre squadre."]
+      ["Registro ATC","Per chi \u00e8 Fuori registro (membro della squadra non iscritto al suo registro): le giornate per ATC dal 1 ottobre al 31 gennaio e quante ne restano. Tocca il riquadro per aggiungere quelle fatte con altre squadre."]
     ]},
     {k:"classifica", ic:"\ud83c\udfc6", t:"Classifica", d:"Punti, uccisioni, padelle, medaglie", testo:[
       ["Le linguette","<b>Generale</b> (i punti), <b>Uccisioni</b>, <b>Padelle</b>, <b>Medagliere</b>. In alto si sceglie la stagione."],
