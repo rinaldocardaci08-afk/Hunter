@@ -3835,7 +3835,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.83";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.84";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -3967,6 +3967,13 @@ header .menubtn{min-width:48px; min-height:48px;}
   /* ================= UTIL ================= */
   function esc(s){ return String(s==null?"":s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
   var toastT;
+  /* v3.84 - IL MOTIVO VERO: senza rete si dice "serve la rete"; con la rete si dice
+     cosa ha risposto il database. Prima ogni errore diventava "Serve la rete". */
+  function msgErrore(e, testoSenzaRete){
+    if(!navigator.onLine) return testoSenzaRete || "Serve la rete";
+    var m = (e && (e.message || e.details || e.hint)) || String(e || "");
+    return "Non riesco: " + (m || "errore sconosciuto");
+  }
   function toast(m){ var t=document.getElementById("toast"); t.textContent=m; t.classList.add("show");
     clearTimeout(toastT); toastT=setTimeout(function(){t.classList.remove("show");},2400); }
   function distM(a,b){
@@ -12252,16 +12259,22 @@ header .menubtn{min-width:48px; min-height:48px;}
   async function apriAdesioni(){
     if(!puoGestireBattute()){ toast("Non hai il permesso"); return; }
     try{
-      var r=await sb.from("hn_battute").insert({
-        squadra_id:me.squadra_id, data:giornataAperta.data,
-        stato:"aperta", aperta_da:me.user_id
-      }).select().single();
+      /* v3.84: se la giornata esiste gia' (stato "nuova") si apre quella, non se ne
+         crea un'altra: prima il database rifiutava e l'app diceva "Serve la rete" */
+      var esiste = giornataAperta.id ? giornataAperta : battute.find(function(x){ return String(x.data).slice(0,10)===String(giornataAperta.data).slice(0,10); });
+      var r = (esiste && esiste.id)
+        ? await sb.from("hn_battute").update({stato:"aperta", aperta_da:me.user_id}).eq("id", esiste.id).select().single()
+        : await sb.from("hn_battute").insert({
+            squadra_id:me.squadra_id, data:giornataAperta.data,
+            stato:"aperta", aperta_da:me.user_id
+          }).select().single();
       if(r.error) throw r.error;
       giornataAperta=r.data;
-      battute.push(r.data);
+      var ib = battute.findIndex(function(x){ return x.id===r.data.id; });
+      if(ib>=0) battute[ib]=r.data; else battute.push(r.data);
       await caricaAdesioni();
       toast("Adesioni aperte");
-    }catch(e){ toast("Serve la rete per aprire la giornata"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per aprire la giornata")); }
   }
 
   /* PRENOTAZIONI: si chiudono e si RIAPRONO finché la giornata non è
@@ -12323,7 +12336,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-aree-seg").classList.remove("show");
       renderGiornata();
       toast(sel.length+" area"+(sel.length===1?"":"e")+" segnalate");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* divide i tracciatori tra le aree segnalate */
@@ -12373,7 +12386,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-dividi").classList.remove("show");
       await caricaAdesioni();
       toast("Tracciatori divisi");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* --- delega della raccolta quote (solo il cassiere) --- */
@@ -12414,7 +12427,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-delega").classList.remove("show");
       renderGiornata();
       toast(id ? "Delega assegnata" : "Raccogli tu le quote");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* ---------- azioni del cacciatore ---------- */
@@ -12436,7 +12449,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       await ricontaBattuta();
       await caricaAdesioni();
       toast(viene ? "Ci sei!" : "Segnato: non vieni");
-    }catch(e){ toast("Serve la rete per rispondere"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per rispondere")); }
   }
 
   /* la tendina manda il numero preciso, non un piu' o un meno */
@@ -12449,7 +12462,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(r.error) throw r.error;
       mia.ospiti=n;
       renderGiornata();
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   async function cambiaOspiti(delta){
@@ -12460,7 +12473,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(r.error) throw r.error;
       mia.ospiti=n;
       renderGiornata();
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   async function toggleTracciatore(){
@@ -12472,7 +12485,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       mia.tracciatore=v;
       renderGiornata();
       toast(v ? "Sei tracciatore" : "Non fai il tracciatore");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* aggiorna il conteggio dei sì sulla battuta (per il calendario) */
@@ -12556,7 +12569,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       ritrovi.push(r.data);
       renderAree();
       toast("Ritrovo salvato: "+nome);
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   function puoGestireRitrovi(){ return !!(puoMappare() || puoGestireBattute()); }
@@ -16128,7 +16141,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       tracce = tracce.filter(function(x){ return x.id !== id; });
       renderTracce();
       toast("Linea eliminata");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* GUARDARE DOVE PASSA UNA LINEA, senza mettersi in cammino.
@@ -16971,7 +16984,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       baremaRighe.forEach(function(r){ barema[r.tipo] = Number(r.punti || 0); });
       var rM = await sb.from("hn_medaglie").select("*").eq("squadra_id", me.squadra_id);
       medaglie = (rM.error ? [] : (rM.data || []));
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
     renderAdmin();
   }
 
@@ -17674,7 +17687,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-barema").classList.remove("show");
       renderClassifica();
       toast("Punti aggiornati");
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   /* ===== IL MURO DELLE MEDAGLIE =====
@@ -17959,7 +17972,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         if(smBsId && !smBattute.some(function(x){ return x.id === smBsId; })) smBsId = null;
         if(!smBsId && smBattute.length === 1) smBsId = smBattute[0].id;
       }
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
     renderSergente();
   }
 
@@ -18732,7 +18745,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           }
         }
       }
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
 
@@ -19156,7 +19169,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       renderSergente();
       aggiornaBadgeMedaglie();
       toast("Medaglia assegnata");
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   async function togliMedaglia(fattoId){
@@ -19168,7 +19181,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       smFatti = smFatti.filter(function(x){ return x.id !== fattoId; });
       renderSergente();
       toast("Medaglia togliata");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   function apriVerbale(){
@@ -19192,7 +19205,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-verbale").classList.remove("show");
       renderSergente();
       toast(t ? "Verbale salvato" : "Verbale cancellato");
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   /* ===== PRESENZA REALE ALLA BATTUTA =====
@@ -19352,7 +19365,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-presenze").classList.remove("show");
       renderGiornata();
       toast("Presenze aggiornate");
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   /* --- conclusione della giornata: da qui in poi i presenti sono definitivi --- */
@@ -19421,7 +19434,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       if(battutaOggi && battutaOggi.id===rb.data.id) battutaOggi=null;
       renderGiornata();
       toast("Giornata conclusa");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* --- scelta del ritrovo per una giornata (capocaccia) --- */
@@ -19462,7 +19475,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       document.getElementById("m-scegli-rt").classList.remove("show");
       renderGiornata();
       toast(id ? "Ritrovo impostato" : "Ritrovo rimosso");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* ================= CASSA ================= */
@@ -19522,6 +19535,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       }
       await caricaAdesioniCassa(!isCassiere());
       await caricaOspitiCassa();
+      await caricaVociSpesa();
       try{
         localStorage.setItem("hunter_cache_cassa", JSON.stringify({movimenti:movimenti, obiettivi:obiettivi, part:partObiettivo, config:config}));
       }catch(e){}
@@ -19749,8 +19763,9 @@ header .menubtn{min-width:48px; min-height:48px;}
     var h='';
 
     // PANNELLO TOTALE
-    h+='<div class="cassatot">';
-    h+='<div class="lb">IN CASSA ORA</div>';
+    /* v3.84: toccando "In cassa ora" si apre il bilancio */
+    h+='<div class="cassatot" data-sub="bilancio" role="button" style="cursor:pointer">';
+    h+='<div class="lb" style="display:flex; justify-content:space-between">IN CASSA ORA <span style="color:#7be0a8">bilancio \u203a</span></div>';
     h+='<div class="vl">'+eur(cassa)+'</div>';
     h+='<div class="riga">';
     h+='<div><div class="k" style="color:#7bd3b0">incassato</div><div class="v">'+eur(entrate)+'</div></div>';
@@ -19951,10 +19966,202 @@ header .menubtn{min-width:48px; min-height:48px;}
   function apriCassaSub(k){
     cassaSub=k;
     var titoli={quote:"Quote di giornata", obiettivi:"Obiettivi",
-                associative:"Quote associative", spese:"Spese", config:"Quote e impostazioni"};
+                associative:"Quote associative", spese:"Spese", config:"Quote e impostazioni", bilancio:"Bilancio della cassa"};
     document.getElementById("cs-titolo").textContent=titoli[k]||"—";
     showView("cassasub");
     renderCassaSub();
+  }
+
+  /* ===== IL BILANCIO DELLA CASSA (v3.84, sua scelta 29/09: la proposta A piu' il
+     ponte fino a fine stagione e "chi deve ancora pagare" della B). Si apre toccando
+     "In cassa ora". Tutto dai movimenti gia' caricati: niente interrogazioni in piu'. */
+  function voceDiSpesa(m){
+    if(m.rimborso_a) return /^Compensazione /.test(m.descrizione||"") ? "Compensazioni" : "Rimborsi anticipi";
+    return (m.voce || m.descrizione || "Altro").trim() || "Altro";
+  }
+  function renderBilancio(root){
+    var cs = contiCassaSquadra();
+    var entr = totEntrate(), usc = totUscite(), cassa = inCassa();
+    var daInc = cs.ass.manca + cs.gio.manca + cs.obi.manca, prev = totProgrammate(), rimb = cs.daRimborsare;
+    var fine = cassa + daInc - prev - rimb;
+    var ROSA="#D4537E", VERDE="#1D9E75", BLU="#378ADD", ARANCIO="#EF9F27", MATT="#D85A30";
+    var num = function(n){ return eur(n); };
+    var barra = function(et, val, max, col, dx){
+      return '<div style="display:grid; grid-template-columns:104px minmax(0,1fr) 62px; gap:8px; align-items:center; font-size:12.5px; margin:7px 0">'
+        + '<span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--cream)">'+esc(et)+'</span>'
+        + '<span style="height:10px; border-radius:5px; background:var(--dark3); overflow:hidden"><i style="display:block; height:100%; width:'+Math.round(Math.max(0,Math.min(1, max>0 ? val/max : 0))*100)+'%; background:'+col+'"></i></span>'
+        + '<span style="text-align:right; color:var(--muted)">'+dx+'</span></div>';
+    };
+    var h = '';
+    /* 1 - le tre cifre */
+    h += '<div class="card" style="display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; text-align:center; margin-bottom:8px">'
+      + '<div><div style="font-size:11px; color:#7bd3b0">entrate</div><div style="font-size:17px; font-weight:700; color:#7be0a8">'+num(entr)+'</div></div>'
+      + '<div><div style="font-size:11px; color:#e0a0a0">uscite</div><div style="font-size:17px; font-weight:700; color:#e0a0a0">'+num(usc)+'</div></div>'
+      + '<div><div style="font-size:11px; color:var(--muted)">in cassa</div><div style="font-size:17px; font-weight:700; color:var(--cream)">'+num(cassa)+'</div></div></div>';
+    /* 2 - da dove arrivano i soldi */
+    var e = {ass:0, gio:0, osp:0, obi:0};
+    movimenti.forEach(function(m){
+      if(m.tipo!=="entrata") return;
+      var v = Number(m.importo)||0;
+      if(m.causale==="associativa") e.ass += v;
+      else if(m.causale==="giornata" && m.ospite_id) e.osp += v;
+      else if(m.causale==="giornata") e.gio += v;
+      else if(m.causale==="obiettivo") e.obi += v;
+    });
+    var voci = [["Associative", e.ass, ROSA], ["Giornate", e.gio, VERDE], ["Obiettivi", e.obi, ARANCIO], ["Ospiti", e.osp, BLU]];
+    var tot = voci.reduce(function(s,x){ return s + x[1]; }, 0);
+    if(tot > 0){
+      var acc = 0, grad = voci.filter(function(x){ return x[1] > 0; }).map(function(x){
+        var a = acc/tot*100; acc += x[1]; var b = acc/tot*100;
+        return x[2]+' '+a.toFixed(2)+'% '+b.toFixed(2)+'%';
+      }).join(', ');
+      h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:8px">Da dove arrivano i soldi</div>'
+        + '<div style="display:flex; align-items:center; gap:14px">'
+        + '<div role="img" aria-label="Entrate per causale" style="width:112px; height:112px; border-radius:50%; flex-shrink:0; background:conic-gradient('+grad+'); display:flex; align-items:center; justify-content:center">'
+        + '<div style="width:70px; height:70px; border-radius:50%; background:var(--dark2); display:flex; align-items:center; justify-content:center; font-size:12.5px; font-weight:700; color:var(--cream)">'+num(tot)+'</div></div>'
+        + '<div style="flex:1; min-width:0">';
+      voci.forEach(function(x){
+        if(x[1] <= 0) return;
+        h += '<div style="display:flex; align-items:center; gap:8px; font-size:12.5px; margin:6px 0">'
+          + '<span style="width:10px; height:10px; border-radius:2px; background:'+x[2]+'; flex-shrink:0"></span>'
+          + '<span style="flex:1; color:var(--cream)">'+x[0]+'</span><b style="color:var(--cream)">'+num(x[1])+'</b>'
+          + '<span style="color:var(--muted); width:34px; text-align:right">'+Math.round(x[1]/tot*100)+'%</span></div>';
+      });
+      h += '</div></div></div>';
+    }
+    /* 3 - dove vanno i soldi: le spese per voce */
+    var perVoce = {};
+    movimenti.forEach(function(m){
+      if(m.tipo!=="uscita" || m.programmata || m.anticipata_da) return;
+      var k = voceDiSpesa(m); perVoce[k] = (perVoce[k]||0) + (Number(m.importo)||0);
+    });
+    var vs = Object.keys(perVoce).sort(function(a,b){ return perVoce[b]-perVoce[a]; });
+    if(vs.length){
+      var maxV = perVoce[vs[0]];
+      h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Dove vanno i soldi</div>';
+      vs.slice(0,8).forEach(function(k){ h += barra(k, perVoce[k], maxV, MATT, num(perVoce[k])); });
+      if(vs.length > 8){
+        var resto = vs.slice(8).reduce(function(s,k){ return s + perVoce[k]; }, 0);
+        h += barra("Altre voci", resto, maxV, MATT, num(resto));
+      }
+      h += '</div>';
+    }
+    /* 4 - quanto e' gia' entrato di quello che si aspetta (stagione) */
+    var perc = function(c){ return c.dovuto > 0 ? Math.round(c.dato/c.dovuto*100) : null; };
+    var pa = perc(cs.ass), pg = perc(cs.gio), po = perc(cs.obi);
+    if(pa!==null || pg!==null || po!==null){
+      h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Gi\u00e0 entrato di quello che si aspetta \u00b7 stagione '+stagioneCorrente()+'</div>';
+      if(pa!==null) h += barra("Associative", pa, 100, ROSA, pa+'%');
+      if(pg!==null) h += barra("Giornate", pg, 100, VERDE, pg+'%');
+      if(po!==null) h += barra("Obiettivi", po, 100, ARANCIO, po+'%');
+      h += '</div>';
+    }
+    /* 5 - da oggi a fine stagione (il ponte) */
+    var scala = Math.max(1, cassa + daInc, cassa, fine);
+    var pezzo = function(et, da, a, col, dx, forte){
+      var l = Math.min(da,a)/scala*100, w = Math.abs(a-da)/scala*100;
+      return '<div style="display:grid; grid-template-columns:104px minmax(0,1fr) 62px; gap:8px; align-items:center; font-size:12.5px; margin:8px 0'+(forte?'; border-top:1px solid var(--dark3); padding-top:8px':'')+'">'
+        + '<span style="color:var(--cream)'+(forte?'; font-weight:700':'')+'">'+et+'</span>'
+        + '<span style="position:relative; height:14px"><i style="position:absolute; top:0; height:14px; border-radius:3px; left:'+Math.max(0,l).toFixed(1)+'%; width:'+Math.max(0.8,w).toFixed(1)+'%; background:'+col+'"></i></span>'
+        + '<span style="text-align:right; color:'+(forte?'var(--cream)':'var(--muted)')+(forte?'; font-weight:700':'')+'">'+dx+'</span></div>';
+    };
+    var p1 = cassa, p2 = p1 + daInc, p3 = p2 - prev, p4 = p3 - rimb;
+    h += '<div class="card" style="margin-bottom:8px"><div style="font-size:12px; color:var(--muted); margin-bottom:2px">Da oggi a fine stagione</div>'
+      + '<div style="font-size:11px; color:var(--muted); margin-bottom:6px">se tutti pagano e si pagano le spese previste</div>'
+      + pezzo("In cassa oggi", 0, p1, "#888780", num(p1))
+      + pezzo("Da incassare", p1, p2, VERDE, '+ '+num(daInc).replace("\u20ac ",""))
+      + pezzo("Spese previste", p2, p3, MATT, '\u2212 '+num(prev).replace("\u20ac ",""))
+      + pezzo("Da rimborsare", p3, p4, MATT, '\u2212 '+num(rimb).replace("\u20ac ",""))
+      + pezzo("Fine stagione", 0, p4, fine>=0 ? "#0F6E56" : "#C0392B", num(fine), true)
+      + '</div>';
+    /* 6 - chi deve ancora pagare (i soci e gli ospiti) */
+    var deb = [];
+    membri.forEach(function(m){
+      var c = contoMembro(m.id);
+      if(c.debito > 0.004){
+        var dett = [];
+        if(c.ass.manca > 0.004) dett.push('associativa '+num(c.ass.manca));
+        if(c.gio.manca > 0.004) dett.push('giornate '+num(c.gio.manca));
+        if(c.obi.manca > 0.004) dett.push('obiettivi '+num(c.obi.manca));
+        deb.push({nome:m.nome, tot:c.debito, dett:dett.join(' \u00b7 ')});
+      }
+    });
+    giornateStagioneCassa().forEach(function(b){
+      righeOspiti(b).forEach(function(r){
+        if(r.manca > 0.004) deb.push({nome:r.ospite.nome, tot:r.manca, dett:'ospite' + (nomeChiLoPorta(r.ospite) ? ' di '+nomeChiLoPorta(r.ospite) : '') + ' \u00b7 ' + fmtData2(String(b.data).slice(0,10))});
+      });
+    });
+    deb.sort(function(a,b){ return b.tot - a.tot; });
+    h += '<div class="card"><div style="font-size:12px; color:var(--muted); margin-bottom:4px">Chi deve ancora pagare</div>';
+    if(!deb.length) h += '<div style="font-size:12.5px; color:#7be0a8; padding:6px 0">Tutti in regola \ud83d\udc4d</div>';
+    var maxD = deb.length ? deb[0].tot : 1;
+    deb.forEach(function(d){
+      h += barra(d.nome, d.tot, maxD, ARANCIO, num(d.tot))
+        + '<div style="font-size:10.5px; color:var(--muted); margin:-4px 0 6px 112px">'+esc(d.dett)+'</div>';
+    });
+    h += '</div>';
+    root.innerHTML = h;
+  }
+
+  /* ===== LE VOCI DI SPESA (v3.84): un elenco che si fa da solo. La prima volta si
+     scrive la voce ("Veterinario", "Mangime per cani"...), poi si richiama con un
+     tocco. Cosi' le spese si sommano per voce nel bilancio. */
+  var speseVoci = [];
+  var sceltaVoce = null;   // {programmata}: sto scegliendo la voce di una spesa nuova
+  async function caricaVociSpesa(){
+    try{
+      var r = await sb.from("hn_spese_voci").select("*").eq("squadra_id", me.squadra_id);
+      if(!r.error) speseVoci = (r.data||[]).sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome)); });
+    }catch(e){}
+  }
+  function htmlSceltaVoce(){
+    var h = '<div class="card" style="border:1px solid var(--gold); margin-bottom:14px">';
+    h += '<div style="font-size:13px; color:var(--gold); font-weight:600; margin-bottom:4px">'+(sceltaVoce.programmata ? 'Spesa da affrontare' : 'Spesa sostenuta')+'</div>';
+    h += '<div style="font-size:12px; color:var(--muted); margin-bottom:10px">Che spesa \u00e8? Tocca la voce, o aggiungine una nuova: la ritrovi la prossima volta.</div>';
+    h += '<div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px">';
+    speseVoci.forEach(function(v){
+      h += '<button class="btn line" data-voce="'+esc(v.nome)+'" style="width:auto; flex:0 0 auto; font-size:13px; padding:9px 12px">'+esc(v.nome)+'</button>';
+    });
+    h += '<button class="btn line" id="voce-nuova" style="width:auto; flex:0 0 auto; font-size:13px; padding:9px 12px; border-style:dashed">+ Nuova voce</button>';
+    h += '</div><button class="btn line" id="voce-annulla">Annulla</button></div>';
+    return h;
+  }
+  function agganciaSceltaVoce(root){
+    root.querySelectorAll("[data-voce]").forEach(function(b){ b.onclick=function(){ continuaSpesa(b.dataset.voce); }; });
+    var n = root.querySelector("#voce-nuova");
+    if(n) n.onclick = function(){
+      chiediTesto("Nuova voce di spesa", "Per esempio: Veterinario, Mangime per cani, Birre per la casa caccia.", "", "text", async function(v){
+        var nome = String(v||"").trim().replace(/\s+/g," ");
+        if(!nome) return;
+        nome = nome.charAt(0).toUpperCase() + nome.slice(1);
+        var c = speseVoci.find(function(x){ return String(x.nome).toLowerCase()===nome.toLowerCase(); });
+        if(!c){
+          try{
+            var r = await sb.from("hn_spese_voci").insert({squadra_id:me.squadra_id, nome:nome}).select().single();
+            if(r.error) throw r.error;
+            speseVoci.push(r.data);
+            speseVoci.sort(function(a,b){ return String(a.nome).localeCompare(String(b.nome)); });
+          }catch(e){ toast("Voce non salvata nell'elenco: "+(e.message||e)); }
+        }
+        continuaSpesa(c ? c.nome : nome);
+      });
+    };
+    var a = root.querySelector("#voce-annulla");
+    if(a) a.onclick = function(){ sceltaVoce=null; renderSpese(root); };
+  }
+  function continuaSpesa(voce){
+    var prog = sceltaVoce && sceltaVoce.programmata;
+    sceltaVoce = null;
+    var passi = [{titolo:voce+" \u00b7 importo", aiuto:"In euro", obbligatorio:true}];
+    if(prog) passi.push({titolo:"Entro quando?", aiuto:"gg/mm/aaaa \u2014 lascia vuoto se non c'\u00e8 scadenza"});
+    chiediInSerie(passi, function(r){
+      if(prog){ scriviSpesa(true, voce, r[0], r[1], null, voce); return; }
+      var val = parseFloat(String(r[0]||"").replace(",","."));
+      if(!val || val<=0){ toast("Importo non valido"); return; }
+      spesaInAttesa = {desc:voce, imp:val, voce:voce};
+      renderSpese(document.getElementById("cassasub-scroll"));
+    });
+    renderSpese(document.getElementById("cassasub-scroll"));
   }
 
   function renderCassaSub(){
@@ -19965,6 +20172,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       else if(cassaSub==="associative") renderAssociative(root);
       else if(cassaSub==="spese") renderSpese(root);
       else if(cassaSub==="config") renderConfigCassa(root);
+      else if(cassaSub==="bilancio") renderBilancio(root);
     }catch(e){
       root.innerHTML='<div class="empty" style="padding-top:40px">'+
         '<div style="font-size:36px; margin-bottom:12px">⚠️</div>'+
@@ -20176,7 +20384,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           if(d.error) throw d.error;
           movimenti = movimenti.filter(function(m){ return suoi.indexOf(m)<0; });
           toast("Versamento tolto"); rifai();
-        }catch(e){ toast("Serve la rete"); }
+        }catch(e){ toast(msgErrore(e, "Serve la rete")); }
       });
       return;
     }
@@ -20249,7 +20457,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           movimenti=movimenti.filter(function(m){ return suoi.indexOf(m)<0; });
           toast("Versamento tolto");
           rifai();
-        }catch(e){ toast("Serve la rete"); }
+        }catch(e){ toast(msgErrore(e, "Serve la rete")); }
       });
       return;
     }
@@ -20265,7 +20473,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       movimenti.unshift(r.data);
       toast("Versato "+eur(importo));
       rifai();
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* --- OBIETTIVI --- */
@@ -20399,7 +20607,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       obiettivoAperto=r.data;
       renderObiettivi(document.getElementById("cassasub-scroll"));
       toast("Obiettivo creato: "+quota+"€ a testa");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   async function gestisciVersamentoObiettivo(partId){
@@ -20423,7 +20631,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         movimenti=movimenti.filter(function(mv){ return !(mv.causale==="obiettivo" && mv.rif_id===o.id && mv.membro_id===p.membro_id); });
         renderObiettivo(document.getElementById("cassasub-scroll"));
         toast("Versamento annullato");
-      }catch(e){ toast("Serve la rete"); }
+      }catch(e){ toast(msgErrore(e, "Serve la rete")); }
       return;
     }
 
@@ -20445,7 +20653,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       movimenti.unshift(r.data);
       renderObiettivo(document.getElementById("cassasub-scroll"));
       toast("Versati "+eur(val));
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   async function includiInObiettivo(membroId){
@@ -20467,7 +20675,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       partObiettivo.push(r.data);
       renderObiettivo(document.getElementById("cassasub-scroll"));
       toast("Aggiunto all'obiettivo");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   async function eliminaObiettivo(){
@@ -20481,7 +20689,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       obiettivoAperto=null;
       renderObiettivi(document.getElementById("cassasub-scroll"));
       toast("Obiettivo eliminato");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* --- QUOTE ASSOCIATIVE --- */
@@ -20524,7 +20732,7 @@ header .menubtn{min-width:48px; min-height:48px;}
           movimenti=movimenti.filter(function(m){ return suoi.indexOf(m)<0; });
           toast("Versamento tolto");
           rifai();
-        }catch(e){ toast("Serve la rete"); }
+        }catch(e){ toast(msgErrore(e, "Serve la rete")); }
       });
       return;
     }
@@ -20538,7 +20746,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       movimenti.unshift(r.data);
       toast("Quota versata: "+eur(importo));
       rifai();
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* --- SPESE ---
@@ -20557,6 +20765,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     var cr=creditiAperti();
     var h='';
 
+    if(sceltaVoce && puoGestireCassa()) h += htmlSceltaVoce();
     // CHI L'HA PAGATA? (dopo descrizione e importo)
     if(spesaInAttesa && puoGestireCassa()){
       h+='<div class="card" style="border:1px solid var(--gold); margin-bottom:14px">';
@@ -20573,7 +20782,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       h+='</div>';
     }
 
-    if(puoGestireCassa() && !spesaInAttesa){
+    if(puoGestireCassa() && !spesaInAttesa && !sceltaVoce){
       h+='<div class="btnrow" style="margin-bottom:14px">';
       h+='<button class="btn primary" id="sp-new">+ Sostenuta</button>';
       h+='<button class="btn line" id="sp-prog">+ Da affrontare</button>';
@@ -20655,9 +20864,10 @@ header .menubtn{min-width:48px; min-height:48px;}
     root.querySelectorAll("[data-pagata]").forEach(function(el){
       el.onclick=function(){
         var s=spesaInAttesa; spesaInAttesa=null;
-        if(s) scriviSpesa(false, s.desc, s.imp, null, el.dataset.pagata || null);
+        if(s) scriviSpesa(false, s.desc, s.imp, null, el.dataset.pagata || null, s.voce || s.desc);
       };
     });
+    agganciaSceltaVoce(root);
     root.querySelectorAll("[data-spesa]").forEach(function(el){
       el.onclick=function(){ eliminaSpesa(el.dataset.spesa); };
     });
@@ -20687,7 +20897,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         if(i>=0) movimenti[i]=r.data;
         renderSpese(document.getElementById("cassasub-scroll"));
         toast("Spesa pagata: esce dalla cassa");
-      }catch(e){ toast("Serve la rete"); }
+      }catch(e){ toast(msgErrore(e, "Serve la rete")); }
     });
   }
 
@@ -20698,6 +20908,11 @@ header .menubtn{min-width:48px; min-height:48px;}
 
   async function nuovaSpesa(programmata){
     if(!puoGestireCassa()) return;
+    /* v3.84: prima si sceglie la voce dall'elenco (o se ne crea una) */
+    sceltaVoce = {programmata: !!programmata};
+    spesaInAttesa = null;
+    renderSpese(document.getElementById("cassasub-scroll"));
+    return;
     var passi = [
       {titolo:(programmata?"Spesa da affrontare":"Spesa sostenuta"), aiuto:"Descrizione, es. Veterinario", obbligatorio:true},
       {titolo:"Importo", aiuto:"In euro", obbligatorio:true}
@@ -20712,7 +20927,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     });
   }
 
-  async function scriviSpesa(programmata, desc, imp, sQuando, anticipataDa){
+  async function scriviSpesa(programmata, desc, imp, sQuando, anticipataDa, voce){
     var val=parseFloat(String(imp||"").replace(",","."));
     if(!val || val<=0){ toast("Importo non valido"); return; }
     var scad=null;
@@ -20733,7 +20948,10 @@ header .menubtn{min-width:48px; min-height:48px;}
         registrato_da:me.user_id
       };
       if(anticipataDa) dati.anticipata_da = anticipataDa;
+      if(voce) dati.voce = voce;
       var r=await sb.from("hn_movimenti").insert(dati).select().single();
+      /* se la colonna "voce" non c'e' ancora (SQL non lanciato) si salva lo stesso */
+      if(r.error && voce && /voce/.test(r.error.message||"")){ delete dati.voce; r=await sb.from("hn_movimenti").insert(dati).select().single(); }
       if(r.error) throw r.error;
       movimenti.unshift(r.data);
       renderSpese(document.getElementById("cassasub-scroll"));
@@ -20824,7 +21042,7 @@ header .menubtn{min-width:48px; min-height:48px;}
         movimenti=movimenti.filter(function(x){ return legati.indexOf(x)<0; });
         renderSpese(document.getElementById("cassasub-scroll"));
         toast("Eliminata");
-      }catch(e){ toast("Serve la rete"); }
+      }catch(e){ toast(msgErrore(e, "Serve la rete")); }
     });
   }
 
@@ -20866,7 +21084,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       config=r.data;
       renderConfigCassa(document.getElementById("cassasub-scroll"));
       toast("Quota aggiornata");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* ================= LE MIE SCADENZE =================
@@ -21221,7 +21439,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       }else{
         apriDocumento(tipo);   // riapro per mostrare la foto nuova
       }
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   async function eliminaFoto(){
@@ -21238,7 +21456,7 @@ header .menubtn{min-width:48px; min-height:48px;}
       scadenze[docAperto]=r.data;
       apriDocumento(docAperto);
       toast("Foto eliminata");
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
   }
 
   /* --- il capocaccia vede i semafori della squadra --- */
@@ -21293,7 +21511,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     try{
       var r=await sb.from("hn_scadenze").select("*").eq("squadra_id",me.squadra_id);
       if(!r.error) tutte=r.data||[];
-    }catch(e){ toast("Serve la rete"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete")); }
 
     var soci=membri.filter(function(m){return m.tipo!=="ospite";});
     var res=soci.map(function(m){
@@ -24657,7 +24875,7 @@ function fineA(){
       presenzeAtc = await caricaPresenzeAtc(me.membro_id);
       controllaAvvisoAtc();
       if(document.getElementById("v-presenze").classList.contains("active")) caricaPresenze();
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   /* i documenti di un membro, per sapere se ha l'autorizzazione annuale */
@@ -25116,7 +25334,7 @@ function fineA(){
       toast("Salvato");
       atcEsterne = await caricaAtcEsterne(me.membro_id);
       caricaPresenze();
-    }catch(e){ toast("Serve la rete per salvare"); }
+    }catch(e){ toast(msgErrore(e, "Serve la rete per salvare")); }
   }
 
   /* ===== LA GUIDA A CARTELLE (v3.78, sua richiesta 28/09) =====
@@ -25163,7 +25381,7 @@ function fineA(){
       ["Le quote","Quota associativa: una per socio, <b>ogni stagione</b>. Quota di giornata: per ogni giornata conclusa in cui sei presente, di norma 2 \u20ac; ogni 15 giorni quella giornata costa 10 \u20ac."],
       ["Gli ospiti","Pagano la quota di giornata come tutti, col loro nome: non va sul conto di chi li porta. Cassiere, capo o amministratore possono cambiargliela solo per lui (per esempio 2 \u20ac invece di 10) o esentarlo, dalla giornata nel calendario delle quote."],
       ["Spese anticipate","Se paghi tu una spesa per la squadra, il cassiere la registra come anticipata da te: \u00e8 un tuo credito, finch\u00e9 non te la rimborsa o la compensa con le quote che devi."],
-      ["Il cassiere","Vede la cassa della squadra: in cassa ora, e per ogni causale da incassare, incassato e manca. Tocca un pannello per aprirne la schermata. Nel calendario delle quote, dentro una giornata, <b>Cambia la quota di questa giornata</b> per la giornata da 10 \u20ac; tocca un nome per segnare il versamento. In Spese sceglie chi l'ha pagata (la cassa o un cacciatore) e chiude i crediti con <b>Rimborsa</b> o <b>Compensa con le quote</b>."]
+      ["Il cassiere","Vede la cassa della squadra: in cassa ora, e per ogni causale da incassare, incassato e manca. Tocca un pannello per aprirne la schermata. Nel calendario delle quote, dentro una giornata, <b>Cambia la quota di questa giornata</b> per la giornata da 10 \u20ac; tocca un nome per segnare il versamento. Toccando <b>In cassa ora</b> si apre il <b>bilancio</b>: da dove arrivano i soldi, dove vanno, cosa ci sar\u00e0 a fine stagione e chi deve ancora pagare. In Spese si sceglie la <b>voce</b> (la prima volta si scrive, poi si richiama con un tocco) e chi l'ha pagata (la cassa o un cacciatore) e chiude i crediti con <b>Rimborsa</b> o <b>Compensa con le quote</b>."]
     ]},
     {k:"presenze", ic:"\ud83d\udcc5", t:"Le mie presenze", d:"Giornate, capi, registro ATC", testo:[
       ["Il riquadro","Giornate a cui sei stato presente sulle giornate fatte, capi e padelle della stagione."],
