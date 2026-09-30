@@ -382,7 +382,8 @@
   #dirtag{position:absolute; left:50%; top:62px; transform:translateX(-50%); z-index:600; display:none; background:rgba(36,29,19,.88);
     border:1px solid #378ADD; color:#cfe3fa; border-radius:14px; padding:6px 11px; font-size:12.5px; font-weight:600;
     letter-spacing:.3px; box-shadow:0 2px 8px rgba(0,0,0,.4); pointer-events:none;}
-  #compass{position:absolute; left:12px; bottom:92px; z-index:600;
+  /* v3.87: la rosa in basso a destra, con gradi e affidabilita' della bussola */
+  #compass{position:absolute; right:12px; bottom:92px; z-index:600;
     display:flex; flex-direction:column; align-items:center; gap:3px; pointer-events:auto;}
   #compass .rose{width:56px; height:56px; border-radius:50%;
     background:rgba(44,36,24,.9); border:1px solid var(--dark3);
@@ -395,6 +396,19 @@
     background:linear-gradient(180deg,var(--red) 0%,var(--red) 50%,var(--cream) 50%,var(--cream) 100%);}
   #compass .deg{font-size:10px; color:var(--cream); background:rgba(44,36,24,.9);
     padding:2px 7px; border-radius:6px; backdrop-filter:blur(4px);}
+  #compass .aff{font-size:9.5px; padding:1px 6px; border-radius:6px; display:none;}
+  #compass .aff.ok{display:block; background:#1d3a2a; color:#7be0a8;}
+  #compass .aff.inc{display:block; background:#3a3010; color:#e0b878;}
+  #compass .aff.dis{display:block; background:#4a2a20; color:#e0a0a0;}
+  #bussola-avviso{position:absolute; left:10px; right:90px; bottom:92px; z-index:590; display:none;
+    background:rgba(26,20,14,.94); border:1px solid #e0b878; color:#f1e4c6; border-radius:11px;
+    padding:8px 10px; font-size:12px; line-height:1.4;}
+  #nav-bussola{display:none; font-size:11px; color:#e0b878; margin-top:3px;}
+  /* la rosa a destra non deve coprire la ✕ del pannello "portami alla posta": sale sopra */
+  #v-mappa:has(#navpanel.show) #compass{bottom:190px;}
+  #v-mappa:has(#navpanel.show) #bussola-avviso{display:none !important;}
+  #v-mappa:has(#cruscotto.show) #compass{bottom:200px;}
+  #v-mappa:has(#cruscotto.show) #bussola-avviso{bottom:200px;}
 
   #navpanel{position:absolute; left:10px; right:10px; bottom:92px; z-index:500;
     background:rgba(44,36,24,.95); border:1px solid var(--dark3); border-radius:16px;
@@ -2263,13 +2277,16 @@ header .menubtn{min-width:48px; min-height:48px;}
           <div class="needle"></div>
         </div>
         <div class="deg" id="compass-deg">—</div>
+        <div class="aff" id="compass-aff"></div>
       </div>
+      <div id="bussola-avviso">\u26a0\ufe0f Bussola disturbata: allontana il telefono dal fucile, o muovilo a 8 per calibrarla.</div>
       <div id="navpanel">
         <div class="arrowwrap"><div id="arrow">↑</div></div>
         <div class="navinfo">
           <div class="nm" id="nav-nome">—</div>
           <div class="dist" id="nav-dist">— m</div>
           <div class="sub" id="nav-sub">verso la postazione</div>
+          <div id="nav-bussola">\u26a0\ufe0f bussola disturbata: la freccia pu\u00f2 sbagliare. Allontana il telefono dal fucile.</div>
         </div>
         <button id="navclose">✕</button>
       </div>
@@ -3849,7 +3866,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.86";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.87";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -4720,12 +4737,58 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(watchId!==null){ navigator.geolocation.clearWatch(watchId); watchId=null; }
     setGps("off","sospeso");
   }
+  /* v3.87 - LA TORCIA E L'AFFIDABILITA' DELLA BUSSOLA. L'iPhone dice di quanti gradi
+     puo' sbagliare la bussola (webkitCompassAccuracy); Android di solito no.
+     precisa (fino a 15 gradi): torcia stretta; incerta (fino a 35): torcia larga;
+     disturbata (oltre, o valore negativo): torcia larghissima e avviso "allontana il
+     telefono dal fucile". Il GPS non ne risente: la posizione resta giusta. */
+  var bussolaAcc = null, disturboDa = null;
+  function livelloBussola(){
+    if(bussolaAcc===null || !isFinite(bussolaAcc)) return "nd";
+    if(bussolaAcc < 0 || bussolaAcc > 35) return "dis";
+    return bussolaAcc > 15 ? "inc" : "ok";
+  }
+  function conoPath(ampiezza){
+    var r = 58, a = Math.max(24, Math.min(170, ampiezza)) / 2 * Math.PI/180;
+    var x1 = 60 - r*Math.sin(a), y1 = 60 - r*Math.cos(a), x2 = 60 + r*Math.sin(a), y2 = y1;
+    return "M60 60 L" + x1.toFixed(1) + " " + y1.toFixed(1) + " A" + r + " " + r + " 0 0 1 " + x2.toFixed(1) + " " + y2.toFixed(1) + " Z";
+  }
+  function htmlTorcia(){
+    return '<svg class="torcia" width="120" height="120" viewBox="0 0 120 120" aria-hidden="true" style="position:absolute;left:-38px;top:-38px;overflow:visible;pointer-events:none;opacity:0;transition:opacity .3s">'
+      + '<defs><radialGradient id="torcia-g"><stop offset="0%" stop-color="#4ea3ff" stop-opacity=".7"/><stop offset="100%" stop-color="#4ea3ff" stop-opacity="0"/></radialGradient></defs>'
+      + '<path class="cono-path" d="'+conoPath(40)+'" fill="url(#torcia-g)"/></svg>';
+  }
+  function aggiornaTorcia(dir, daGps){
+    var liv = livelloBussola();
+    var amp = daGps ? 34 : (liv==="ok" ? 34 : (liv==="inc" ? Math.max(50, bussolaAcc*2) : (liv==="dis" ? 150 : 44)));
+    document.querySelectorAll("svg.torcia").forEach(function(t){
+      if(dir===null){ t.style.opacity = 0; return; }
+      t.style.opacity = 1;
+      var p = t.querySelector(".cono-path"); if(p) p.setAttribute("d", conoPath(amp));
+    });
+    document.querySelectorAll(".torcia-rot").forEach(function(w){
+      if(dir!==null) w.style.transform = "rotate("+Math.round(dir)+"deg)";
+    });
+  }
+  function aggiornaAffidabilita(){
+    var liv = livelloBussola(), c = document.getElementById("compass-aff");
+    if(c){
+      c.className = "aff" + (liv==="nd" ? "" : " "+liv);
+      c.textContent = liv==="ok" ? "precisa" : (liv==="inc" ? ("incerta \u00b1"+Math.round(bussolaAcc)+"\u00b0") : (liv==="dis" ? "disturbata" : ""));
+    }
+    /* l'avviso compare solo se il disturbo dura: niente lampeggi a ogni scatto */
+    if(liv==="dis"){ if(!disturboDa) disturboDa = Date.now(); } else disturboDa = null;
+    var mostra = !!(disturboDa && Date.now() - disturboDa > 2000);
+    var a = document.getElementById("bussola-avviso"); if(a) a.style.display = mostra ? "block" : "none";
+    var n = document.getElementById("nav-bussola"); if(n) n.style.display = mostra ? "block" : "none";
+  }
   function initCompass(){
     function handler(e){
       var h=null;
       if(typeof e.webkitCompassHeading==="number") h=e.webkitCompassHeading;
       else if(e.absolute && typeof e.alpha==="number") h=360-e.alpha;
-      if(h!==null){ heading=h; updateNav(); updateBussola(); if(dirMoto===null) disegnaFreccia(); }
+      if(typeof e.webkitCompassAccuracy==="number") bussolaAcc = e.webkitCompassAccuracy;
+      if(h!==null){ heading=h; updateNav(); updateBussola(); aggiornaAffidabilita(); aggiornaTorcia((dirMoto!==null) ? dirMoto : heading, dirMoto!==null); if(dirMoto===null) disegnaFreccia(); }
     }
     if(typeof DeviceOrientationEvent!=="undefined" && typeof DeviceOrientationEvent.requestPermission==="function"){
       window.__askCompass=function(){
@@ -4854,7 +4917,8 @@ header .menubtn{min-width:48px; min-height:48px;}
   var dirMoto = null, posPrecDir = null;
   function iconUser(){
     return L.divIcon({className:"", iconSize:[44,44], iconAnchor:[22,22],
-      html:'<div id="udir" style="width:44px;height:44px;position:relative;transform:rotate(0deg);transition:transform .3s">'
+      html:'<div id="udir" class="torcia-rot" style="width:44px;height:44px;position:relative;transform:rotate(0deg);transition:transform .3s">'
+        + htmlTorcia()
         +'<div id="ufreccia" style="position:absolute;left:14px;top:0;width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:12px solid #378ADD;opacity:0;filter:drop-shadow(0 1px 2px rgba(0,0,0,.6))"></div>'
         +'<div style="position:absolute;left:13px;top:13px;width:18px;height:18px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'
         +'</div>'});
@@ -4882,6 +4946,7 @@ header .menubtn{min-width:48px; min-height:48px;}
     if(!el||!fr) return;
     var dir = (dirMoto!==null) ? dirMoto : ((typeof heading==="number") ? heading : null);
     var tag=document.getElementById("dirtag");
+    aggiornaTorcia(dir, dirMoto!==null);
     if(dir===null){ fr.style.opacity=0; if(tag) tag.style.display="none"; return; }
     fr.style.opacity=1; el.style.transform="rotate("+Math.round(dir)+"deg)";
     if(tag){
@@ -6983,8 +7048,11 @@ header .menubtn{min-width:48px; min-height:48px;}
            '<div style="position:absolute;top:36px;left:50%;transform:translateX(-50%);white-space:nowrap;background:#2C2418;color:#F0E6D2;font:10px sans-serif;padding:2px 6px;border-radius:5px;">la tua</div>'}),zIndexOffset:800}).addTo(mvLayer);
     // l'utente
     if(pos){
-      L.marker([pos.lat,pos.lng],{icon:L.divIcon({className:"",iconSize:[16,16],iconAnchor:[8,8],
-        html:'<div style="width:16px;height:16px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div>'}),zIndexOffset:900}).addTo(mvLayer);
+      /* v3.87: anche qui la torcia, che mostra dove stai guardando */
+      L.marker([pos.lat,pos.lng],{icon:L.divIcon({className:"",iconSize:[44,44],iconAnchor:[22,22],
+        html:'<div class="torcia-rot" style="width:44px;height:44px;position:relative;transition:transform .3s">'+htmlTorcia()
+          +'<div style="position:absolute;left:11px;top:11px;width:16px;height:16px;border-radius:50%;background:#378ADD;border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.5)"></div></div>'}),zIndexOffset:900}).addTo(mvLayer);
+      setTimeout(function(){ aggiornaTorcia((dirMoto!==null) ? dirMoto : ((typeof heading==="number") ? heading : null), dirMoto!==null); }, 30);
     }
     // inquadro la posta e i suoi vicini, ZOOMATO
     var punti=[[p.lat,p.lng]].concat(vic.map(function(v){return [v.p.lat,v.p.lng];}));
