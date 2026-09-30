@@ -836,6 +836,14 @@
     border:1px solid #3d5f80; border-radius:16px; padding:11px 13px; text-align:left;
     cursor:pointer; margin:2px 0 6px;}
   .giohome .tt{font-size:13.5px; color:#cfe6f7; font-weight:600; margin-bottom:8px;}
+  /* v3.86: il conto alla rovescia, cifre rosse da timer */
+  .giohome .cdown{background:#0b0f14; border:1px solid #2a3642; border-radius:12px; padding:10px 6px 8px; margin-bottom:10px; text-align:center;}
+  .giohome .cdown .cf{display:flex; justify-content:center; align-items:flex-start; gap:3px; font-family:'Courier New',ui-monospace,monospace; font-weight:700;}
+  .giohome .cdown .g{display:flex; flex-direction:column; align-items:center; min-width:58px;}
+  .giohome .cdown .n{font-size:40px; line-height:1; color:#ff3b30; text-shadow:0 0 10px rgba(255,59,48,.55); letter-spacing:2px; font-variant-numeric:tabular-nums;}
+  .giohome .cdown .s{font-size:38px; line-height:1; color:#ff3b30; opacity:.8;}
+  .giohome .cdown .u{font-size:10px; color:#8aa4b8; letter-spacing:1.5px; margin-top:4px; font-family:system-ui,sans-serif; font-weight:500;}
+  .giohome .cdown .sub{font-size:11.5px; color:#9fb8cc; margin-top:7px;}
   .giohome .rr{display:flex; gap:8px;}
   .giohome .q{flex:1; display:flex; align-items:center; gap:7px; border-radius:11px;
     padding:8px 10px; background:rgba(0,0,0,.22);}
@@ -3841,7 +3849,7 @@ header .menubtn{min-width:48px; min-height:48px;}
   "use strict";
 
   /* ================= CONFIG ================= */
-  var APP_VERSION = "v3.85";   // ← aggiornare a ogni deploy
+  var APP_VERSION = "v3.86";   // ← aggiornare a ogni deploy
   var SUPABASE_URL = "https://vtcgicgznwpsezymsmyu.supabase.co";
   var SUPABASE_KEY = "sb_publishable_LuF-dkRNDIR0kP66Ng0xsA_lDwCoIMW";
   var sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -25535,6 +25543,10 @@ function fineA(){
     return false;
   }
   function casellaPerMe(c){
+    /* v3.86 - Mappa e Il mio mezzo stanno gia' nella barra in basso: in Home non si
+       ripetono. Sergente Mario lo vedono solo l'amministratore e il sergente. */
+    if(c.k==="mappa" || c.k==="mezzo") return false;
+    if(c.k==="sergente" && !(me && me.is_admin===true) && !(typeof isSergente==="function" && isSergente())) return false;
     if(c.soloVisore && typeof eVisore==="function" && !eVisore()) return false;
     if(c.soloCanaio && typeof vedeMutaCani==="function" && !vedeMutaCani()) return false;
     if(c.k==="admin" && typeof puoAmministrare==="function" && !puoAmministrare()) return false;
@@ -25680,6 +25692,28 @@ function fineA(){
      Due momenti: PRENOTATO, quanti hanno detto si' sui componenti della
      squadra; PRESENTE, quanti sono arrivati sui prenotati. Il secondo numero
      compare solo il giorno della battuta, quando le presenze hanno senso. */
+  var cdTimer = null;
+  function avviaContoAllaRovescia(){
+    var due = function(n){ return (n<10?'0':'') + n; };
+    function tic(){
+      var box = document.querySelectorAll("[data-cd-fine]");
+      if(!box.length){ clearInterval(cdTimer); cdTimer = null; return; }
+      var arrivato = false;
+      box.forEach(function(b){
+        var sec = Math.max(0, Math.floor((Number(b.dataset.cdFine) - Date.now())/1000));
+        if(sec <= 0) arrivato = true;
+        var h = b.querySelector(".cd-h"), m = b.querySelector(".cd-m"), s = b.querySelector(".cd-s");
+        var th = String(Math.floor(sec/3600)), tm = due(Math.floor(sec%3600/60)), ts = due(sec%60);
+        if(h.textContent !== (th.length<2 ? '0'+th : th)) h.textContent = th.length<2 ? '0'+th : th;
+        if(m.textContent !== tm) m.textContent = tm;
+        s.textContent = ts;
+      });
+      /* a mezzanotte la cella torna quella del giorno di caccia */
+      if(arrivato){ clearInterval(cdTimer); cdTimer = null; setTimeout(function(){ try{ renderCaselleHome(); }catch(e){} }, 1200); }
+    }
+    tic();
+    if(!cdTimer) cdTimer = setInterval(tic, 1000);
+  }
   function htmlGiornataHome(){
     var oggi = oggiISO();
     var b = (battute||[]).find(function(x){
@@ -25698,6 +25732,18 @@ function fineA(){
     var h = '<div class="giohome" data-giohome="'+dataB+'">';
     h += '<div class="tt">'+esc(fmtGiorno(daIso(dataB)).replace(/^./,function(c){return c.toUpperCase();}))
        + (eOggi ? ' \u00b7 oggi' : '') + '</div>';
+    /* v3.86 - IL CONTO ALLA ROVESCIA (sua richiesta): fino alle 24 del giorno prima,
+       perche' dalle 00:01 si e' in giornata di caccia. Nessun'ora di ritrovo: ognuno
+       parte a un'ora diversa secondo il suo compito. Ogni secondo cambiano SOLO le cifre. */
+    if(!eOggi){
+      var finoA = daIso(dataB).getTime();   /* mezzanotte che apre la giornata */
+      h += '<div class="cdown" data-cd-fine="'+finoA+'" role="timer" aria-label="Tempo alla giornata di caccia">'
+        + '<div class="cf"><div class="g"><span class="n cd-h">--</span><span class="u">ORE</span></div><span class="s">:</span>'
+        + '<div class="g"><span class="n cd-m">--</span><span class="u">MINUTI</span></div><span class="s">:</span>'
+        + '<div class="g"><span class="n cd-s">--</span><span class="u">SECONDI</span></div></div>'
+        + '<div class="sub">alla giornata di caccia</div></div>';
+      setTimeout(avviaContoAllaRovescia, 0);
+    }
     h += '<div class="rr">';
     h += '<div class="q blu"><span class="e">\ud83d\udcc5</span><span class="l">Prenotato</span>'
        + '<span class="v">'+pren+'<i>/'+quanti+'</i></span></div>';
